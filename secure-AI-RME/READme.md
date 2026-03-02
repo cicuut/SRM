@@ -5,7 +5,7 @@ Backend : Python with Flask framework
 
 # Project Structure
 
-'''
+   ```bash
 CAPSTONE
 ├── backend/
 | └── app/
@@ -31,6 +31,7 @@ CAPSTONE
 ├── services/
 |
 └── middleware.ts
+```
 
 # Prerequisites
 
@@ -58,7 +59,7 @@ CAPSTONE
 
        # Run Server
        python app.py
-   ```
+ ```
 
 2. Frontend Setup
    ```bash
