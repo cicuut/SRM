@@ -3,9 +3,10 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Image from 'next/image';
-import { emit } from "process";
 import styles from './signin.module.css';
 import Link from "next/link";
+import Swal from 'sweetalert2';
+import Cookies from 'js-cookie';
 
 const Signin = () => {
     const [email, setEmail] = useState("");
@@ -15,8 +16,75 @@ const Signin = () => {
     const [fullName, setFullName] = useState("");
     const router = useRouter();
 
-    const hanleSignIn = () =>{
-        router.push('/dashboard')
+    const [error, setError] = useState("");
+    const [loading, setLoading] = useState(false);
+
+    const handleRegister = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError("");
+        setLoading(true);
+
+
+        if (password !== confirmPassword) {
+            Swal.fire({
+                title: "Try again",
+                text: "Passwords don not match",
+                icon: "warning",
+                timer: 2000,
+                confirmButtonColor: "#739072" 
+            });
+            setError("Passwords do not match!");
+            setLoading(false);
+            return;
+        }
+
+        try {
+            const response = await fetch('http://localhost:5000/api/auth/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    fullname: fullName,
+                    email: email,
+                    password: password,
+                    strnumber: strNumber
+                }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                Swal.fire({
+                    title: "Registration Successful",
+                    text: "User registered successfully!",
+                    icon: "success",
+                    timer: 2000,
+                    confirmButtonColor: "#739072" 
+                });
+
+                if (data.user_id) {
+                    Cookies.set('access_token', data.access_token, { expires: 1 });
+                    localStorage.setItem('temp_user_id', data.user_id);
+                    router.push('/register-clinic');
+                }
+            } else {
+                setLoading(false);
+                Swal.fire({
+                    title: "Registration Failed",
+                    text: data.msg || "Something went wrong",
+                    icon: "error",
+                    confirmButtonColor: "#739072" ,
+                    timer: 2000
+                });
+                setError(data.msg);
+            }
+        } catch (err) {
+            setError("Cannot connect to server. Is Flask running?");
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
     }
 
     return (
@@ -65,13 +133,13 @@ const Signin = () => {
                             onChange={(e) => setStrNumber(e.target.value)}
                         /></div>
                     <p className="text-[#766E6E]">Already have an account? <Link href="/login"><u>Click Here</u></Link></p>
-                    <button onClick={hanleSignIn} className="bg-[#739072] text-[#FFF] font-poppins font-bold py-2 px-4 w-30 rounded-[30px] cursor-pointer">Sign In</button>
+                    <button onClick={handleRegister} className="bg-[#739072] text-[#FFF] font-poppins font-bold py-2 px-4 w-35 rounded-[30px] cursor-pointer">{loading ? "Registering..." : "Sign Up"}</button>
                     <div className="flex  w-full justify-center items-center gap-3">
                         <div className="w-30 h-0.5 bg-black "></div>
                         <p className="text-[#766E6E]">or Sign in with</p>
                         <div className="w-30 h-0.5 bg-black"></div>
                     </div>
-                    <button  className="mt-10 flex gap-2 w-40 items-center justify-center border-[2] py-2 px-2 rounded-[30px]">
+                    <button className="mt-10 flex gap-2 w-40 items-center justify-center border-[2] py-2 px-2 rounded-[30px]">
                         <Image src="/google-icon.svg" alt="Google" width={25} height={25} />
                         <p>Google</p>
                     </button>

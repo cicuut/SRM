@@ -1,0 +1,27 @@
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+from flask_jwt_extended import JWTManager
+from flask_cors import CORS
+from datetime import timedelta
+import os
+from dotenv import load_dotenv
+
+db = SQLAlchemy()
+
+def create_app():
+    load_dotenv()
+    app = Flask(__name__)
+
+    CORS(app) 
+    
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+    app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET')
+    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=1)
+    
+    db.init_app(app)
+    jwt = JWTManager(app)
+    
+    from .routes.auth import auth_bp
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    
+    return app

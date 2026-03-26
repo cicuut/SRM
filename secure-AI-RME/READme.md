@@ -21,7 +21,11 @@ CAPSTONE
 |
 ├── register/
 | ├── page.tsx
-| └── login.module.css
+| └── signin.module.css
+|
+├── create-clinic/
+| ├── page.tsx
+| └── registerClinic.module.css
 |
 ├── glocal.css
 ├── layout.tsx
@@ -51,11 +55,8 @@ CAPSTONE
        # Activate it (Windows)
        venv\Scripts\activate
 
-       # Activate it (Mac/Linux)
-       source venv/bin/activate
-
        # Install dependencies
-       pip install flask
+       pip install -r requirements.txt
 
        # Run Server
        python app.py
@@ -65,5 +66,5 @@ CAPSTONE
    ```bash
       cd secure-AI-RME/frontend/medical-record
       npm install
-     npm run dev
+      npm run dev
    ```
