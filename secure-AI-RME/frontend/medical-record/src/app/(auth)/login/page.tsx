@@ -36,11 +36,13 @@ const Login = () => {
             const data = await response.json();
 
             if (response.ok) {
-                const userId = data.user?.id || data.user_id;
+                const userData = data.user 
 
-                if (userId) {
+                if (userData) {
                     Cookies.set('access_token', data.access_token, { expires: 1 });
-                    localStorage.setItem('temp_user_id', data.user_id);
+                    localStorage.setItem('temp_user_id', data.user.id);
+                    localStorage.setItem('fullname', data.user.fullname);
+                    localStorage.setItem('user_role', data.user.role);
 
                     Swal.fire({
                         title: "Login Successful",

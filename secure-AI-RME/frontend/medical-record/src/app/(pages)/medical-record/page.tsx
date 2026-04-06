@@ -1,19 +1,153 @@
 'use client';
-import React from "react";
 import { useState } from "react";
-import { emit } from "process";
-import Sidebar from "@/components/sidebar";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faSearch, faFilter, faPlus, faTimes, faAngleDown } from "@fortawesome/free-solid-svg-icons";
+import { useRouter } from "next/dist/client/components/navigation";
+import Swal from "sweetalert2";
+
 const MedicalRecord = () => {
-   
+    const [loading, setLoading] = useState(false);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false); 
+    const [selectedType, setSelectedType] = useState("Select a type"); 
+    const router = useRouter();
+
+    const handleSubmitRecordType = (e: React.FormEvent) => {
+        e.preventDefault();
+    
+        setIsModalOpen(false);
+        setIsDropdownOpen(false);
+        setSelectedType("Select a type");
+         setLoading(true);
+        switch (selectedType) {
+            case "Pregnancy Record":
+                router.push('/medical-record/pregnancy-record?type=Kehamilan');
+                break;
+            case "Family Planning Record":
+                router.push('/medical-record/family-planning-record?type=Keluarga Berencana');
+                break;
+            case "General Record":
+                router.push('/medical-record/general-record?type=Umum');
+                break;
+            case "Immunization Record":
+                router.push('/medical-record/immunization-record?type=Imunisasi');
+                break;
+            case "Deliver Record":
+                router.push('/medical-record/delivery-record?type=Persalinan');
+                break;
+            default:
+                Swal.fire({
+                    title: "Process Failed",
+                    text: "Please select a record type",
+                    icon: "error",
+                    confirmButtonColor: "#739072",
+                    timer: 2000
+                });
+        }
+    };
+
 
     return (
-        <div className="min-h-screen flex bg-[#FDFEF9]">
-         <Sidebar/>
-         <div className="flex-1 flex flex-col ml-70 py-10">
-          this is medical record content
-         </div>
-        </div>
+        <div>
+            <div className="flex-1 flex flex-col  w-full">
+                <div className="w-full flex items-center py-6 gap-70  justify-between">
+                    <div className="relative flex-1 outline outline-1 outline-gray-300 rounded-lg px-4 py-2 shadow-sm transition-all focus-within:border-[#739072]">
+                        <FontAwesomeIcon icon={faSearch} className="text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 w-47" />
+                        <form>
+                            <input type="text" placeholder="Search for a record" className="w-full focus:outline-none pl-8 text-gray-700 placeholder-gray-400" />
+                        </form>
+                    </div>
+                    <div className=" flex flex-row items-center gap-5 shrink-0">
+                        <div className="flex flex-row items-center gap-x-[4] outline outline-1 outline-black-200 rounded-[50px] px-9 py-2 bg-white shadow-sm transition-all focus-within:border-[#739072]">
+                            <button>RM Type</button>
+                            <FontAwesomeIcon icon={faFilter} className="text-black-400  " />
+                        </div>
+
+                        <div onClick={() => setIsModalOpen(true)} className="cursor-pointer flex flex-row items-center gap-x-[4]  rounded-[50px] px-5 py-2 bg-[#86A789] shadow-sm transition-all focus-within:border-[#739072]">
+                            <FontAwesomeIcon icon={faPlus} className="text-black-400" />
+                            <span className="font-bold">Add a record</span>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+            {isModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+
+                    <div className="flex flex-col gap-y-6 bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 h-80 pb-8">
+
+
+                        <div className="bg-[#739072] p-4 text-white flex justify-between items-center">
+                            <h2 className="text-xl font-bold">Select Record Type</h2>
+                            <button onClick={() => {
+                                setIsModalOpen(false);
+                                setIsDropdownOpen(false);
+                                setSelectedType("Select a type");
+                            }} className="cursor-pointer hover:scale-110 transition">
+                                <FontAwesomeIcon icon={faTimes} className="w-5" />
+                            </button>
+                        </div>
+
+
+                        <form onSubmit={handleSubmitRecordType} className="relative w-full px-8 flex flex-col gap-6">
+
+                            <div className="relative w-full">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                                    className="flex flex-row items-center justify-between w-full border border-gray-300 rounded-full px-6 py-3 bg-white shadow-sm hover:bg-gray-50 transition-all text-gray-700 font-medium"
+                                >
+                                    <span>{selectedType}</span>
+                                    <FontAwesomeIcon icon={faAngleDown} className={`text-gray-400 w-3 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                                </button>
+
+                                {isDropdownOpen && (
+                                    <ul className="absolute left-0 mt-2 w-full bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-y-auto max-h-30 animate-in fade-in slide-in-from-top-2 duration-200">
+                                        {['Pregnancy', 'Family Planning', 'General', 'Immunization', 'Deliver'].map((item) => (
+                                            <li
+                                                key={item}
+                                                onClick={() => {
+                                                    setSelectedType(item + " Record");
+                                                    setIsDropdownOpen(false);
+                                                }}
+                                                className="px-4 py-3 hover:bg-[#D2E3C8] hover:text-[#4F6F52] cursor-pointer transition-colors text-sm border-b last:border-0 border-gray-50"
+                                            >
+                                                {item} Record
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </div>
+
+                            <div className="flex justify-center gap-4 mt-4">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsModalOpen(false);
+                                        setIsDropdownOpen(false);
+                                        setSelectedType("Select a type");
+                                    }}
+                                    className="px-8 py-2 border border-gray-300 rounded-full hover:bg-gray-100 transition font-medium text-gray-600"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-8 py-2 bg-[#739072] text-white rounded-full hover:bg-[#4F6F52] shadow-lg transition font-bold"
+                                >
+                                    Save Record
+                                </button>
+                            </div>
+                        </form>
+
+                    </div>
+                </div>
+            )
+            }
+        </div >
     )
 
+
 }
-export default  MedicalRecord;
+
+export default MedicalRecord;

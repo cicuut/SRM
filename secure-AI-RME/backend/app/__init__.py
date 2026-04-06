@@ -18,10 +18,13 @@ def create_app():
     app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET')
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=1)
     
+    
     db.init_app(app)
     jwt = JWTManager(app)
     
     from .routes.auth import auth_bp
+    from .routes.medical_record import medical_record_bp
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    app.register_blueprint(medical_record_bp, url_prefix='/api/medical-record')
     
     return app
