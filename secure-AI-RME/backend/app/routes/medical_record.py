@@ -115,19 +115,22 @@ def add_pregnancy_record():
         db.session.add(new_pregnancy_record)
         db.session.flush() 
         
-        new_obstetric_history = ObstetricHistory(
-            pr_id=new_pregnancy_record.pr_id,
-            pregnancy_no=data.get('pregnancy_no'),
-            gestational_age=data.get('gestational_age'),
-            pregnancy_complications=data.get('pregnancy_complications'),
-            delivery_mode=data.get('delivery_mode'),
-            delivery_complications=data.get('delivery_complications'),
-            baby_weight_height=data.get('baby_weight_height'),
-            baby_complications=data.get('baby_complications'),
-            postpartum_status=data.get('postpartum_status'),
-            postpartum_complications=data.get('postpartum_complications')
-        )
-        db.session.add(new_obstetric_history)
+        obstetric_list = data.get('obstetric_list', [])
+        
+        for obs in obstetric_list:
+            new_history = ObstetricHistory(
+                pr_id=new_pregnancy_record.pr_id,
+                pregnancy_no=obs.get('pregnancy_no'),
+                gestational_age=obs.get('gestational_age'),
+                pregnancy_complications=obs.get('pregnancy_complications'),
+                delivery_mode=obs.get('delivery_mode'),
+                delivery_complications=obs.get('delivery_complications'),
+                baby_weight_height=obs.get('birth_weight_height'), 
+                baby_complications=obs.get('baby_complications'),
+                postpartum_status=obs.get('postpartum_status'),
+                postpartum_complications=obs.get('postpartum_complications')
+            )
+            db.session.add(new_history)
         db.session.commit()
         
         
