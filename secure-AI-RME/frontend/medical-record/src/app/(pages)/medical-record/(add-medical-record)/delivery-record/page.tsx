@@ -3,41 +3,112 @@ import React from "react";
 import { useState, useEffect } from "react";
 import { emit } from "process";
 import Sidebar from "@/components/sidebar";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import axios from "axios";
 import { request } from "http";
 import Cookies from 'js-cookie';
+import Swal from 'sweetalert2';
+import PatientInformation from "@/components/patientInformation";
+import FamilyInformation from "@/components/familyInformation";
 
 const DeliveryRecord = () => {
+    const [error, setError] = useState("");
+    const [loading, setLoading] = useState(false);
+    const router = useRouter();
     const [rmNumber, setRmNumber] = useState("Generating RM Number");
     const searchParams = useSearchParams();
 
     const recordType = searchParams.get("type");
+    const [patientData, setPatientData] = useState([]);
+    const [familyData, setFamilyData] = useState([]);
+    const [deliveryDate, setDeliveryDate] = useState("");
+    const [deliveryMethod, setDeliveryMethod] = useState("");
+    const [deliveryComplications, setDeliveryComplications] = useState("");
+    const [newbornGender, setNewbornGender] = useState("");
+    const [birthLenght, setBirthLenght] = useState("");
+    const [birthWeight, setBirthWeight] = useState("");
+    const [hboAdministration, setHboAdministration] = useState(false);
+    const [vitKAdministration, setVitKAdministation] = useState(false);
+    const [apgarScore, setApgarScore] = useState("");
+    const [newbornComplication, setNewbornComplication] = useState("");
 
-    useEffect(() => {
-        const fetchRmNumber = async () => {
-            try {
-                const token = Cookies.get('access_token');
+    const handlePatientUpdate = (data: any) => setPatientData(data);
+    const handleFamilyUpdate = (data: any) => setFamilyData(data);
 
-                if (!token) {
-                    setRmNumber("Unauthorized");
-                    return;
-                }
 
-                const response = await axios.get(
-                    `http://localhost:5000/api/medical-record/rm-number?type=${recordType}`,
-                    { headers: { Authorization: `Bearer ${token}` } }
-                );
+    const fetchRmNumber = async () => {
+        try {
+            const token = Cookies.get('access_token');
 
-                setRmNumber(response.data.next_rm_number);
-            } catch (error) {
-                console.error("Error fetching RM number:", error);
-                setRmNumber("Failed to generate RM Number");
+            if (!token) {
+                setRmNumber("Unauthorized");
+                return;
             }
-        };
 
-        if (recordType) fetchRmNumber();
+            const response = await axios.get(
+                `http://localhost:5000/api/medical-record/rm-number?type=${recordType}`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            setRmNumber(response.data.next_rm_number);
+        } catch (error) {
+            console.error("Error fetching RM number:", error);
+            setRmNumber("Failed to generate RM Number");
+        }
+    };
+    useEffect(() => {
+        fetchRmNumber();
     }, [recordType]);
+    const handleSubmit = async (e: React.FormEvent) => {
+        try {
+            const token = Cookies.get('access_token');
+            if (!token) {
+                alert("Unauthorized. Please log in.");
+                return;
+            }
+            const payload = {
+                ...patientData,
+                ...familyData,
+                record_number: rmNumber,
+                record_type: recordType,
+                delivery_date: deliveryDate,
+                deliver_complication: deliveryComplications,
+                delivery_type: deliveryMethod,
+                baby_gender: newbornGender,
+                baby_weight: birthWeight,
+                baby_length: birthLenght,
+                apgar_score: apgarScore,
+                baby_complications: newbornComplication,
+                vit_k_given: vitKAdministration,
+                hbo_given: hboAdministration
+            };
+            const response = await axios.post("http://localhost:5000/api/medical-record/add-delivery", payload, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (response.status === 201) {
+                Swal.fire({
+                    title: "Success",
+                    text: "Data KB NADI berhasil disimpan!",
+                    icon: "success",
+                    timer: 2000,
+                    confirmButtonColor: "#739072"
+                });
+                fetchRmNumber();
+
+            } router.push('/medical-record');
+        } catch (err: any) {
+            console.error(err);
+            setLoading(false);
+            const errorMessage = err.response?.data?.msg || "Something went wrong";
+            Swal.fire({
+                title: "Gagal Menyimpan!",
+                text: errorMessage,
+                icon: "error",
+                confirmButtonColor: "#739072",
+            });
+            setError(errorMessage);
+        }
+    };
     return (
         <div className="min-h-screen flex bg-[#FDFEF9]">
             <div className="flex-1 flex flex-col w-full ml-10 mt-7">
@@ -50,192 +121,126 @@ const DeliveryRecord = () => {
                     />
                     <p className="text-[10px] text-gray-400">*Generated by the system</p>
                 </div>
+                <PatientInformation
+                    record_type={recordType || "Keluarga Berencana"}
+                    onDataChange={handlePatientUpdate}
+                />
+                <FamilyInformation
+                    onDataChange={handleFamilyUpdate}
+                />
                 <div className="flex flex-col gap-0">
-                    <h2 className="text-md text-[#4F6F52] mt-10 underline leading-none !font-lexend">Patient Information</h2>
+                    <h2 className="text-md text-[#4F6F52] mt-10 underline leading-none !font-lexend">Riwayat Persalinan</h2>
                     <hr className="mt-0"></hr>
                 </div>
                 <div className="flex flex-col mt-4 gap-y-4">
                     <div className="flex flex-row w-full gap-20 justify-between">
                         <div className="flex flex-col flex-1 gap-y-1 ">
-                            Fullname
-                            <input type="text" name="name" id="name" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                            Tanggal Persalinan
+                            <input type="date" name="deliveryDate" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} id="deliveryDate" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                         </div>
                         <div className="flex flex-col  flex-1">
-                            NIK
-                            <input type="text" name="nik" id="nik" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                        </div>
-                    </div>
-                    <div className="flex flex-row w-full gap-20 justify-between">
-                        <div>
-                            Date of Birth
-                            <input type="date" name="dob" id="dob" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                        </div>
-                        <div>
-                            Age
-                            <input type="text" name="age" id="age" disabled className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                        </div>
-                        <div>
-                            Gender
-                            <select name="" id="" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-                                <option value="wanita">Wanita</option>
-                                <option value="pria">Pria</option>
+                            Metode Persalinan
+                            <select name="deliveryMethod" value={deliveryMethod} onChange={(e) => setDeliveryMethod(e.target.value)} id="deliveryMethod" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
+                                <option value="" disabled> Pilih metode </option>
+                                <option value="normal">Normal</option>
+                                <option value="caesar">Operasi Caesar</option>
                             </select>
-                        </div>
-                        <div>
-                            type
-                            <input type="text" name="type" id="type" value={recordType || ""} disabled className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                        </div>
-                    </div>
-                    <div className="flex flex-row w-full gap-20 justify-start">
-                        <div className="flex flex-col flex-1 gap-y-1" >
-                            Phone Number
-                            <input type="text" name="phone" id="phone" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                        </div>
-                        <div className="flex flex-col flex-1 gap-y-1 ">
-                            Address
-                            <textarea name="address" id="address" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                        </div>
-                    </div>
-                    <div className="flex flex-row w-full gap-20 justify-between">
-                        <div className="flex flex-col flex-1 gap-y-1 ">
-                            Education
-                            <input type="text" name="education" id="education" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                        </div>
-                        <div className="flex flex-col flex-1 gap-y-1">
-                            Occupation
-                            <input type="text" name="occupation" id="occupation" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                        </div>
-                    </div>
-                    <div className="flex flex-row w-full gap-20 justify-between">
-                        <div className="flex flex-col flex-1 gap-y-1">
-                            BPJS Number
-                            <input type="text" name="bpjs" id="bpjs" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                        </div>
-                        <div className="flex flex-col flex-1 gap-y-1">
-                            Primary Faskes
-                            <input type="text" name="faskes" id="faskes" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                        </div>
-                    </div>
-                </div>
-                <div className="flex flex-col gap-0">
-                    <h2 className="text-md text-[#4F6F52] mt-10 underline leading-none !font-lexend">Family Profile</h2>
-                    <hr className="mt-0"></hr>
-                </div>
-                <div className="flex flex-col mt-4 gap-y-4">
-                    <div className="flex flex-row w-full gap-20 justify-between">
-                        <div className="flex flex-col flex-1 gap-y-1 ">
-                            Fullname
-                            <input type="text" name="name" id="name" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                        </div>
-                        <div className="flex flex-col  flex-1">
-                            NIK
-                            <input type="text" name="nik" id="nik" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                        </div>
-                    </div>
-                    <div className="flex flex-row w-full gap-20 justify-between">
-                        <div>
-                            Date of Birth
-                            <input type="date" name="dob" id="dob" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                        </div>
-                        <div>
-                            Age
-                            <input type="text" name="age" id="age" disabled className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                        </div>
-                        <div>
-                            Gender
-                            <select name="" id="" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-                                <option value="wanita">Wanita</option>
-                                <option value="pria">Pria</option>
-                            </select>
-                        </div>
-                        <div>
-                            Relation
-                            <input type="text" name="type" id="type" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                        </div>
-                    </div>
-                    <div className="flex flex-row w-full gap-20 justify-start">
-                        <div className="flex flex-col flex-1 gap-y-1" >
-                            Phone Number
-                            <input type="text" name="phone" id="phone" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                        </div>
-                        <div className="flex flex-col flex-1 gap-y-1 ">
-                            Address
-                            <textarea name="address" id="address" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                        </div>
-                    </div>
-                    <div className="flex flex-row w-full gap-20 justify-between">
-                        <div className="flex flex-col flex-1 gap-y-1 ">
-                            Education
-                            <  input type="text" name="education" id="education" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                        </div>
-                        <div className="flex flex-col flex-1 gap-y-1">
-                            Occupation
-                            <input type="text" name="occupation" id="occupation" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                        </div>
-                    </div>
-                </div>
-                <div className="flex flex-col gap-0">
-                    <h2 className="text-md text-[#4F6F52] mt-10 underline leading-none !font-lexend">Delivery History</h2>
-                    <hr className="mt-0"></hr>
-                </div>
-                <div className="flex flex-col mt-4 gap-y-4">
-                    <div className="flex flex-row w-full gap-20 justify-between">
-                        <div className="flex flex-col flex-1 gap-y-1 ">
-                            Delivery Date
-                            <input type="text" name="vaccineType" id="vaccineType" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                        </div>
-                        <div className="flex flex-col  flex-1">
-                            Mode of Delivery
-                            <input type="number" name="doseNumber" id="doseNumber" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                         </div>
                     </div>
                     <div className="flex flex-row w-full gap-20 justify-between">
                         <div className="flex flex-col flex-1" >
-                            Delivery Complications
-                            <textarea name="geneticDiseaseHistory" id="geneticDiseaseHistory" className="w-full h-50 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                            Komplikasi Persalinan
+                            <textarea name="deliveryComplications" value={deliveryComplications} onChange={(e) => setDeliveryComplications(e.target.value)} id="deliveryComplications" className="w-full h-50 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                         </div>
                     </div>
 
                 </div>
                 <div className="flex flex-col gap-0">
-                    <h2 className="text-md text-[#4F6F52] mt-10 underline leading-none !font-lexend">Newborn History</h2>
+                    <h2 className="text-md text-[#4F6F52] mt-10 underline leading-none !font-lexend">Riwayat Bayi Baru Lahir</h2>
                     <hr className="mt-0"></hr>
                 </div>
                 <div className="flex flex-col mt-4 gap-y-4">
                     <div className="flex flex-row w-full gap-20 justify-between">
                         <div className="flex flex-col flex-1 gap-y-1 ">
-                            Gender
-                            <select name="" id="" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-                                <option value="wanita">Wanita</option>
-                                <option value="pria">Pria</option>
+                            Jenis Kelamin
+                            <select name="newbornGender" id="newbornGender" value={newbornGender} onChange={(e) => setNewbornGender(e.target.value)} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
+                                <option value="" disabled>Pilih Jenis Kelamin</option>
+                                <option value="perempuan">Wanita</option>
+                                <option value="laki-laki">Pria</option>
                             </select>                        </div>
                         <div className="flex flex-col  flex-1">
-                            Birth Weight
-                            <input type="number" name="doseNumber" id="doseNumber" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                            Berat Badan
+                            <input type="number" name="birthWeight" value={birthWeight} onChange={(e) => setBirthWeight(e.target.value)} id="birthWeight" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                         </div>
                         <div className="flex flex-col  flex-1">
-                            Birth Length
-                            <input type="number" name="doseNumber" id="doseNumber" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                            Panjang Badan
+                            <input type="number" name="birthLenght" value={birthLenght} onChange={(e) => setBirthLenght(e.target.value)} id="birthLenght" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                         </div>
                     </div>
                     <div className="flex flex-row w-full gap-20 justify-between">
                         <div className="flex flex-col flex-1 gap-y-1 ">
                             APGAR Score
-                            <input type="number" name="doseNumber" id="doseNumber" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                            <input type="number" name="apgarScore" value={apgarScore} onChange={(e) => setApgarScore(e.target.value)} id="apgarScore" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                         </div>
                         <div className="flex flex-col  flex-1">
-                            Vitamin K Administration
-                            <input type="number" name="doseNumber" id="doseNumber" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                            Pemberian Vitamin K
+                            <div className="flex gap-6 mt-1">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="vit_k_given"
+                                        value="true"
+                                        checked={vitKAdministration === true}
+                                        onChange={(e) => setVitKAdministation(e.target.value === 'true')}
+                                        className="w-4 h-4 accent-[#739072]"
+                                    />
+                                    <span>Sudah</span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="vit_k_given"
+                                        value="false"
+                                        checked={vitKAdministration === false}
+                                        onChange={(e) => setVitKAdministation(e.target.value === 'true')}
+                                        className="w-4 h-4 accent-[#739072]"
+                                    />
+                                    <span>Belum</span>
+                                </label>
+                            </div>
                         </div>
                         <div className="flex flex-col  flex-1">
-                            HBO Vaccination
-                            <input type="number" name="doseNumber" id="doseNumber" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                            Pemberian HBO
+                            <div className="flex gap-6 mt-1">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="hbo_given"
+                                        value="true"
+                                        checked={hboAdministration === true}
+                                        onChange={(e) => setHboAdministration(e.target.value === 'true')}
+                                        className="w-4 h-4 accent-[#739072]"
+                                    />
+                                    <span>Sudah</span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="hbo_given"
+                                        value="false"
+                                        checked={hboAdministration === false}
+                                        onChange={(e) => setHboAdministration(e.target.value === 'true')}
+                                        className="w-4 h-4 accent-[#739072]"
+                                    />
+                                    <span>Belum</span>
+                                </label>
+                            </div>                        
                         </div>
                     </div>
                     <div className="flex flex-row w-full gap-20 justify-between">
                         <div className="flex flex-col flex-1" >
-                            Complications
-                            <textarea name="geneticDiseaseHistory" id="geneticDiseaseHistory" className="w-full h-50 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                            Komplikasi
+                            <textarea name="newbornComplication" value={newbornComplication} onChange={(e) => setNewbornComplication(e.target.value)} id="newbornComplication" className="w-full h-50 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                         </div>
                     </div>
                 </div>
@@ -243,6 +248,7 @@ const DeliveryRecord = () => {
                 <div className="flex justify-center gap-4 mt-10">
                     <button
                         type="submit"
+                        onClick={handleSubmit}
                         className="px-8 py-2 bg-[#739072] text-white rounded-full hover:bg-[#4F6F52] shadow-lg transition font-bold cursor-pointer"
                     >
                         Save Record

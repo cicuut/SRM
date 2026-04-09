@@ -20,25 +20,25 @@ const MedicalRecord = () => {
         setSelectedType("Select a type");
          setLoading(true);
         switch (selectedType) {
-            case "Pregnancy Record":
+            case "Rekam Medis Kehamilan":
                 router.push('/medical-record/pregnancy-record?type=Kehamilan');
                 break;
-            case "Family Planning Record":
+            case "Rekam Medis Keluarga Berencana":
                 router.push('/medical-record/family-planning-record?type=Keluarga Berencana');
                 break;
-            case "General Record":
+            case "Rekam Medis Poli Umum":
                 router.push('/medical-record/general-record?type=Umum');
                 break;
-            case "Immunization Record":
+            case "Rekam Medis Imunisasi":
                 router.push('/medical-record/immunization-record?type=Imunisasi');
                 break;
-            case "Deliver Record":
+            case "Rekam Medis Persalinan":
                 router.push('/medical-record/delivery-record?type=Persalinan');
                 break;
             default:
                 Swal.fire({
-                    title: "Process Failed",
-                    text: "Please select a record type",
+                    title: "Proses Gagal",
+                    text: "Pilih tipe rekam medis terlebih dahulu",
                     icon: "error",
                     confirmButtonColor: "#739072",
                     timer: 2000
@@ -65,7 +65,7 @@ const MedicalRecord = () => {
 
                         <div onClick={() => setIsModalOpen(true)} className="cursor-pointer flex flex-row items-center gap-x-[4]  rounded-[50px] px-5 py-2 bg-[#86A789] shadow-sm transition-all focus-within:border-[#739072]">
                             <FontAwesomeIcon icon={faPlus} className="text-black-400" />
-                            <span className="font-bold">Add a record</span>
+                            <span className="font-bold">Tambah Rekam Medis</span>
                         </div>
 
                     </div>
@@ -78,7 +78,7 @@ const MedicalRecord = () => {
 
 
                         <div className="bg-[#739072] p-4 text-white flex justify-between items-center">
-                            <h2 className="text-xl font-bold">Select Record Type</h2>
+                            <h2 className="text-xl font-bold">Pilih Tipe Rekam Medis</h2>
                             <button onClick={() => {
                                 setIsModalOpen(false);
                                 setIsDropdownOpen(false);
@@ -103,16 +103,16 @@ const MedicalRecord = () => {
 
                                 {isDropdownOpen && (
                                     <ul className="absolute left-0 mt-2 w-full bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-y-auto max-h-30 animate-in fade-in slide-in-from-top-2 duration-200">
-                                        {['Pregnancy', 'Family Planning', 'General', 'Immunization', 'Deliver'].map((item) => (
+                                        {['Kehamilan', 'Keluarga Berencana', 'Poli Umum', 'Bayi dan Imunisasi', 'Persalinan'].map((item) => (
                                             <li
                                                 key={item}
                                                 onClick={() => {
-                                                    setSelectedType(item + " Record");
+                                                    setSelectedType("Rekam Medis " + item);
                                                     setIsDropdownOpen(false);
                                                 }}
                                                 className="px-4 py-3 hover:bg-[#D2E3C8] hover:text-[#4F6F52] cursor-pointer transition-colors text-sm border-b last:border-0 border-gray-50"
                                             >
-                                                {item} Record
+                                                Rekam Medis {item} 
                                             </li>
                                         ))}
                                     </ul>
@@ -135,7 +135,7 @@ const MedicalRecord = () => {
                                     type="submit"
                                     className="px-8 py-2 bg-[#739072] text-white rounded-full hover:bg-[#4F6F52] shadow-lg transition font-bold"
                                 >
-                                    Save Record
+                                   Pilih Rekam Medis
                                 </button>
                             </div>
                         </form>

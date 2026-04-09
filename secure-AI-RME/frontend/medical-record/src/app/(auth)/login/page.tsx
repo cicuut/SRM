@@ -45,8 +45,8 @@ const Login = () => {
                     localStorage.setItem('user_role', data.user.role);
 
                     Swal.fire({
-                        title: "Login Successful",
-                        text: "Welcome!",
+                        title: "Login Sukses",
+                        text: "Selamat Datang!",
                         icon: "success",
                         timer: 2000,
                         confirmButtonColor: "#739072"
@@ -100,11 +100,11 @@ const Login = () => {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                         /></div>
-                    <p className="text-[#766E6E]">Don't have an account? <Link href="/register"><u>Click Here</u></Link></p>
+                    <p className="text-[#766E6E]">Belum punya akun? <Link href="/register"><u>Pergi ke Sini</u></Link></p>
                     <button onClick={handleLogin} className="bg-[#739072] text-[#FFF] font-poppins font-bold py-2 px-4 w-30 rounded-[30px] cursor-pointer">{loading ? "Logging..." : "Log In"}</button>
                     <div className="flex  w-full justify-center items-center gap-3">
                         <div className="w-30 h-0.5 bg-black "></div>
-                        <p className="text-[#766E6E]">or Log in with</p>
+                        <p className="text-[#766E6E]">atau masuk dengan</p>
                         <div className="w-30 h-0.5 bg-black"></div>
                     </div>
                     <button className="mt-10 flex gap-2 w-40 items-center justify-center border-[2] py-2 px-2 rounded-[30px]">
