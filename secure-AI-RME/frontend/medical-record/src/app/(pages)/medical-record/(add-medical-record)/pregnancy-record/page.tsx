@@ -67,7 +67,7 @@ const PregnancyRecord = () => {
         const num = parseInt(count) || 0;
         setPreviousPregnancy(count);
 
-        // Bikin array baru sebanyak jumlah 'num'
+        
         const newHistory = Array.from({ length: num }, (_, i) => ({
             pregnancy_no: i + 1,
             gestational_age: "",
@@ -81,7 +81,7 @@ const PregnancyRecord = () => {
         }));
 
         setObstetricHistory(newHistory);
-        if (num > 0) setIsModalOpen(true); // Buka modal kalau input > 0
+        if (num > 0) setIsModalOpen(true); 
     };
     const updateHistoryItem = (index: number, field: string, value: string) => {
         const updated = [...obstetricHistory];
