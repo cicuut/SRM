@@ -61,7 +61,6 @@ const ImmunizationRecord = () => {
 
 
             };
-            console.log("ISI PAKET BUAT MAT:", payload);
             const response = await axios.post("http://localhost:5000/api/medical-record/add-pregnancy", payload, {
                 headers: { Authorization: `Bearer ${token}` }
             });
