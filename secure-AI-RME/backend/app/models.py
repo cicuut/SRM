@@ -78,8 +78,10 @@ class Patient(db.Model):
     
     @hybrid_property
     def age(self):
-        today = date.today()
-        return today.year - self.date_of_birth.year - ((today.month, today.day) < (self.date_of_birth.month, self.date_of_birth.day))
+        if self.birth_date:
+            today = datetime.today()
+            return today.year - self.birth_date.year - ((today.month, today.day) < (self.birth_date.month, self.birth_date.day))
+        return 0
     
 class MedicalRecord(db.Model):
     __tablename__ = 'medical_record'

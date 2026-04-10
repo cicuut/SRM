@@ -47,13 +47,17 @@ def decrypt_data(encrypted_text):
     if not encrypted_text:
         return None
     
-    combined = base64.b64decode(encrypted_text)
-    nonce = combined[:16]
-    tag = combined[16:32]
-    ciphertext = combined[32:]
-    
-    cipher = AES.new(secret_key, AES.MODE_GCM, nonce=nonce)
-    plain_text = cipher.decrypt_and_verify(ciphertext, tag)
-    
-    return plain_text.decode('utf-8')
-    
+    try:
+        combined = base64.b64decode(encrypted_text)
+        
+        nonce = combined[:16]
+        tag = combined[16:32]
+        ciphertext = combined[32:]
+        
+        cipher = AES.new(secret_key, AES.MODE_GCM, nonce=nonce)
+        plain_text = cipher.decrypt_and_verify(ciphertext, tag)
+        
+        return plain_text.decode('utf-8')
+    except (ValueError, KeyError, TypeError) as e:
+        print(f"Decryption failed (likely old data or wrong key): {e}")
+        return encrypted_text
