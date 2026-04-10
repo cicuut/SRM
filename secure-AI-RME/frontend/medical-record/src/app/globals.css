@@ -8,7 +8,6 @@
 
 
 @theme {
-  /* Di v4, definisikan variabel CSS langsung */
   --font-poppins: "Poppins", sans-serif;
   --font-alata: "Alata", sans-serif;
   --font-lexend: "Lexend", sans-serif;
@@ -24,6 +23,7 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: "Alata", sans-serif;
+  font-size: 12px;
   background-color: #FDFEF9 ;
 }
 

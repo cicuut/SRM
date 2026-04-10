@@ -38,7 +38,12 @@ const Header = () => {
                 {pathSnippets.map((_, index) => {
                     const url = `/${pathSnippets.slice(0, index + 1).join("/")}`;
                     const isLast = index === pathSnippets.length - 1;
-                    const label = breadcrumbNameMap[pathSnippets[index]] || pathSnippets[index];
+                    const currentSnippet = pathSnippets[index];
+                    const prevSnippet = pathSnippets[index - 1];
+                    let label = breadcrumbNameMap[pathSnippets[index]] || pathSnippets[index];
+                    if (prevSnippet === "medical-record" && currentSnippet.length > 20) {
+                        label = "Medical Report Detail";
+                    }
 
                     return (
                         <React.Fragment key={url}>

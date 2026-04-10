@@ -1,24 +1,69 @@
 'use client';
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSearch, faFilter, faPlus, faTimes, faAngleDown } from "@fortawesome/free-solid-svg-icons";
-import { useRouter } from "next/dist/client/components/navigation";
+import { useRouter } from 'nextjs-toploader/app'
 import Swal from "sweetalert2";
+import Cookies from 'js-cookie';
+
+interface MedicalRecordList {
+    rm_id: string;
+    record_number: string;
+    record_type: string;
+    patient_name: string;
+    nik: string;
+    birth_date: string;
+    status: string;
+    created_at: string;
+    updated_at: string;
+    patient_number?: string;
+    address?: string;
+}
 
 const MedicalRecord = () => {
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(false);
+    const [medicalRecordList, setMedicalRecordList] = useState<MedicalRecordList[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [isDropdownOpen, setIsDropdownOpen] = useState(false); 
-    const [selectedType, setSelectedType] = useState("Select a type"); 
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [selectedType, setSelectedType] = useState("Select a type");
     const router = useRouter();
+
+    useEffect(() => {
+        const fetchMedicalRecord = async () => {
+            try {
+                const token = Cookies.get('access_token');
+                const response = await fetch('http://localhost:5000/api/medical-record/get-all-records', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) throw new Error('Gagal mengambil data pasien');
+
+                const data = await response.json();
+                setMedicalRecordList(data);
+            } catch (err: any) {
+                setError(err.message);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchMedicalRecord();
+    }, []);
+
+    if (loading) return <div className="p-8 text-center text-blue-600 animate-pulse">Sedang mengambil data medis...</div>;
+    if (error) return <div className="p-8 text-center text-red-500">Error: {error}</div>;
 
     const handleSubmitRecordType = (e: React.FormEvent) => {
         e.preventDefault();
-    
+
         setIsModalOpen(false);
         setIsDropdownOpen(false);
         setSelectedType("Select a type");
-         setLoading(true);
+        setLoading(true);
         switch (selectedType) {
             case "Rekam Medis Kehamilan":
                 router.push('/medical-record/pregnancy-record?type=Kehamilan');
@@ -46,6 +91,10 @@ const MedicalRecord = () => {
         }
     };
 
+    const handleViewRecordDetail = (rmId: string) => {
+        router.push(`/medical-record/${rmId}`);
+    }
+
 
     return (
         <div>
@@ -69,6 +118,41 @@ const MedicalRecord = () => {
                         </div>
 
                     </div>
+                </div>
+                <div className="mt-5">
+                    <table className="min-w-full divide-y divide-gray-200 text-[11px]">
+                        <thead className="bg-[#D2E3C8] text-gray-700 font-semibold drop-shadow-lg ">
+                            <tr>
+                                <th className="px-6 py-4 border-r border-gray-200 w-40">RM ID</th>
+                                <th className="px-6 py-4 border-r border-gray-200 w-60">Record Type</th>
+                                <th className="px-6 py-4 border-r border-gray-200 w-60">Patient Name</th>
+                                <th className="px-6 py-4 border-r border-gray-200">NIK</th>
+                                <th className="px-6 py-4 border-r border-gray-200 w-40">Birth Date</th>
+                                <th className="px-6 py-4 border-r border-gray-200 w-40">Case Status</th>
+                                <th className="px-6 py-4 border-r border-gray-200 w-40">Created At</th>
+                                <th className="px-6 py-4 w-40">Last Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {medicalRecordList.map((item, index) => (
+                                <tr key={index} className="hover:bg-gray-50 transition-colors text-gray-600 cursor-pointer" onClick={() => handleViewRecordDetail(item.rm_id)}>
+                                    <td className="px-4 py-4 ">{item.record_number}</td>
+                                    <td className="px-4 py-4">{item.record_type}</td>
+                                    <td className="px-4 py-4">{item.patient_name}</td>
+                                    <td className="px-4 py-4 text-center">{item.nik}</td>
+                                    <td className="px-4 py-4 text-center">{item.birth_date}</td>
+                                    <td className="px-4 py-4 text-center">
+                                        <span className={`px-3 py-1 rounded-full text-xs ${item.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                                            }`}>
+                                            {item.status}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4">{item.created_at}</td>
+                                    <td className="px-6 py-4">{item.updated_at}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
             </div>
             {isModalOpen && (
@@ -112,7 +196,7 @@ const MedicalRecord = () => {
                                                 }}
                                                 className="px-4 py-3 hover:bg-[#D2E3C8] hover:text-[#4F6F52] cursor-pointer transition-colors text-sm border-b last:border-0 border-gray-50"
                                             >
-                                                Rekam Medis {item} 
+                                                Rekam Medis {item}
                                             </li>
                                         ))}
                                     </ul>
@@ -135,7 +219,7 @@ const MedicalRecord = () => {
                                     type="submit"
                                     className="px-8 py-2 bg-[#739072] text-white rounded-full hover:bg-[#4F6F52] shadow-lg transition font-bold"
                                 >
-                                   Pilih Rekam Medis
+                                    Pilih Rekam Medis
                                 </button>
                             </div>
                         </form>
