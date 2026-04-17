@@ -46,7 +46,7 @@ const CreateClinic = () => {
 
             if (response.ok) {
                 Swal.fire({
-                    title: "Clinic Registration Successful",
+                    title: "Pendaftaran Berhasil",
                     icon: "success"
                 });
                 localStorage.setItem('temp_user_id', data.user_id);
@@ -54,7 +54,7 @@ const CreateClinic = () => {
             } else {
                 setLoading(false);
                 Swal.fire({
-                    title: "Registration Failed",
+                    title: "Pendaftaran Gagal",
                     text: data.msg || "Something went wrong",
                     icon: "error"
                 });
@@ -74,46 +74,46 @@ const CreateClinic = () => {
 
                 <Image src="/hospital-icon.png" alt="Icon" width={400} height={400} />
                 <div className="w-1/2 text-center">
-                    <p className="text-[#739072] text-4xl" >Create Your Clinic First to Enjoy Our Features</p>
+                    <p className="text-[#739072] text-4xl" >Masukan informasi klinik, untuk mendapatkan fitur lebih  menarik</p>
                 </div>
             </div>
             <div className="flex flex-col items-center justify-center w-1/2 gap-4 bg-[#FFF] rounded-tl-[10%] rounded-bl-[10%]">
                 <div className={styles['regist-input-wrapper']}>
                     <h1 className="regist-input-wrapper text-center text-[#4F6F52] text-2xl font-bold">Create Your Clinic</h1>
                     <div className="w-full">
-                        <h3>Clinic Name</h3>
+                        <h3>Nama klinik</h3>
                         <input
                             type="text"
                             value={clinicName}
                             onChange={(e) => setClinicName(e.target.value)}
                         /></div>
                     <div className="w-full">
-                        <h3>Practice License Number</h3>
+                        <h3>Nomor Praktek</h3>
                         <input
                             type="text"
                             value={sipbNumber}
                             onChange={(e) => setSipbNumber(e.target.value)}
                         /></div>
                     <div className="w-full">
-                        <h3>Official Phone Number</h3>
+                        <h3>No Telepon</h3>
                         <input
                             type="text"
                             value={phone}
                             onChange={(e) => setPhone(e.target.value)}
                         /></div>
-                    <div className="w-full"><h3>Official Email</h3>
+                    <div className="w-full"><h3>Email</h3>
                         <input
                             type="email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                         /></div>
-                    <div className="w-full"> <h3>Full Address</h3>
+                    <div className="w-full"> <h3>Alamat Lengkap</h3>
                         <input
                             type="text"
                             value={address}
                             onChange={(e) => setAddress(e.target.value)}
                         /></div>
-                    <button onClick={handleCreateClinic} className="bg-[#739072] text-[#FFF] font-poppins font-bold py-2 px-4 w-35 rounded-[30px] cursor-pointer">{loading ? "Submitting..." : "Submit Clinic"}</button>
+                    <button onClick={handleCreateClinic} className="bg-[#739072] text-[#FFF] font-poppins font-bold py-2 px-4 w-35 rounded-[30px] cursor-pointer">{loading ? "Submitting..." : "Submit Klinik"}</button>
                 </div>
             </div>
         </div>

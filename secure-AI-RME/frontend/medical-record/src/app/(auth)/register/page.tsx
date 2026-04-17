@@ -27,8 +27,8 @@ const Signin = () => {
 
         if (password !== confirmPassword) {
             Swal.fire({
-                title: "Try again",
-                text: "Passwords don not match",
+                title: "Coba Lagi",
+                text: "Password tidak sama",
                 icon: "warning",
                 timer: 2000,
                 confirmButtonColor: "#739072" 
@@ -56,8 +56,8 @@ const Signin = () => {
 
             if (response.ok) {
                 Swal.fire({
-                    title: "Registration Successful",
-                    text: "User registered successfully!",
+                    title: "Pendaftaran Sukses",
+                    text: "Pengguna telah masuk ke database!",
                     icon: "success",
                     timer: 2000,
                     confirmButtonColor: "#739072" 
@@ -71,7 +71,7 @@ const Signin = () => {
             } else {
                 setLoading(false);
                 Swal.fire({
-                    title: "Registration Failed",
+                    title: "Pendaftaran Gagal",
                     text: data.msg || "Something went wrong",
                     icon: "error",
                     confirmButtonColor: "#739072" ,
@@ -132,11 +132,11 @@ const Signin = () => {
                             value={strNumber}
                             onChange={(e) => setStrNumber(e.target.value)}
                         /></div>
-                    <p className="text-[#766E6E]">Already have an account? <Link href="/login"><u>Click Here</u></Link></p>
+                    <p className="text-[#766E6E]">Sudah punya akun?<Link href="/login"><u>Pergi ke Sini</u></Link></p>
                     <button onClick={handleRegister} className="bg-[#739072] text-[#FFF] font-poppins font-bold py-2 px-4 w-35 rounded-[30px] cursor-pointer">{loading ? "Registering..." : "Sign Up"}</button>
                     <div className="flex  w-full justify-center items-center gap-3">
                         <div className="w-30 h-0.5 bg-black "></div>
-                        <p className="text-[#766E6E]">or Sign in with</p>
+                        <p className="text-[#766E6E]">atau daftar dengan</p>
                         <div className="w-30 h-0.5 bg-black"></div>
                     </div>
                     <button className="mt-10 flex gap-2 w-40 items-center justify-center border-[2] py-2 px-2 rounded-[30px]">

@@ -1,0 +1,326 @@
+'use client';
+import React from "react";
+import { useState, useEffect } from "react";
+import { emit } from "process";
+import Sidebar from "@/components/sidebar";
+import { useSearchParams, useRouter } from "next/navigation";
+import axios from "axios";
+import { request } from "http";
+import Cookies from 'js-cookie';
+import Swal from 'sweetalert2';
+import PatientInformation from "@/components/add-records/patientInformation";
+import FamilyInformation from "@/components/add-records/familyInformation";
+
+const DeliveryRecord = () => {
+    const [error, setError] = useState("");
+    const [loading, setLoading] = useState(false);
+    const router = useRouter();
+    const [rmNumber, setRmNumber] = useState("Generating RM Number");
+    const searchParams = useSearchParams();
+
+    const recordType = searchParams.get("type");
+    const [patientData, setPatientData] = useState([]);
+    const [familyData, setFamilyData] = useState([]);
+    const [deliveryDate, setDeliveryDate] = useState("");
+    const [deliveryMethod, setDeliveryMethod] = useState("");
+    const [deliveryComplications, setDeliveryComplications] = useState("");
+    const [newbornGender, setNewbornGender] = useState("");
+    const [birthLenght, setBirthLenght] = useState("");
+    const [birthWeight, setBirthWeight] = useState("");
+    const [hboAdministration, setHboAdministration] = useState(false);
+    const [vitKAdministration, setVitKAdministation] = useState(false);
+    const [apgarScore, setApgarScore] = useState("");
+    const [newbornComplication, setNewbornComplication] = useState("");
+    const [eyeOintment,setEyeOintment]= useState(false);
+    const [imd,setImd]= useState(false);
+    
+
+    const handlePatientUpdate = (data: any) => setPatientData(data);
+    const handleFamilyUpdate = (data: any) => setFamilyData(data);
+
+
+    const fetchRmNumber = async () => {
+        try {
+            const token = Cookies.get('access_token');
+
+            if (!token) {
+                setRmNumber("Unauthorized");
+                return;
+            }
+
+            const response = await axios.get(
+                `http://localhost:5000/api/medical-record/rm-number?type=${recordType}`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            setRmNumber(response.data.next_rm_number);
+        } catch (error) {
+            console.error("Error fetching RM number:", error);
+            setRmNumber("Failed to generate RM Number");
+        }
+    };
+    useEffect(() => {
+        fetchRmNumber();
+    }, [recordType]);
+    const handleSubmit = async (e: React.FormEvent) => {
+        try {
+            const token = Cookies.get('access_token');
+            if (!token) {
+                
+                alert("Silakan login terlebih dahulu.");
+                return;
+            }
+            const payload = {
+                ...patientData,
+                ...familyData,
+                record_number: rmNumber,
+                record_type: recordType,
+                delivery_date: deliveryDate,
+                deliver_complication: deliveryComplications,
+                delivery_type: deliveryMethod,
+                baby_gender: newbornGender,
+                baby_weight: birthWeight,
+                baby_length: birthLenght,
+                apgar_score: apgarScore,
+                baby_complications: newbornComplication,
+                vit_k_given: vitKAdministration,
+                hbo_given: hboAdministration,
+                eye_ointment: eyeOintment,
+                imd:imd
+            };
+            const response = await axios.post("http://localhost:5000/api/medical-record/add-delivery", payload, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (response.status === 201) {
+                Swal.fire({
+                    title: "Success",
+                    text: "Data KB NADI berhasil disimpan!",
+                    icon: "success",
+                    timer: 2000,
+                    confirmButtonColor: "#739072"
+                });
+                fetchRmNumber();
+
+            } router.push('/medical-record');
+        } catch (err: any) {
+            console.error(err);
+            setLoading(false);
+            const errorMessage = err.response?.data?.msg || "Something went wrong";
+            Swal.fire({
+                title: "Gagal Menyimpan!",
+                text: errorMessage,
+                icon: "error",
+                confirmButtonColor: "#739072",
+            });
+            setError(errorMessage);
+        }
+    };
+    return (
+        <div className="min-h-screen flex bg-[#FDFEF9]">
+            <div className="flex-1 flex flex-col w-full ml-10 mt-7">
+                <div className="flex flex-col gap-2">
+                    <input
+                        type="text"
+                        value={rmNumber}
+                        readOnly
+                        className="bg-transparent font-mono font-bold cursor-not-allowed focus:outline-none text-3xl text-[#4F6F52] w-full"
+                    />
+                    <p className="text-[10px] text-gray-400">*Generated by the system</p>
+                </div>
+                <PatientInformation
+                    record_type={recordType || "Keluarga Berencana"}
+                    onDataChange={handlePatientUpdate}
+                />
+                <FamilyInformation
+                    onDataChange={handleFamilyUpdate}
+                />
+                <div className="flex flex-col gap-0">
+                    <h2 className="text-md text-[#4F6F52] mt-10 underline leading-none !font-lexend">Riwayat Persalinan</h2>
+                    <hr className="mt-0"></hr>
+                </div>
+                <div className="flex flex-col mt-4 gap-y-4">
+                    <div className="flex flex-row w-full gap-20 justify-between">
+                        <div className="flex flex-col flex-1 gap-y-1 ">
+                            Tanggal Persalinan
+                            <input type="date" name="deliveryDate" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} id="deliveryDate" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        </div>
+                        <div className="flex flex-col  flex-1">
+                            Metode Persalinan
+                            <select name="deliveryMethod" value={deliveryMethod} onChange={(e) => setDeliveryMethod(e.target.value)} id="deliveryMethod" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
+                                <option value="" disabled> Pilih </option>
+                                <option value="normal">Normal</option>
+                                <option value="komplikasi">Komplikasi</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div className="flex flex-row w-full gap-20 justify-between">
+                        <div className="flex flex-col flex-1" >
+                            Komplikasi Persalinan
+                            <textarea name="deliveryComplications" value={deliveryComplications} onChange={(e) => setDeliveryComplications(e.target.value)} id="deliveryComplications" className="w-full h-50 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        </div>
+                    </div>
+
+                </div>
+                <div className="flex flex-col gap-0">
+                    <h2 className="text-md text-[#4F6F52] mt-10 underline leading-none !font-lexend">Riwayat Bayi Baru Lahir</h2>
+                    <hr className="mt-0"></hr>
+                </div>
+                <div className="flex flex-col mt-4 gap-y-4">
+                    <div className="flex flex-row w-full gap-20 justify-between">
+                        <div className="flex flex-col flex-1 gap-y-1 ">
+                            Jenis Kelamin
+                            <select name="newbornGender" id="newbornGender" value={newbornGender} onChange={(e) => setNewbornGender(e.target.value)} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
+                                <option value="" disabled>Pilih Jenis Kelamin</option>
+                                <option value="perempuan">Wanita</option>
+                                <option value="laki-laki">Pria</option>
+                            </select>                        </div>
+                        <div className="flex flex-col  flex-1">
+                            Berat Badan
+                            <input type="text" name="birthWeight" value={birthWeight} onChange={(e) => setBirthWeight(e.target.value)} id="birthWeight" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        </div>
+                        <div className="flex flex-col  flex-1">
+                            Panjang Badan
+                            <input type="text" name="birthLenght" value={birthLenght} onChange={(e) => setBirthLenght(e.target.value)} id="birthLenght" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        </div>
+                    </div>
+                    <div className="flex flex-row w-full gap-20  justify-between items-center">
+                        <div className="flex flex-col flex-1 gap-y-1 ">
+                            APGAR Score
+                            <input type="text" name="apgarScore" value={apgarScore} onChange={(e) => setApgarScore(e.target.value)} id="apgarScore" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        </div>
+                        
+                            <div className="flex flex-col ">
+                                Pemberian Vitamin K
+                                <div className="flex gap-6 mt-1">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="vit_k_given"
+                                            value="true"
+                                            checked={vitKAdministration === true}
+                                            onChange={(e) => setVitKAdministation(e.target.value === 'true')}
+                                            className="w-4 h-4 accent-[#739072]"
+                                        />
+                                        <span>Sudah</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="vit_k_given"
+                                            value="false"
+                                            checked={vitKAdministration === false}
+                                            onChange={(e) => setVitKAdministation(e.target.value === 'true')}
+                                            className="w-4 h-4 accent-[#739072]"
+                                        />
+                                        <span>Belum</span>
+                                    </label>
+                                </div>
+                            </div>
+                             <div className="flex flex-col ">
+                               Salep Mata
+                                <div className="flex gap-6 mt-1">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="eye_ointment"
+                                            value="true"
+                                            checked={eyeOintment === true}
+                                            onChange={(e) => setEyeOintment(e.target.value === 'true')}
+                                            className="w-4 h-4 accent-[#739072]"
+                                        />
+                                        <span>Sudah</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="eye_ointment"
+                                            value="false"
+                                            checked={eyeOintment === false}
+                                            onChange={(e) => setEyeOintment(e.target.value === 'true')}
+                                            className="w-4 h-4 accent-[#739072]"
+                                        />
+                                        <span>Belum</span>
+                                    </label>
+                                </div>
+                            </div>
+                      
+                        <div className="flex flex-col">
+                            Pemberian HBO
+                            <div className="flex gap-6 mt-1">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="hbo_given"
+                                        value="true"
+                                        checked={hboAdministration === true}
+                                        onChange={(e) => setHboAdministration(e.target.value === 'true')}
+                                        className="w-4 h-4 accent-[#739072]"
+                                    />
+                                    <span>Sudah</span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="hbo_given"
+                                        value="false"
+                                        checked={hboAdministration === false}
+                                        onChange={(e) => setHboAdministration(e.target.value === 'true')}
+                                        className="w-4 h-4 accent-[#739072]"
+                                    />
+                                    <span>Belum</span>
+                                </label>
+                            </div>
+                        </div>
+                                <div className="flex flex-col  flex-1">
+                              IMD
+                                <div className="flex gap-6 mt-1">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="imd"
+                                            value="true"
+                                            checked={imd === true}
+                                            onChange={(e) => setImd(e.target.value === 'true')}
+                                            className="w-4 h-4 accent-[#739072]"
+                                        />
+                                        <span>Sudah</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="imd"
+                                            value="false"
+                                            checked={imd === false}
+                                            onChange={(e) => setImd(e.target.value === 'true')}
+                                            className="w-4 h-4 accent-[#739072]"
+                                        />
+                                        <span>Belum</span>
+                                    </label>
+                                </div>
+                            </div>
+                      
+                    </div>
+                    <div className="flex flex-row w-full gap-20 justify-between">
+                        <div className="flex flex-col flex-1" >
+                            Komplikasi
+                            <textarea name="newbornComplication" value={newbornComplication} onChange={(e) => setNewbornComplication(e.target.value)} id="newbornComplication" className="w-full h-50 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex justify-center gap-4 mt-10">
+                    <button
+                        type="submit"
+                        onClick={handleSubmit}
+                        className="px-8 py-2 bg-[#739072] text-white rounded-full hover:bg-[#4F6F52] shadow-lg transition font-bold cursor-pointer"
+                    >
+                        Save Record
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    )
+
+}
+export default DeliveryRecord;
