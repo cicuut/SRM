@@ -2,17 +2,20 @@
 import React from "react";
 import { useState, useEffect } from "react";
 import { emit } from "process";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import axios from "axios";
 import { request } from "http";
 import Cookies from 'js-cookie';
-import PatientInformation from "@/components/patientInformation";
-import FamilyInformation from "@/components/familyInformation";
+import PatientInformation from "@/components/add-records/patientInformation";
+import FamilyInformation from "@/components/add-records/familyInformation";
+import Swal from "sweetalert2";
 
 const ImmunizationRecord = () => {
+    const [error, setError] = useState("");
+    const [loading, setLoading] = useState(false);
     const [rmNumber, setRmNumber] = useState("Generating RM Number");
     const searchParams = useSearchParams();
-
+    const router = useRouter();
     const [vaccineType, setVaccineType] = useState("");
     const [doseNumber, setDoseNumber] = useState("");
 
@@ -22,28 +25,36 @@ const ImmunizationRecord = () => {
 
     const handlePatientUpdate = (data: any) => setPatientData(data);
     const handleFamilyUpdate = (data: any) => setFamilyData(data);
-    useEffect(() => {
-        const fetchRmNumber = async () => {
-            try {
-                const token = Cookies.get('access_token');
+    const fetchRmNumber = async () => {
+        try {
+            const token = Cookies.get('access_token');
 
-                if (!token) {
-                    setRmNumber("Unauthorized");
-                    return;
-                }
-                const response = await axios.get(
-                    `http://localhost:5000/api/medical-record/rm-number?type=${recordType}`,
-                    { headers: { Authorization: `Bearer ${token}` } }
-                );
-
-                setRmNumber(response.data.next_rm_number);
-            } catch (error) {
-                console.error("Error fetching RM number:", error);
-                setRmNumber("Failed to generate RM Number");
+            if (!token || !recordType) {
+                setRmNumber("Unauthorized");
+                return;
             }
-        };
+            const response = await axios.get(
+                `http://localhost:5000/api/medical-record/rm-number?type=${recordType}`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
 
-        if (recordType) fetchRmNumber();
+            setRmNumber(response.data.next_rm_number);
+        } catch (err: any) {
+            console.error(err);
+            setLoading(false);
+            const errorMessage = err.response?.data?.msg || "Something went wrong";
+            Swal.fire({
+                title: "Gagal Menyimpan!",
+                text: errorMessage,
+                icon: "error",
+                confirmButtonColor: "#739072",
+            });
+            setError(errorMessage);
+        }
+    };
+
+    useEffect(() => {
+        fetchRmNumber();
     }, [recordType]);
 
     const handleSubmit = async () => {
@@ -58,13 +69,23 @@ const ImmunizationRecord = () => {
                 ...familyData,
                 record_number: rmNumber,
                 record_type: recordType,
-
+                
 
             };
-            const response = await axios.post("http://localhost:5000/api/medical-record/add-pregnancy", payload, {
+            const response = await axios.post("http://localhost:5000/api/medical-record/add-immunization", payload, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            alert("Data Berhasil Disimpan ke Database!");
+            if (response.status === 201) {
+                Swal.fire({
+                    title: "Success",
+                    text: "Data KB NADI berhasil disimpan!",
+                    icon: "success",
+                    timer: 2000,
+                    confirmButtonColor: "#739072"
+                });
+                fetchRmNumber();
+
+            } router.push('/medical-record');
 
         } catch (err) {
             console.error(err);
@@ -90,24 +111,6 @@ const ImmunizationRecord = () => {
                 <FamilyInformation
                     onDataChange={handleFamilyUpdate}
                 />
-
-                <div className="flex flex-col gap-0">
-                    <h2 className="text-md text-[#4F6F52] mt-10 underline leading-none !font-lexend">Immunization Track</h2>
-                    <hr className="mt-0"></hr>
-                </div>
-                <div className="flex flex-col mt-4 gap-y-4">
-                    <div className="flex flex-row w-full gap-20 justify-between">
-                        <div className="flex flex-col flex-1 gap-y-1 ">
-                            Vaccine Type
-                            <input type="text" name="vaccineType" id="vaccineType" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                        </div>
-                        <div className="flex flex-col  flex-1">
-                            Dose Number
-                            <input type="number" name="doseNumber" id="doseNumber" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                        </div>
-                    </div>
-
-                </div>
 
                 <div className="flex justify-center gap-4 mt-10">
                     <button

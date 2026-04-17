@@ -136,7 +136,7 @@ const PatientInformation = (props: PatientInformationProps) => {
                         <input type="text" name="insurance_number" id="bpjs" value={formData.insurance_number} onChange={handleInputChange} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                     <div className="flex flex-col flex-1 gap-y-1">
-                        Faskes Utama
+                       Faskes Tingkat 1
                         <input type="text" name="primary_health_facility" id="faskes" value={formData.primary_health_facility} onChange={handleInputChange} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                 </div>

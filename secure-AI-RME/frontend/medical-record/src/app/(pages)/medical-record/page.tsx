@@ -54,7 +54,9 @@ const MedicalRecord = () => {
         fetchMedicalRecord();
     }, []);
 
-    if (loading) return <div className="p-8 text-center text-blue-600 animate-pulse">Sedang mengambil data medis...</div>;
+    if (loading) {
+        return <div className="max-w-5xl mx-auto">Loading...</div>;
+    }   
     if (error) return <div className="p-8 text-center text-red-500">Error: {error}</div>;
 
     const handleSubmitRecordType = (e: React.FormEvent) => {
@@ -74,7 +76,7 @@ const MedicalRecord = () => {
             case "Rekam Medis Poli Umum":
                 router.push('/medical-record/general-record?type=Umum');
                 break;
-            case "Rekam Medis Imunisasi":
+            case "Rekam Medis Bayi dan Imunisasi":
                 router.push('/medical-record/immunization-record?type=Imunisasi');
                 break;
             case "Rekam Medis Persalinan":
@@ -158,7 +160,7 @@ const MedicalRecord = () => {
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
 
-                    <div className="flex flex-col gap-y-6 bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 h-80 pb-8">
+                    <div className="flex flex-col gap-y-6 bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-y-auto animate-in fade-in zoom-in duration-200 pb-8">
 
 
                         <div className="bg-[#739072] p-4 text-white flex justify-between items-center">
@@ -186,7 +188,7 @@ const MedicalRecord = () => {
                                 </button>
 
                                 {isDropdownOpen && (
-                                    <ul className="absolute left-0 mt-2 w-full bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-y-auto max-h-30 animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <ul className="overflow-y-auto left-0 mt-2 w-full bg-white border border-gray-200 rounded-xl shadow-xl z-50 max-h-40 animate-in fade-in slide-in-from-top-2 duration-200">
                                         {['Kehamilan', 'Keluarga Berencana', 'Poli Umum', 'Bayi dan Imunisasi', 'Persalinan'].map((item) => (
                                             <li
                                                 key={item}

@@ -134,7 +134,7 @@ class FamilyPlanningRecord(db.Model):
     kb_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     record_id = db.Column(db.String(36), db.ForeignKey('medical_record.record_id'), nullable=False)
     number_of_children= db.Column(db.Integer, nullable=True)
-    youngest_child_age= db.Column(db.Integer, nullable=True)
+    youngest_child_age= db.Column(db.Text, nullable=True)
     family_med_history = db.Column(EncryptedText, nullable=True)
 
 class GeneralRecord(db.Model):
@@ -152,11 +152,64 @@ class DeliveryRecord(db.Model):
     delivery_type = db.Column(db.String(100), nullable=True)
     deliver_complications = db.Column(EncryptedText, nullable=True)
     baby_gender = db.Column(db.String(10), nullable=False)
-    baby_weight = db.Column(db.Float, nullable=True)
-    baby_length = db.Column(db.Float, nullable=True)
+    baby_weight = db.Column(db.String(20), nullable=True)
+    baby_length = db.Column(db.String(20), nullable=True)
     apgar_score = db.Column(db.String(10), nullable=True)
     baby_complications = db.Column(EncryptedText, nullable=True)
     vit_k_given = db.Column(db.Boolean, default=False, nullable=False)
     hbo_given = db.Column(db.Boolean, default=False, nullable=False)
+    eye_ointment = db.Column(db.Boolean, default=False, nullable=False)
+    imd = db.Column(db.Boolean, default=False, nullable=False)
+
+class ImmunizationRecord(db.Model):
+    __tablename__ = 'immunization_record'
     
+    ir_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    record_id = db.Column(db.String(36), db.ForeignKey('medical_record.record_id'), nullable=False)
+    hbo_1 = db.Column(db.Date, nullable=True)
+    bcg_1 = db.Column(db.Date, nullable=True)
+    polio_1 = db.Column(db.Date, nullable=True)
+    polio_2 = db.Column(db.Date, nullable=True)
+    polio_3 = db.Column(db.Date, nullable=True)
+    polio_4 = db.Column(db.Date, nullable=True)
+    dpt_1 = db.Column(db.Date, nullable=True)
+    dpt_2= db.Column(db.Date, nullable=True)
+    dpt_3 = db.Column(db.Date, nullable=True)
+    dpt_4 = db.Column(db.Date, nullable=True)
+    pcv_1 = db.Column(db.Date, nullable=True)
+    pcv_2 = db.Column(db.Date, nullable=True)
+    pcv_3 = db.Column(db.Date, nullable=True)
+    campak_1 = db.Column(db.Date, nullable=True)
+    campak_2 = db.Column(db.Date, nullable=True)
+    ipv_1 = db.Column(db.Date, nullable=True)
+    ipv_2 = db.Column(db.Date, nullable=True)
+    
+class VisitMaster(db.Model):
+    __tablename__ = 'visit_master'
+    
+    visit_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    record_id = db.Column(db.String(36), db.ForeignKey('medical_record.record_id'), nullable=False)
+    user_id = db.Column(db.String(36), db.ForeignKey('users.user_id'), nullable=False)
+    visit_number = db.Column(db.String(20), unique=True, nullable=False)
+    visit_date = db.Column(db.DateTime, default=datetime.utcnow)
+    visit_time = db.Column(db.DateTime, default=datetime.utcnow)
+    
+class VisitPregnancy(db.Model):
+    __tablename__ = 'pregnancy_visit'
+    
+    visit_anc_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    visit_id = db.Column(db.String(36), db.ForeignKey('visit_master.visit_id'), nullable=False)
+    pr_id = db.Column(db.String(36), db.ForeignKey('pregnancy_record.pr_id'), nullable=False)
+    blood_pressure = db.Column(db.String(20), nullable=True)
+    weight_kg = db.Column(db.String(20), nullable=True)
+    height_cm = db.Column(db.String(20), nullable=True)
+    blood_pressure = db.Column(db.String(20), nullable=True)
+    body_temperature = db.Column(db.String(20), nullable=True)
+    respiratory_rate = db.Column(db.String(20), nullable=True)
+    heart_rate = db.Column(db.String(20), nullable=True)
+    subjective= db.Column(EncryptedText, nullable=True)
+    objective = db.Column(EncryptedText, nullable=True)
+    assessment = db.Column(EncryptedText, nullable=True)
+    plan = db.Column(EncryptedText, nullable=True)
+
     

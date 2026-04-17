@@ -7,8 +7,8 @@ import axios from "axios";
 import { request } from "http";
 import Cookies from 'js-cookie';
 import Swal from "sweetalert2";
-import PatientInformation from "@/components/patientInformation";
-import FamilyInformation from "@/components/familyInformation";
+import PatientInformation from "@/components/add-records/patientInformation";
+import FamilyInformation from "@/components/add-records/familyInformation";
 
 
 const PregnancyRecord = () => {
@@ -67,7 +67,7 @@ const PregnancyRecord = () => {
         const num = parseInt(count) || 0;
         setPreviousPregnancy(count);
 
-        
+
         const newHistory = Array.from({ length: num }, (_, i) => ({
             pregnancy_no: i + 1,
             gestational_age: "",
@@ -81,13 +81,40 @@ const PregnancyRecord = () => {
         }));
 
         setObstetricHistory(newHistory);
-        if (num > 0) setIsModalOpen(true); 
+        if (num > 0) setIsModalOpen(true);
     };
     const updateHistoryItem = (index: number, field: string, value: string) => {
         const updated = [...obstetricHistory];
         updated[index][field] = value;
         setObstetricHistory(updated);
     };
+
+    useEffect(() => {
+        if (lastMenstrualPeriod) {
+            const date = new Date(lastMenstrualPeriod);
+            let d = date.getDate();
+            let m = date.getMonth(); 
+            let y = date.getFullYear();
+
+       
+            if (m <= 2) {
+                m = m + 9;
+            } else {
+                m = m - 3;
+                y = y + 1;
+            }
+
+            d = d + 7;
+
+            const hplDate = new Date(y, m, d);
+
+            const finalYear = hplDate.getFullYear();
+            const finalMonth = String(hplDate.getMonth() + 1).padStart(2, '0');
+            const finalDay = String(hplDate.getDate()).padStart(2, '0');
+
+            setEstimatedDate(`${finalDay}/${finalMonth}/${finalYear}`);
+        }
+    }, [lastMenstrualPeriod]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -180,14 +207,21 @@ const PregnancyRecord = () => {
                             <input type="text" value={prePregnancyWeight} onChange={(e) => setPrePregnancyWeight(e.target.value)} name="prePregnancyWeight" id="prePregnancyWeight" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                         </div>
                         <div className="flex flex-col  flex-1">
-                            MUAC Sebelum Kehamilan
+                            Lingkar Lengan Atas Sebelum Kehamilan
                             <input type="text" value={prePregnancyMUAC} onChange={(e) => setPrePregnancyMUAC(e.target.value)} name="prePregnancyMUAC" id="prePregnancyMUAC" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                         </div>
                     </div>
                     <div className="flex flex-row w-full gap-20 justify-between">
                         <div className="flex flex-col flex-1" >
                             Riwayat Kontrasepsi
-                            <input type="text" value={contraceptiveHistory} onChange={(e) => setContraceptiveHistory(e.target.value)} name="contraceptiveHistory" id="contraceptiveHistory" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                            <select value={contraceptiveHistory} onChange={(e) => setContraceptiveHistory(e.target.value)} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
+                                <option value="" disabled>Pilih</option>
+                                <option value="PIL">PIL</option>
+                                <option value="Suntik 1 Bulan">Suntik 1 Bulan</option>
+                                <option value="Suntik 3 Bulan">Suntik 3 Bulan</option>
+                                <option value="IUD">IUD</option>
+                                <option value="Inplan">Inplan</option>
+                            </select>
                         </div>
                         <div className="flex flex-col flex-1" >
                             Penyakit Genetik dalam Keluarga
@@ -208,6 +242,11 @@ const PregnancyRecord = () => {
                                 <option value="3">3</option>
                                 <option value="4">4</option>
                                 <option value="5">5</option>
+                                <option value="6">6</option>
+                                <option value="7">7</option>
+                                <option value="8">8</option>
+                                <option value="9">9</option>
+                                <option value="10">10</option>
                             </select>
                         </div>
                     </div>
@@ -224,7 +263,13 @@ const PregnancyRecord = () => {
                                             </div>
                                             <div className="flex flex-col flex-1 gap-1 text-sm">
                                                 Cara Persalinan
-                                                <input type="text" value={item.delivery_mode} onChange={(e) => updateHistoryItem(index, 'delivery_mode', e.target.value)} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                                                <select value={item.delivery_mode} onChange={(e) => updateHistoryItem(index, 'delivery_mode', e.target.value)} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
+                                                    <option value="" disabled>Pilih</option>
+                                                    <option value="spontan">Spontan</option>
+                                                    <option value="normal">Normal</option>
+                                                    <option value="sc">SC</option>
+                                                </select>
+                                                <input type="text" />
                                             </div>
                                         </div>
                                         <div className="flex flex-row w-full gap-20 justify-between">
@@ -243,11 +288,15 @@ const PregnancyRecord = () => {
                                                 <input type="text" value={item.birth_weight_height} onChange={(e) => updateHistoryItem(index, 'birth_weight_height', e.target.value)} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                                             </div>
                                             <div className="flex flex-col flex-1 gap-1 text-sm">
-                                                Waktu Nifas
-                                                <input type="text" value={item.postpartum_status} onChange={(e) => updateHistoryItem(index, 'postpartum_status', e.target.value)} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                                                Masa Nifas
+                                                <select value={item.postpartum_status} onChange={(e) => updateHistoryItem(index, 'postpartum_status', e.target.value)} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
+                                                    <option value="" disabled>Pilih</option>
+                                                    <option value="normal">Normal</option>
+                                                    <option value="komplikasi">Komplikasi</option>
+                                                </select>
                                             </div>
                                         </div>
-                                          <div className="flex flex-row w-full gap-20 justify-between">
+                                        <div className="flex flex-row w-full gap-20 justify-between">
                                             <div className="flex flex-col flex-1 gap-1 text-sm">
                                                 Komplikasi Bayi
                                                 <textarea value={item.baby_complications} onChange={(e) => updateHistoryItem(index, 'baby_complications', e.target.value)} className="w-full h-50 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
@@ -274,7 +323,7 @@ const PregnancyRecord = () => {
                             </div>
                             <div className="flex flex-col  flex-1">
                                 Tanggal Estimasi Persalinan
-                                <input type="date" value={estimatedDate} onChange={(e) => setEstimatedDate(e.target.value)} name="estimatedDateOfDelivery" id="estimatedDateOfDelivery" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                                <input value={estimatedDate} readOnly placeholder="*automated by system" onChange={(e) => setEstimatedDate(e.target.value)} name="estimatedDateOfDelivery" id="estimatedDateOfDelivery" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                             </div>
                         </div>
                         <div className="flex flex-row w-full gap-20 justify-between">
@@ -306,7 +355,16 @@ const PregnancyRecord = () => {
                             </div>
                             <div className="flex flex-col  flex-1">
                                 TT Screening
-                                <input type="text" value={ttScreening} onChange={(e) => setTtScreening(e.target.value)} name="ttScreening" id="ttScreening" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                                <select value={ttScreening} onChange={(e) => setTtScreening(e.target.value)} name="ttScreening" id="ttScreening" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" >
+                                    <option value="" disabled> Pilih</option>
+                                    <option value="TT 0"> TT 0</option>
+                                    <option value="TT 1"> TT 1</option>
+                                    <option value="TT 2"> TT 2</option>
+                                    <option value="TT 3"> TT 3</option>
+                                    <option value="TT 4"> TT 4</option>
+                                    <option value="TT 5"> TT 5</option>
+                                </select>
+                              
                             </div>
                         </div>
                         <div className="flex flex-row w-full gap-20 justify-between">
@@ -315,7 +373,7 @@ const PregnancyRecord = () => {
                                 <textarea value={labResult} onChange={(e) => setLabResult(e.target.value)} name="laboratoryResults" id="laboratoryResults" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                             </div>
                             <div className="flex flex-col  flex-1">
-                                MUAC
+                             Lingkar Lengan Atas
                                 <input type="text" value={muac} onChange={(e) => setMuac(e.target.value)} name="muac" id="muac" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                             </div>
                         </div>

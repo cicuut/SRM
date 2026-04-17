@@ -8,8 +8,8 @@ import axios from "axios";
 import { request } from "http";
 import Cookies from 'js-cookie';
 import Swal from 'sweetalert2';
-import PatientInformation from "@/components/patientInformation";
-import FamilyInformation from "@/components/familyInformation";
+import PatientInformation from "@/components/add-records/patientInformation";
+import FamilyInformation from "@/components/add-records/familyInformation";
 
 const GeneralRecord = () => {
     const [error, setError] = useState("");

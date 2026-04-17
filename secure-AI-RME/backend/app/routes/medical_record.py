@@ -1,8 +1,9 @@
 from flask import Blueprint, request, jsonify
-from app.models import db, Patient, MedicalRecord, PregnancyRecord, ObstetricHistory, FamilyPlanningRecord, GeneralRecord, DeliveryRecord
+from app.models import db, Patient, MedicalRecord, PregnancyRecord, ObstetricHistory, FamilyPlanningRecord, GeneralRecord, DeliveryRecord, ImmunizationRecord
 from app.utils import generate_record_number, get_latest_record_count, decrypt_data
 from datetime import datetime
 from flask_jwt_extended import jwt_required, get_jwt
+from sqlalchemy import or_
 
 medical_record_bp = Blueprint('medical_record', __name__)
 
@@ -57,7 +58,9 @@ def add_pregnancy_record():
                 relation=data.get('relation'), 
                 clinic_id=current_clinic_id,
                 address=data.get('family_address'),
-                patient_number=data.get('family_phone')
+                patient_number=data.get('family_number'),
+                education_level=data.get('family_education_level'),
+                occupation=data.get('family_occupation'),
             )
             db.session.add(new_family)
             db.session.flush()
@@ -175,7 +178,7 @@ def add_family_planning_record():
                 relation=data.get('relation'), 
                 clinic_id=current_clinic_id,
                 address=data.get('family_address'),
-                patient_number=data.get('family_phone'),
+                patient_number=data.get('family_number'),
                 education_level=data.get('family_education_level'),
                 occupation=data.get('family_occupation')
             )
@@ -267,7 +270,7 @@ def add_general_record():
                 relation=data.get('relation'), 
                 clinic_id=current_clinic_id,
                 address=data.get('family_address'),
-                patient_number=data.get('family_phone'),
+                patient_number=data.get('family_number'),
                 education_level=data.get('family_education_level'),
                 occupation=data.get('family_occupation')
             )
@@ -318,6 +321,96 @@ def add_general_record():
         db.session.rollback()
         return jsonify({"msg": "Failed to add medical record", "error": str(e)}), 500
 
+@medical_record_bp.route('/add-immunization', methods=['POST'])
+@jwt_required()
+def add_immunization_record():
+    claims = get_jwt()
+    current_clinic_id = claims.get("clinic_id")
+    current_family_link_id = claims.get("family_link_id")
+    
+    
+    data = request.get_json()
+    
+    # Validasi input
+    patient_name = data.get('patient_name')
+    birth_date = data.get('birth_date')
+    national_id = data.get('national_id')
+    
+    
+    if not patient_name or not birth_date or not national_id:
+        return jsonify({"msg": "Nama, Tanggal Lahir, dan NIK wajib diisi!"}), 400
+    
+    try:
+        family_id = None
+        if data.get('family_name'): 
+            new_family = Patient(
+                patient_name=data.get('family_name'),
+                birth_date=data.get('family_birth_date'),
+                national_id=data.get('family_national_id'),
+                gender=data.get('family_gender'), 
+                role='family',
+                relation=data.get('relation'), 
+                clinic_id=current_clinic_id,
+                address=data.get('family_address'),
+                patient_number=data.get('family_number'),
+                education_level=data.get('family_education_level'),
+                occupation=data.get('family_occupation')
+            )
+            db.session.add(new_family)
+            db.session.flush()
+            family_id = new_family.patient_id
+            
+        # Add new patient
+        new_patient = Patient(
+            patient_name=data.get('patient_name'),
+            birth_date=data.get('birth_date'),
+            national_id=data.get('national_id'),
+            gender=data.get('gender'),
+            clinic_id=current_clinic_id,
+            role='self', 
+            relation='self', 
+            patient_number=data.get('patient_number'),
+            education_level=data.get('education_level'),
+            occupation=data.get('occupation'),
+            address=data.get('address'),
+            insurance_number=data.get('insurance_number'),
+            primary_health_facility=data.get('primary_health_facility'),
+            family_link_id=family_id,    
+        )
+        db.session.add(new_patient)
+        db.session.flush() 
+        
+        # Add medical record
+        new_record = MedicalRecord(
+            patient_id=new_patient.patient_id,
+            record_number=data.get('record_number'),
+            record_type='Imunisasi',
+            status='Active',
+            created_at=datetime.utcnow() 
+        )
+        
+        db.session.add(new_record)
+        db.session.flush() 
+        
+        # Add Immunization Record
+        new_immunization_record = ImmunizationRecord(
+            record_id=new_record.record_id,
+          
+        )
+        db.session.add(new_immunization_record)
+        db.session.flush() 
+        db.session.commit()
+        
+        return jsonify({
+            "msg": "Medical record added successfully", 
+            "patient_id": str(new_patient.patient_id),
+            "rm_number": new_record.record_number
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": "Failed to add medical record", "error": str(e)}), 500
+
 @medical_record_bp.route('/add-delivery', methods=['POST'])
 @jwt_required()
 def add_delivery_record():
@@ -349,7 +442,7 @@ def add_delivery_record():
                 relation=data.get('relation'), 
                 clinic_id=current_clinic_id,
                 address=data.get('family_address'),
-                patient_number=data.get('family_phone'),
+                patient_number=data.get('family_number'),
                 education_level=data.get('family_education_level'),
                 occupation=data.get('family_occupation')
             )
@@ -401,7 +494,9 @@ def add_delivery_record():
             apgar_score = data.get('apgar_score'),
             baby_complications = data.get('baby_complications'),
             vit_k_given = data.get('vit_k_given'),
-            hbo_given = data.get('hbo_given')
+            hbo_given = data.get('hbo_given'),
+            eye_ointment = data.get('eye_ointment'),
+            imd = data.get('imd')
         )
         
         db.session.add(new_delivery_record)
@@ -450,15 +545,15 @@ def get_all_records():
 @jwt_required()
 def get_record_detail(uuid):
     try:
-        # 1. Ambil data utama dari tabel MedicalRecord
+      
         record = MedicalRecord.query.filter_by(record_id=uuid).first()
         if not record:
             return jsonify({"msg": "Data tidak ditemukan"}), 404
 
-        # 2. Ambil data pasien (untuk header UI)
+     
         patient = Patient.query.get(record.patient_id)
         
-        # Data dasar yang selalu ada
+     
         response_data = {
             "record_number": record.record_number,
             "record_type": record.record_type,
@@ -467,7 +562,7 @@ def get_record_detail(uuid):
             "details": {} # Tempat menaruh data spesifik
         }
 
-        # 3. Logika "Pencari Detail" sesuai tipe
+      
         if record.record_type == 'Pregnancy':
             detail = PregnancyRecord.query.filter_by(record_id=uuid).first()
             if detail:
@@ -497,15 +592,15 @@ def get_record_detail(uuid):
 @jwt_required()
 def get_patient_data(uuid):
     try:
-        # 1. Ambil data utama dari tabel MedicalRecord
+      
         record = MedicalRecord.query.filter_by(record_id=uuid).first()
         if not record:
             return jsonify({"msg": "Data tidak ditemukan"}), 404
 
-        # 2. Ambil data pasien (untuk header UI)
+       
         patient = Patient.query.get(record.patient_id)
         patient_age = patient.age
-        # Data dasar yang selalu ada
+       
         response_data = {
            "patient_name":decrypt_data(patient.patient_name),
            "nik": decrypt_data(patient.national_id),
@@ -523,4 +618,259 @@ def get_patient_data(uuid):
         return jsonify(response_data), 200
 
     except Exception as e:
+        return jsonify({"msg": "Server error", "error": str(e)}), 500
+    
+@medical_record_bp.route('/get-family-data/<uuid>', methods=['GET'])
+@jwt_required()
+def get_family_data(uuid):
+    try:
+        # 1. Cari Rekam Medisnya dulu
+        record = MedicalRecord.query.filter_by(record_id=uuid).first()
+        if not record:
+            return jsonify({"msg": "Record tidak ditemukan"}), 404
+
+        current_patient = Patient.query.get(record.patient_id)
+        if not current_patient:
+            return jsonify({"msg": "Pasien tidak ditemukan"}), 404
+
+        family_person = None
+
+        if current_patient.role == 'self':
+            family_person = Patient.query.get(current_patient.family_link_id)
+      
+    
+        if not family_person:
+            return jsonify({
+                "msg": "Data pendamping/keluarga tidak ditemukan", 
+                "data": None
+            }), 200
+   
+        response_data = {
+            "patient_name": decrypt_data(family_person.patient_name),
+            "nik": decrypt_data(family_person.national_id),
+            "birthdate": family_person.birth_date.strftime('%d %B %Y') if family_person.birth_date else None,
+            "gender": family_person.gender,
+            "age": family_person.age,
+            "relation": family_person.relation, 
+            "patient_number": decrypt_data(family_person.patient_number),
+            "occupation": family_person.occupation,
+            "education": family_person.education_level,
+            "address": decrypt_data(family_person.address)
+        }
+
+        return jsonify(response_data), 200
+
+    except Exception as e:
+        return jsonify({"msg": "Server error", "error": str(e)}), 500
+    
+@medical_record_bp.route('/get-pregnancy-record-data/<uuid>', methods=['GET'])
+@jwt_required()
+def get_pregnancy_record_data(uuid):
+    try:
+        # 1. Cari Rekam Medisnya dulu
+        record = MedicalRecord.query.filter_by(record_id=uuid).first()
+        if not record:
+            return jsonify({"msg": "Record tidak ditemukan"}), 404
+
+        current_pregnancy_record = PregnancyRecord.query.filter_by(record_id=uuid).first()
+        if not current_pregnancy_record:
+            return jsonify({"msg": "Data kehamilan tidak ditemukan"}), 404
+        
+        current_obstectric_history = ObstetricHistory.query.filter_by(pr_id=current_pregnancy_record.pr_id).all()
+        
+        obstectric_history_list = []
+        for obs in current_obstectric_history:
+            obstectric_history_list.append({
+                "id": obs.history_id,
+                "pregnancy_no": obs.pregnancy_no,
+                "gestational_age": obs.gestational_age,
+                "pregnancy_complications": decrypt_data(obs.pregnancy_complications),
+                "delivery_mode": obs.delivery_mode,
+                "delivery_complications": decrypt_data(obs.delivery_complications),
+                "baby_weight_height": decrypt_data(obs.baby_weight_height),
+                "baby_complications": decrypt_data(obs.baby_complications),
+                "postpartum_status": decrypt_data(obs.postpartum_status),
+                "postpartum_complications": decrypt_data(obs.postpartum_complications)
+            })
+            
+        response_data = {
+            "current_pregnancy": {
+                "contraceptive_history": decrypt_data(current_pregnancy_record.contraceptive_history),
+                "family_med_history":  decrypt_data(current_pregnancy_record.family_med_history),
+                "last_menstrual_period": current_pregnancy_record.last_menstrual_period.strftime('%d %B %Y'), 
+                "expected_due_date": current_pregnancy_record.expected_due_date.strftime('%d %B %Y'), 
+                "diagnosis":  decrypt_data(current_pregnancy_record.diagnosis),
+                "height_cm": current_pregnancy_record.height_cm,
+                "weight_kg": current_pregnancy_record.weight_kg,
+                "muac_cm": current_pregnancy_record.muac_cm,
+                "pre_preg_weight_kg": current_pregnancy_record.pre_preg_weight_kg,
+                "pre_preg_muac_cm": current_pregnancy_record.pre_preg_muac_cm,
+                "tt_screening": current_pregnancy_record.tt_screening,
+                "lab_results": decrypt_data(current_pregnancy_record.lab_results),
+                "registration_date": current_pregnancy_record.registration_date.strftime('%d %B %Y')
+            },
+            "past_obstetric_history": obstectric_history_list
+        }
+
+        return jsonify(response_data), 200
+
+    except Exception as e:
+        return jsonify({"msg": "Server error", "error": str(e)}), 500
+    
+
+@medical_record_bp.route('/get-family-planning-record-data/<uuid>', methods=['GET'])
+@jwt_required()
+def get_family_planning_record_data(uuid):
+    try:
+        # 1. Cari Rekam Medisnya dulu
+        record = MedicalRecord.query.filter_by(record_id=uuid).first()
+        if not record:
+            return jsonify({"msg": "Record tidak ditemukan"}), 404
+
+        current_family_planning_record = FamilyPlanningRecord.query.filter_by(record_id=uuid).first()
+        if not  current_family_planning_record:
+            return jsonify({"msg": "Data kehamilan tidak ditemukan"}), 404
+        
+
+        response_data = {
+            "number_of_children": current_family_planning_record.number_of_children,
+            "family_med_history": decrypt_data(current_family_planning_record.family_med_history),
+            "youngest_child_age": current_family_planning_record.youngest_child_age
+        }
+
+        return jsonify(response_data), 200
+
+    except Exception as e:
+        return jsonify({"msg": "Server error", "error": str(e)}), 500
+    
+
+@medical_record_bp.route('/get-delivery-record-data/<uuid>', methods=['GET'])
+@jwt_required()
+def get_delivery_record_data(uuid):
+    try:
+        # 1. Cari Rekam Medisnya dulu
+        record = MedicalRecord.query.filter_by(record_id=uuid).first()
+        if not record:
+            return jsonify({"msg": "Record tidak ditemukan"}), 404
+
+        current_delivery_record = DeliveryRecord.query.filter_by(record_id=uuid).first()
+        if not  current_delivery_record:
+            return jsonify({"msg": "Data Persalinan tidak ditemukan"}), 404
+        
+
+        response_data = {
+            "delivery_date": current_delivery_record.delivery_date.strftime('%d %B %Y'),
+            "delivery_type": current_delivery_record.delivery_type,
+            "deliver_complications": decrypt_data(current_delivery_record.deliver_complications),
+            "baby_gender": current_delivery_record.baby_gender,
+            "apgar_score": current_delivery_record.apgar_score,
+            "baby_complications": decrypt_data(current_delivery_record.baby_complications),
+            "vit_k_given":current_delivery_record.vit_k_given,
+            "hbo_given": current_delivery_record.hbo_given,
+            "eye_ointment": current_delivery_record.eye_ointment,
+            "imd": current_delivery_record.imd,
+            "baby_length": current_delivery_record.baby_length,
+            "baby_weight": current_delivery_record.baby_weight
+        }
+
+        return jsonify(response_data), 200
+
+    except Exception as e:
+        return jsonify({"msg": "Server error", "error": str(e)}), 500
+
+   
+
+@medical_record_bp.route('/get-immunization-record-data/<uuid>', methods=['GET'])
+@jwt_required()
+def get_immunization_record_data(uuid):
+    try:
+        # 1. Cari Rekam Medisnya dulu
+        record = MedicalRecord.query.filter_by(record_id=uuid).first()
+        if not record:
+            return jsonify({"msg": "Record tidak ditemukan"}), 404
+
+        current_immunization_record = ImmunizationRecord.query.filter_by(record_id=uuid).first()
+        if not  current_immunization_record:
+            return jsonify({"msg": "Data Bayi tidak ditemukan"}), 404
+        
+        def format_date(d):
+            return d.strftime('%d %B %Y') if d else "-"
+
+        response_data = {
+            "hbo_1": format_date(current_immunization_record.hbo_1),
+            "bcg_1": format_date(current_immunization_record.bcg_1),
+            "polio_1": format_date(current_immunization_record.polio_1),
+            "polio_2": format_date(current_immunization_record.polio_2),
+            "polio_3": format_date(current_immunization_record.polio_3),
+            "polio_4": format_date(current_immunization_record.polio_4),
+            "dpt_1": format_date(current_immunization_record.dpt_1),
+            "dpt_2": format_date(current_immunization_record.dpt_2),
+            "dpt_3": format_date(current_immunization_record.dpt_3),
+            "dpt_4": format_date(current_immunization_record.dpt_4),
+            "pcv_1": format_date(current_immunization_record.pcv_1),
+            "pcv_2": format_date(current_immunization_record.pcv_2),
+            "pcv_3": format_date(current_immunization_record.pcv_3),
+            "campak_1": format_date(current_immunization_record.campak_1),
+            "campak_2": format_date(current_immunization_record.campak_2),
+            "ipv_1": format_date(current_immunization_record.ipv_1),
+            "ipv_2": format_date(current_immunization_record.ipv_2)
+        }
+
+        return jsonify(response_data), 200
+
+    except Exception as e:
+        return jsonify({"msg": "Server error", "error": str(e)}), 500
+
+@medical_record_bp.route('/search-patients', methods=['GET'])
+@jwt_required()
+def search_patients():
+    try:
+        search_query = request.args.get('query', '').lower()
+        
+        results = db.session.query(MedicalRecord, Patient)\
+            .join(Patient, MedicalRecord.patient_id == Patient.patient_id)\
+            .all()
+
+        matched_records = []
+
+        for record, patient in results:
+            decrypted_name = decrypt_data(patient.patient_name).lower()
+            decrypted_nik = decrypt_data(patient.national_id)
+            
+            decrypted_birthdate = decrypt_data(patient.birth_date)
+            
+            dob_searchable = ""
+            dob_display = "-"
+            
+            if decrypted_birthdate:
+                decrypted_str = str(decrypted_birthdate)
+                
+                try:
+                    dob_obj = datetime.strptime(decrypted_str, '%Y-%m-%d')
+                    
+                    dob_searchable = f"{dob_obj.strftime('%d-%m-%Y')} {dob_obj.strftime('%d/%m/%Y')} {dob_obj.strftime('%Y-%m-%d')} {dob_obj.strftime('%d %B %Y')}".lower()
+                    dob_display = dob_obj.strftime('%d %B %Y')
+                    
+                except Exception:
+                    dob_searchable = decrypted_str
+                    dob_display = decrypted_str
+
+            if (search_query in decrypted_name or 
+                search_query in decrypted_nik or 
+                search_query in dob_searchable):
+                
+                matched_records.append({
+                    "rm_id": record.record_id,
+                    "record_number": record.record_number,
+                    "record_type": record.record_type,
+                    "patient_name": decrypted_name.title(), 
+                    "nik": decrypted_nik,
+                    "birth_date": dob_display,
+                    "status": record.status
+                })
+
+        return jsonify(matched_records), 200
+
+    except Exception as e:
+        print(f"Search Error: {str(e)}")
         return jsonify({"msg": "Server error", "error": str(e)}), 500

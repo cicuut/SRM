@@ -30,6 +30,22 @@ def generate_record_number(record_type, latest_count):
     sequence = f"{(latest_count + 1):03d}"
     return f"{prefix}-{year}-{sequence}"
 
+def get_latest_visits_count(record_id):
+    from app.models import VisitMaster
+    from app.models import MedicalRecord 
+    
+    count = VisitMaster.query.join(MedicalRecord)\
+        .filter(MedicalRecord.record_id == record_id)\
+        .count()
+    return count
+
+def generate_visit_number(latest_count):
+    prefix = "VIS"  
+    year = datetime.now().year
+    sequence = f"{(latest_count + 1):03d}"
+    return f"{prefix}-{year}-{sequence}"
+
+
 load_dotenv()
 secret_key = os.getenv("ENCRYPTION_KEY").encode()
 

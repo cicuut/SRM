@@ -20,7 +20,13 @@ const Header = () => {
         "family-planning-record": "Tambah Rekam Perencanaan Keluarga",
         "general-record": "Tambah Rekam Umum",
         "immunization-record": "Tambah Rekam Imunisasi",
-        "delivery-record": "Tambah Rekam Persalinan"
+        "delivery-record": "Tambah Rekam Persalinan",
+        "pregnancy": "Kehamilan",
+        "add-visit": "Tambah Kunjungan",
+        "kb": "Keluarga Berencana",
+        "general": "Umum",
+        "immunization": "Imunisasi",
+        "delivery": "Persalinan"
     };
 
 
@@ -34,16 +40,15 @@ const Header = () => {
                     {breadcrumbNameMap[""]}
                 </Link>
 
-                {/* Generate Breadcrumbs Dibalik URL */}
-                {pathSnippets.map((_, index) => {
+               {pathSnippets.map((snippet, index) => {
                     const url = `/${pathSnippets.slice(0, index + 1).join("/")}`;
                     const isLast = index === pathSnippets.length - 1;
-                    const currentSnippet = pathSnippets[index];
-                    const prevSnippet = pathSnippets[index - 1];
-                    let label = breadcrumbNameMap[pathSnippets[index]] || pathSnippets[index];
-                    if (prevSnippet === "medical-record" && currentSnippet.length > 20) {
-                        label = "Medical Report Detail";
+                    
+                    // 1. Logika Deteksi UUID (ID acak biasanya > 20 karakter)
+                    if (snippet.length > 20) {
+                        return null; 
                     }
+                    const label = breadcrumbNameMap[snippet] || snippet;
 
                     return (
                         <React.Fragment key={url}>

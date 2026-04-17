@@ -24,7 +24,9 @@ def create_app():
     
     from .routes.auth import auth_bp
     from .routes.medical_record import medical_record_bp
+    from .routes.visit_report import visit_report_bp
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(medical_record_bp, url_prefix='/api/medical-record')
+    app.register_blueprint(visit_report_bp, url_prefix='/api/visit-report')
     
     return app

@@ -8,8 +8,8 @@ import axios from "axios";
 import { request } from "http";
 import Cookies from 'js-cookie';
 import Swal from 'sweetalert2';
-import PatientInformation from "@/components/patientInformation";
-import FamilyInformation from "@/components/familyInformation";
+import PatientInformation from "@/components/add-records/patientInformation";
+import FamilyInformation from "@/components/add-records/familyInformation";
 
 const DeliveryRecord = () => {
     const [error, setError] = useState("");
@@ -31,6 +31,9 @@ const DeliveryRecord = () => {
     const [vitKAdministration, setVitKAdministation] = useState(false);
     const [apgarScore, setApgarScore] = useState("");
     const [newbornComplication, setNewbornComplication] = useState("");
+    const [eyeOintment,setEyeOintment]= useState(false);
+    const [imd,setImd]= useState(false);
+    
 
     const handlePatientUpdate = (data: any) => setPatientData(data);
     const handleFamilyUpdate = (data: any) => setFamilyData(data);
@@ -63,7 +66,8 @@ const DeliveryRecord = () => {
         try {
             const token = Cookies.get('access_token');
             if (!token) {
-                alert("Unauthorized. Please log in.");
+                
+                alert("Silakan login terlebih dahulu.");
                 return;
             }
             const payload = {
@@ -80,7 +84,9 @@ const DeliveryRecord = () => {
                 apgar_score: apgarScore,
                 baby_complications: newbornComplication,
                 vit_k_given: vitKAdministration,
-                hbo_given: hboAdministration
+                hbo_given: hboAdministration,
+                eye_ointment: eyeOintment,
+                imd:imd
             };
             const response = await axios.post("http://localhost:5000/api/medical-record/add-delivery", payload, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -141,9 +147,9 @@ const DeliveryRecord = () => {
                         <div className="flex flex-col  flex-1">
                             Metode Persalinan
                             <select name="deliveryMethod" value={deliveryMethod} onChange={(e) => setDeliveryMethod(e.target.value)} id="deliveryMethod" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-                                <option value="" disabled> Pilih metode </option>
+                                <option value="" disabled> Pilih </option>
                                 <option value="normal">Normal</option>
-                                <option value="caesar">Operasi Caesar</option>
+                                <option value="komplikasi">Komplikasi</option>
                             </select>
                         </div>
                     </div>
@@ -170,46 +176,75 @@ const DeliveryRecord = () => {
                             </select>                        </div>
                         <div className="flex flex-col  flex-1">
                             Berat Badan
-                            <input type="number" name="birthWeight" value={birthWeight} onChange={(e) => setBirthWeight(e.target.value)} id="birthWeight" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                            <input type="text" name="birthWeight" value={birthWeight} onChange={(e) => setBirthWeight(e.target.value)} id="birthWeight" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                         </div>
                         <div className="flex flex-col  flex-1">
                             Panjang Badan
-                            <input type="number" name="birthLenght" value={birthLenght} onChange={(e) => setBirthLenght(e.target.value)} id="birthLenght" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                            <input type="text" name="birthLenght" value={birthLenght} onChange={(e) => setBirthLenght(e.target.value)} id="birthLenght" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                         </div>
                     </div>
-                    <div className="flex flex-row w-full gap-20 justify-between">
+                    <div className="flex flex-row w-full gap-20  justify-between items-center">
                         <div className="flex flex-col flex-1 gap-y-1 ">
                             APGAR Score
-                            <input type="number" name="apgarScore" value={apgarScore} onChange={(e) => setApgarScore(e.target.value)} id="apgarScore" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                            <input type="text" name="apgarScore" value={apgarScore} onChange={(e) => setApgarScore(e.target.value)} id="apgarScore" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                         </div>
-                        <div className="flex flex-col  flex-1">
-                            Pemberian Vitamin K
-                            <div className="flex gap-6 mt-1">
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input
-                                        type="radio"
-                                        name="vit_k_given"
-                                        value="true"
-                                        checked={vitKAdministration === true}
-                                        onChange={(e) => setVitKAdministation(e.target.value === 'true')}
-                                        className="w-4 h-4 accent-[#739072]"
-                                    />
-                                    <span>Sudah</span>
-                                </label>
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input
-                                        type="radio"
-                                        name="vit_k_given"
-                                        value="false"
-                                        checked={vitKAdministration === false}
-                                        onChange={(e) => setVitKAdministation(e.target.value === 'true')}
-                                        className="w-4 h-4 accent-[#739072]"
-                                    />
-                                    <span>Belum</span>
-                                </label>
+                        
+                            <div className="flex flex-col ">
+                                Pemberian Vitamin K
+                                <div className="flex gap-6 mt-1">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="vit_k_given"
+                                            value="true"
+                                            checked={vitKAdministration === true}
+                                            onChange={(e) => setVitKAdministation(e.target.value === 'true')}
+                                            className="w-4 h-4 accent-[#739072]"
+                                        />
+                                        <span>Sudah</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="vit_k_given"
+                                            value="false"
+                                            checked={vitKAdministration === false}
+                                            onChange={(e) => setVitKAdministation(e.target.value === 'true')}
+                                            className="w-4 h-4 accent-[#739072]"
+                                        />
+                                        <span>Belum</span>
+                                    </label>
+                                </div>
                             </div>
-                        </div>
-                        <div className="flex flex-col  flex-1">
+                             <div className="flex flex-col ">
+                               Salep Mata
+                                <div className="flex gap-6 mt-1">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="eye_ointment"
+                                            value="true"
+                                            checked={eyeOintment === true}
+                                            onChange={(e) => setEyeOintment(e.target.value === 'true')}
+                                            className="w-4 h-4 accent-[#739072]"
+                                        />
+                                        <span>Sudah</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="eye_ointment"
+                                            value="false"
+                                            checked={eyeOintment === false}
+                                            onChange={(e) => setEyeOintment(e.target.value === 'true')}
+                                            className="w-4 h-4 accent-[#739072]"
+                                        />
+                                        <span>Belum</span>
+                                    </label>
+                                </div>
+                            </div>
+                      
+                        <div className="flex flex-col">
                             Pemberian HBO
                             <div className="flex gap-6 mt-1">
                                 <label className="flex items-center gap-2 cursor-pointer">
@@ -234,8 +269,36 @@ const DeliveryRecord = () => {
                                     />
                                     <span>Belum</span>
                                 </label>
-                            </div>                        
+                            </div>
                         </div>
+                                <div className="flex flex-col  flex-1">
+                              IMD
+                                <div className="flex gap-6 mt-1">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="imd"
+                                            value="true"
+                                            checked={imd === true}
+                                            onChange={(e) => setImd(e.target.value === 'true')}
+                                            className="w-4 h-4 accent-[#739072]"
+                                        />
+                                        <span>Sudah</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="imd"
+                                            value="false"
+                                            checked={imd === false}
+                                            onChange={(e) => setImd(e.target.value === 'true')}
+                                            className="w-4 h-4 accent-[#739072]"
+                                        />
+                                        <span>Belum</span>
+                                    </label>
+                                </div>
+                            </div>
+                      
                     </div>
                     <div className="flex flex-row w-full gap-20 justify-between">
                         <div className="flex flex-col flex-1" >

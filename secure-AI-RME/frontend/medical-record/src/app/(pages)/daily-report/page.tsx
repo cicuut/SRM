@@ -1,19 +1,325 @@
 'use client';
-import React from "react";
-import { useState } from "react";
-import { emit } from "process";
-import Sidebar from "@/components/sidebar";
-const DailyReport = () => {
-   
+import { useState, useEffect } from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faSearch, faFilter, faPlus, faTimes, faAngleDown, faCalendarDays, faFileArrowDown } from "@fortawesome/free-solid-svg-icons";
+import { useRouter } from 'nextjs-toploader/app'
+import Swal from "sweetalert2";
+import Cookies from 'js-cookie';
+import axios from "axios";
 
+interface VisitList {
+    rm_id: string;
+    record_number: string;
+    record_type: string;
+    patient_name: string;
+    nik: string;
+    birth_date: string;
+    status: string;
+    created_at: string;
+    updated_at: string;
+    patient_number?: string;
+    address?: string;
+}
+
+const DailyReport = () => {
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(false);
+    const [medicalRecordList, setMedicalRecordList] = useState<VisitList[]>([]);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isModalVisitOpen, setIsModalVisitOpen] = useState(false);
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [selectedType, setSelectedType] = useState("Select a type");
+    const router = useRouter();
+    const [verificationInput, setVerificationInput] = useState("");
+    const [filteredResults, setFilteredResults] = useState<VisitList[]>([]);
+
+    useEffect(() => {
+        const fetchMedicalRecord = async () => {
+            try {
+                const token = Cookies.get('access_token');
+                const response = await fetch('http://localhost:5000/api/medical-record/get-all-records', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) throw new Error('Gagal mengambil data pasien');
+
+                const data = await response.json();
+                setMedicalRecordList(data);
+            } catch (err: any) {
+                setError(err.message);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchMedicalRecord();
+    }, []);
+
+    if (loading) {
+        return <div className="max-w-5xl mx-auto">Loading...</div>;
+    }
+    if (error) return <div className="p-8 text-center text-red-500">Error: {error}</div>;
+
+    const handleSubmitRecordType = (e: React.FormEvent) => {
+        e.preventDefault();
+
+        setIsModalOpen(false);
+        setIsDropdownOpen(false);
+        setSelectedType("Masukan Identitas Pasien (NIK atau Tanggal Lahir)");
+        setLoading(true);
+        switch (selectedType) {
+            case "Rekam Medis Kehamilan":
+                router.push('/medical-record/pregnancy-record?type=Kehamilan');
+                break;
+            case "Rekam Medis Keluarga Berencana":
+                router.push('/medical-record/family-planning-record?type=Keluarga Berencana');
+                break;
+            case "Rekam Medis Poli Umum":
+                router.push('/medical-record/general-record?type=Umum');
+                break;
+            case "Rekam Medis Bayi dan Imunisasi":
+                router.push('/medical-record/immunization-record?type=Imunisasi');
+                break;
+            case "Rekam Medis Persalinan":
+                router.push('/medical-record/delivery-record?type=Persalinan');
+                break;
+            default:
+                Swal.fire({
+                    title: "Proses Gagal",
+                    text: "Pilih tipe rekam medis terlebih dahulu",
+                    icon: "error",
+                    confirmButtonColor: "#739072",
+                    timer: 2000
+                });
+        }
+    };
+
+    const handleVisit = (rmId: string, type: string) => {
+        const typeMap: { [key: string]: string } = {
+            "Kehamilan": "pregnancy",
+            "Keluarga Berencana": "kb",
+            "Poli Umum": "general",
+            "Bayi dan Imunisasi": "immunization",
+            "Persalinan": "delivery"
+        };
+        const typePath = typeMap[type] || "general";
+        router.push(`/daily-report/add-visit/${typePath}/${rmId}`);
+    }
+
+    const handleSearch = async (query: string) => {
+        if (query.length < 3) return; // Minimal 3 huruf baru cari
+
+        try {
+            const token = Cookies.get('access_token');
+            const response = await axios.get(
+                `http://localhost:5000/api/medical-record/search-patients?query=${query}`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            setFilteredResults(response.data);
+        } catch (err) {
+            console.error("Gagal mencari pasien");
+        }
+    };
     return (
-        <div className="min-h-screen flex bg-[#FDFEF9]">
-         <Sidebar/>
-         <div className="flex-1 flex flex-col ml-70 py-10">
-          this is daily report content
-         </div>
-        </div>
+        <div>
+            <div className="flex-1 flex flex-col  w-full">
+                <div className="w-full flex items-center py-6 gap-70  justify-between">
+                    <div className="relative flex-1 outline outline-1 outline-gray-300 rounded-lg px-4 py-2 shadow-sm transition-all focus-within:border-[#739072]">
+                        <FontAwesomeIcon icon={faSearch} className="text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 w-47" />
+                        <form>
+                            <input type="text" placeholder="Cari data kunjungan" className="w-full focus:outline-none pl-8 text-gray-700 placeholder-gray-400" />
+                        </form>
+                    </div>
+                    <div className=" flex flex-row items-center gap-5 shrink-0">
+                        <div onClick={() => setIsModalVisitOpen(true)} className="cursor-pointer flex flex-row items-center gap-x-[4]  rounded-[50px] px-5 py-2 bg-[#86A789] shadow-sm transition-all focus-within:border-[#739072]">
+                            <FontAwesomeIcon icon={faPlus} className="text-black-400" />
+                            <span className="font-bold">Tambah Laporan Kunjungan</span>
+                        </div>
+
+                    </div>
+                </div>
+                <div className="w-full flex felx-row gap-x-5">
+                    <div className="min-w-[150px] text-center bg-[#D2E3C8] p-2  rounded-[50px] font-bold">
+                        Wed, 28 January 2026
+                    </div>
+                    <div className="min-w-[150px] text-center border p-2 rounded-[50px] border-gray-400 cursor-pointer">Pilih Tanggal<FontAwesomeIcon icon={faCalendarDays} className="text-black-400 ml-[10px]" /></div>
+                    <div className="min-w-[150px] text-center border p-2 rounded-[50px] border-gray-400 cursor-pointer">Filter <FontAwesomeIcon icon={faFilter} className="text-black-400 ml-[10px]" /></div>
+                    <div className="min-w-[150px] text-center border p-2 rounded-[50px] border-gray-400 cursor-pointer">Download <FontAwesomeIcon icon={faFileArrowDown} className="text-black-400 ml-[10px]" /></div>
+                </div>
+                <div className="mt-5">
+                    <table className="min-w-full divide-y divide-gray-200 text-[11px]">
+                        <thead className="bg-[#D2E3C8] text-gray-700 font-semibold drop-shadow-lg ">
+                            <tr>
+                                <th className="px-6 py-4 border-r border-gray-200 w-40">Kunjungan ID</th>
+                                <th className="px-6 py-4 border-r border-gray-200 w-50">Tanggal</th>
+                                <th className="px-6 py-4 border-r border-gray-200 w-50">RM ID</th>
+                                <th className="px-6 py-4 border-r border-gray-200">Name Pasien</th>
+                                <th className="px-6 py-4 border-r border-gray-200 w-50">Tipe Kunjungan</th>
+                                <th className="px-6 py-4 border-r border-gray-200 w-40">Dibuat Oleh</th>
+                            </tr>
+                        </thead>
+                    </table>
+                </div>
+            </div>
+            {isModalVisitOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+                    <div className="flex flex-col bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-y-auto ">
+                        <div className="bg-[#739072] p-4 text-white flex justify-between items-center">
+                            <h2 className="text-xl font-bold">Verifikasi Pasien</h2>
+                            <button onClick={() => { setIsModalVisitOpen(false); setVerificationInput(""); setFilteredResults([]) }} className="cursor-pointer hover:scale-110">
+                                <FontAwesomeIcon icon={faTimes} className="w-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-8 flex flex-col gap-4 min-h-[20px] max-h-[350px]">
+                            <div className="relative w-full fixed">
+                                <input
+                                    type="text"
+                                    className="w-full bg-[#eeeeee] focus:outline-none rounded-lg h-12 p-4 border focus:border-[#739072]"
+                                    placeholder="Masukkan NIK atau Nama Pasien..."
+                                    value={verificationInput}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setVerificationInput(val);
+                                        if (val.length > 2) {
+                                            handleSearch(val);
+                                        } else {
+                                            setFilteredResults([]);
+                                        }
+                                    }}
+                                />
+                            </div>
+                            <div className="relative w-full">
+                                {filteredResults.length > 0 && (
+                                    <div className="z-50 w-full mt-2 bg-white border border-gray-100 shadow-xl rounded-2xl overflow-hidden overflow-y-auto  animate-in fade-in slide-in-from-top-2 duration-200 max-h-50">
+                                        <div className="max-h-[300px] overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-gray-200">
+                                            {filteredResults.map((patient) => (
+                                                <div
+                                                    key={patient.rm_id}
+                                                    onClick={() => handleVisit(patient.rm_id, patient.record_type)}
+                                                    className="p-4 border-b last:border-0 hover:bg-[#F0F4EF] cursor-pointer rounded-xl transition-all flex justify-between items-center group"
+                                                >
+                                                    <div className="flex flex-col">
+                                                        <p className="font-bold text-[#4F6F52] group-hover:text-[#739072] transition-colors">
+                                                            {patient.patient_name}
+                                                        </p>
+                                                        <p className="text-[10px] text-gray-500 flex gap-2">
+                                                            <span>NIK: {patient.nik}</span>
+                                                            <span className="text-gray-300">|</span>
+                                                            <span>RM: {patient.record_number}</span>
+                                                        </p>
+                                                    </div>
+                                                    <span className="text-[9px] font-bold bg-[#E9F0E8] text-[#4F6F52] px-3 py-1 rounded-full border border-[#D2E3C8]">
+                                                        {patient.record_type}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="text-sm text-center">
+                            <p>Tidak ada rekam medis?
+                                <span onClick={() => { setIsModalOpen(true); setIsModalVisitOpen(false); }} className="text-[#739072] font-bold underline ml-1 cursor-pointer">
+                                    Buat baru di sini
+                                </span>
+                            </p>
+                        </div>
+
+
+                        <div className="p-4  flex justify-end gap-3">
+                            <button
+                                onClick={() => { setIsModalVisitOpen(false); setVerificationInput(""); setFilteredResults([]) }}
+                                className="px-6 py-2 border rounded-full text-gray-600 hover:bg-gray-100"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )
+            }
+            {
+                isModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+                        <div className="flex flex-col gap-y-6 bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 h-80 pb-8">
+
+                            <div className="bg-[#739072] p-4 text-white flex justify-between items-center">
+                                <h2 className="text-xl font-bold">Pilih Tipe Rekam Medis</h2>
+                                <button onClick={() => {
+                                    setIsModalOpen(false);
+                                    setIsDropdownOpen(false);
+                                    setSelectedType("Select a type");
+                                }} className="cursor-pointer hover:scale-110 transition">
+                                    <FontAwesomeIcon icon={faTimes} className="w-5" />
+                                </button>
+                            </div>
+
+
+                            <form onSubmit={handleSubmitRecordType} className="relative w-full px-8 flex flex-col gap-6">
+
+                                <div className="relative w-full">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                                        className="flex flex-row items-center justify-between w-full border border-gray-300 rounded-full px-6 py-3 bg-white shadow-sm hover:bg-gray-50 transition-all text-gray-700 font-medium"
+                                    >
+                                        <span>{selectedType}</span>
+                                        <FontAwesomeIcon icon={faAngleDown} className={`text-gray-400 w-3 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                                    </button>
+
+                                    {isDropdownOpen && (
+                                        <ul className="absolute left-0 mt-2 w-full bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-y-auto max-h-30 animate-in fade-in slide-in-from-top-2 duration-200">
+                                            {['Kehamilan', 'Keluarga Berencana', 'Poli Umum', 'Bayi dan Imunisasi', 'Persalinan'].map((item) => (
+                                                <li
+                                                    key={item}
+                                                    onClick={() => {
+                                                        setSelectedType("Rekam Medis " + item);
+                                                        setIsDropdownOpen(false);
+                                                    }}
+                                                    className="px-4 py-3 hover:bg-[#D2E3C8] hover:text-[#4F6F52] cursor-pointer transition-colors text-sm border-b last:border-0 border-gray-50"
+                                                >
+                                                    Rekam Medis {item}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
+
+                                <div className="flex justify-center gap-4 mt-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsModalOpen(false);
+                                            setIsDropdownOpen(false);
+                                            setSelectedType("Select a type");
+                                        }}
+                                        className="px-8 py-2 border border-gray-300 rounded-full hover:bg-gray-100 transition font-medium text-gray-600"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="px-8 py-2 bg-[#739072] text-white rounded-full hover:bg-[#4F6F52] shadow-lg transition font-bold"
+                                    >
+                                        Pilih Rekam Medis
+                                    </button>
+                                </div>
+                            </form>
+
+                        </div>
+                    </div>
+                )
+            }
+        </div >
     )
 
+
 }
-export default  DailyReport;
+
+export default DailyReport;

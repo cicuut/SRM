@@ -8,8 +8,8 @@ import axios from "axios";
 import { request } from "http";
 import Swal from 'sweetalert2';
 import Cookies from 'js-cookie';
-import PatientInformation from "@/components/patientInformation";
-import FamilyInformation from "@/components/familyInformation";
+import PatientInformation from "@/components/add-records/patientInformation";
+import FamilyInformation from "@/components/add-records/familyInformation";
 
 const FamilyPlanningRecord = () => {
     const [error, setError] = useState("");
@@ -120,11 +120,11 @@ const FamilyPlanningRecord = () => {
                 <div className="flex flex-col mt-4 gap-y-4">
                     <div className="flex flex-row w-full gap-20 justify-between">
                         <div className="flex flex-col flex-1 gap-y-1 ">
-                            Number of Children
+                           Jumlah Anak
                             <input type="number" name="numberOfChildren" value={numberOfChildren} onChange={(e) => setNumberOfChildren(e.target.value)} id="numberOfChildren" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                         </div>
                         <div className="flex flex-col  flex-1">
-                            Youngest Child
+                           Anak terkecil
                             <input type="text" name="youngestChild" value={youngestChild} id="youngestChild" onChange={(e) => setYoungestChild(e.target.value)} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                         </div>
                     </div>

@@ -5,7 +5,7 @@ import { emit } from "process";
 import Cookies from 'js-cookie';
 import { useParams } from "next/navigation";
 
-interface PatientInformationDetailList {
+interface FamilyInformationDetailList {
     patient_name?: string;
     nik: string;
     birthdate: string;
@@ -13,19 +13,17 @@ interface PatientInformationDetailList {
     age: string;
     patient_number: string;
     address: string;
-    type: string;
     education: string;
     occupation: string;
-    bpjs_number: string;
-    primary_healthcare: string;
+    relation: string;
 }
 
-const PatientInformationDetail = () => {
+const FamilyInformation = () => {
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
     const params = useParams();
     const uuid = params.id;
-    const [patientData, setPatientData] = useState<PatientInformationDetailList | null>(null);
+    const [patientData, setPatientData] = useState<FamilyInformationDetailList | null>(null);
 
 
     useEffect(() => {
@@ -33,7 +31,7 @@ const PatientInformationDetail = () => {
             if (!uuid) return;
             try {
                 const token = Cookies.get('access_token');
-                const response = await fetch(`http://localhost:5000/api/medical-record/get-patient-data/${uuid}`, {
+                const response = await fetch(`http://localhost:5000/api/medical-record/get-family-data/${uuid}`, {
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
@@ -64,9 +62,9 @@ const PatientInformationDetail = () => {
                         <td className=" w-40">Nama Lengkap</td>
                         <td className="w-4">:</td>
                         <td className="w-80">{patientData?.patient_name}</td>
-                        <td className=" w-40 ">Tipe Pasien</td>
+                        <td className=" w-40 ">Nomor Telepon</td>
                         <td className="w-4">:</td>
-                        <td className="">{patientData?.type}</td>
+                        <td className="">{patientData?.patient_number}</td>
                     </tr>
                     <tr>
                         <td className=" ">NIK</td>
@@ -79,34 +77,26 @@ const PatientInformationDetail = () => {
                     <tr>
                         <td className=" ">Tanggal Lahir</td>
                         <td>:</td>
-                        <td className="">{patientData?.birthdate}</td>  
-                        <td className=" ">Education</td>
+                        <td className="">{patientData?.birthdate}</td>
+                        <td className=" ">Pendidikan</td>
                         <td>:</td>
                         <td className="">{patientData?.education}</td>
                     </tr>
-                     <tr>
+                    <tr>
                         <td className=" ">Umur</td>
                         <td>:</td>
-                        <td className="">{patientData?.age} tahun</td>  
+                        <td className="">{patientData?.age} tahun</td>
                         <td className=" ">Pekerjaan</td>
                         <td>:</td>
                         <td className="">{patientData?.occupation}</td>
                     </tr>
-                      <tr>
-                        <td className=" ">Nomor Telepon</td>
-                        <td>:</td>
-                        <td className="">{patientData?.patient_number}</td>  
-                        <td className=" ">Nomor BPJS</td>
-                        <td>:</td>
-                        <td className="">{patientData?.bpjs_number}</td>
-                    </tr>
-                      <tr>
+                    <tr>
                         <td className=" ">Jenis Kelamin</td>
                         <td>:</td>
-                        <td className="">{patientData?.gender}</td>  
-                        <td className=" ">Faskes Tingkat Pertama</td>
+                        <td className="">{patientData?.gender}</td>
+                        <td className=" ">Hubungan</td>
                         <td>:</td>
-                        <td className="">{patientData?.primary_healthcare}</td>
+                        <td className="">{patientData?.relation}</td>
                     </tr>
                 </tbody>
             </table>
@@ -114,4 +104,4 @@ const PatientInformationDetail = () => {
     )
 
 }
-export default PatientInformationDetail;
+export default FamilyInformation;
