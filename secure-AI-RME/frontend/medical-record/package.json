@@ -9,10 +9,18 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@fortawesome/fontawesome-svg-core": "^7.2.0",
+    "@fortawesome/free-brands-svg-icons": "^7.2.0",
+    "@fortawesome/free-regular-svg-icons": "^7.2.0",
+    "@fortawesome/free-solid-svg-icons": "^7.2.0",
+    "@fortawesome/react-fontawesome": "^3.3.0",
     "axios": "^1.13.6",
     "js-cookie": "^3.0.5",
     "js-cookies": "^1.0.4",
     "next": "16.1.6",
+    "next-nprogress-bar": "^2.4.7",
+    "nextjs-toploader": "^3.9.17",
+    "nprogress": "^0.2.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "sweetalert2": "^11.26.24"
@@ -21,6 +29,7 @@
     "@tailwindcss/postcss": "^4",
     "@types/js-cookie": "^3.0.6",
     "@types/node": "^20",
+    "@types/nprogress": "^0.2.3",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",

@@ -9,12 +9,12 @@
         const pathname = usePathname();
         const navItems = [
             { label: "Dashboard", href: '/dashboard', icon: 'dashboard-icon.svg' },
-            { label: "Daily Report", href: '/daily-report', icon: 'visit-icon.svg' },
-            { label: "Medical Record", href: '/medical-record', icon: 'record-icon.svg' },
-            { label: "Financial", href: '/financial-report', icon: 'financial-icon.svg' },
-            { label: "Management Setting", href: '/management-setting', icon: 'management-icon.svg' },
-            { label: "Account Setting", href: '/account-setting', icon: 'setting-icon.svg' },
-            { label: "Activity", href: '/activity-history', icon: 'activity-icon.svg' },
+            { label: "Laporan Harian", href: '/daily-report', icon: 'visit-icon.svg' },
+            { label: "Rekam Medis", href: '/medical-record', icon: 'record-icon.svg' },
+            { label: "Laporan Keuangan", href: '/financial-report', icon: 'financial-icon.svg' },
+            { label: "Pengaturan Manajemen", href: '/management-setting', icon: 'management-icon.svg' },
+            { label: "Pengaturan Akun", href: '/account-setting', icon: 'setting-icon.svg' },
+            { label: "Riwayat Aktivitas", href: '/activity-history', icon: 'activity-icon.svg' },
         ];
         const isActive = (href: string) => {
             if (href === "/daily-report") {

@@ -5,7 +5,7 @@ export function middleware(request: NextRequest){
     const token = request.cookies.get('access_token')?.value;
     const { pathname } = request.nextUrl;
 
-    const protectedPaths =['/dashboard' ];
+    const protectedPaths =['/dashboard', '/medical-record', '/financial-report', '/management-setting', '/account-setting', '/activity-history' ];
 
     if (protectedPaths.some(path => pathname.startsWith(path)) && !token){
         return NextResponse.redirect(new URL('/login', request.url));
