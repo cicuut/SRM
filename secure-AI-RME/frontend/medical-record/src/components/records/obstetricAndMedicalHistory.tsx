@@ -8,7 +8,7 @@ import { useParams } from "next/navigation";
 interface ObstectricAndMedicalRecordList {
 
     number_of_children?: string;
-    youngest_child?: string;
+    youngest_child_age?: string;
     family_med_history?: string;
 
 }
@@ -58,7 +58,7 @@ const ObstectricAndMedicalRecord = () => {
                         <td className="w-50">{data?.number_of_children}</td>
                         <td className=" w-40 ">Umur Anak Termuda</td>
                         <td className="w-4">:</td>
-                        <td className="">{data?.youngest_child}</td>
+                        <td className="">{data?.youngest_child_age}</td>
                     </tr>
                     <tr className="h-10 align-center">
                         <td className=" ">Penyakit Genetik dalam Keluarga</td>

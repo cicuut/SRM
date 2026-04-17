@@ -11,7 +11,7 @@
             { label: "Dashboard", href: '/dashboard', icon: 'dashboard-icon.svg' },
             { label: "Laporan Harian", href: '/daily-report', icon: 'visit-icon.svg' },
             { label: "Rekam Medis", href: '/medical-record', icon: 'record-icon.svg' },
-            { label: "Laporan Keuangan", href: '/financial-report', icon: 'financial-icon.svg' },
+            { label: "Laporan Keuangan", href: '/financial', icon: 'financial-icon.svg' },
             { label: "Pengaturan Manajemen", href: '/management-setting', icon: 'management-icon.svg' },
             { label: "Pengaturan Akun", href: '/account-setting', icon: 'setting-icon.svg' },
             { label: "Riwayat Aktivitas", href: '/activity-history', icon: 'activity-icon.svg' },

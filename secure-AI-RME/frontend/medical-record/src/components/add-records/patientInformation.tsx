@@ -100,7 +100,7 @@ const PatientInformation = (props: PatientInformationProps) => {
                     <div>
                         Jenis Kelamin
                         <select name="gender" id="gender" value={formData.gender} onChange={handleInputChange} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-                            <option value="" disabled>Pilih Jenis Kelamanin</option>
+                            <option value="" disabled>Pilih Jenis Kelamin</option>
                             <option value="perempuan">Wanita</option>
                             <option value="laki-laki">Pria</option>
                         </select>
