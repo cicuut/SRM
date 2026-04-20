@@ -102,14 +102,14 @@ const MedicalRecord = () => {
         <div>
             <div className="flex-1 flex flex-col  w-full">
                 <div className="w-full flex items-center py-6 gap-70  justify-between">
-                    <div className="relative flex-1 outline outline-1 outline-gray-300 rounded-lg px-4 py-2 shadow-sm transition-all focus-within:border-[#739072]">
+                    <div className="relative flex-1  outline-1 outline-gray-300 rounded-lg px-4 py-2 shadow-sm transition-all focus-within:border-[#739072]">
                         <FontAwesomeIcon icon={faSearch} className="text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 w-47" />
                         <form>
                             <input type="text" placeholder="Search for a record" className="w-full focus:outline-none pl-8 text-gray-700 placeholder-gray-400" />
                         </form>
                     </div>
                     <div className=" flex flex-row items-center gap-5 shrink-0">
-                        <div className="flex flex-row items-center gap-x-[4] outline outline-1 outline-black-200 rounded-[50px] px-9 py-2 bg-white shadow-sm transition-all focus-within:border-[#739072]">
+                        <div className="flex flex-row items-center gap-x-[4]  outline-1 outline-black-200 rounded-[50px] px-9 py-2 bg-white shadow-sm transition-all focus-within:border-[#739072]">
                             <button>RM Type</button>
                             <FontAwesomeIcon icon={faFilter} className="text-black-400  " />
                         </div>

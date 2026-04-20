@@ -58,7 +58,7 @@ const PatientInformationDetail = () => {
     if (error) return <div className="p-8 text-center text-red-500">Error: {error}</div>;
     return (
         <div className="w-full">
-            <table className="w-[100%] text-left border-separate">
+            <table className="w-full text-left border-separate">
                 <tbody>
                     <tr>
                         <td className=" w-40">Nama Lengkap</td>

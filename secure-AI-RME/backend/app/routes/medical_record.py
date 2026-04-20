@@ -559,28 +559,7 @@ def get_record_detail(uuid):
             "record_type": record.record_type,
             "patient_name": decrypt_data(patient.patient_name),
             "created_at": record.created_at.strftime('%d %B %Y'),
-            "details": {} # Tempat menaruh data spesifik
         }
-
-      
-        if record.record_type == 'Pregnancy':
-            detail = PregnancyRecord.query.filter_by(record_id=uuid).first()
-            if detail:
-                response_data["details"] = {
-                    "hpht": decrypt_data(detail.hpht),
-                    "gestational_age": detail.gestational_age,
-                    "fetal_heart_rate": decrypt_data(detail.fhr),
-                    "tfu": decrypt_data(detail.tfu)
-                }
-        
-        elif record.record_type == 'Immunization':
-            detail = ImmunizationRecord.query.filter_by(record_id=uuid).first()
-            if detail:
-                response_data["details"] = {
-                    "vaccine_type": detail.vaccine_type,
-                    "batch_number": decrypt_data(detail.batch_number),
-                    "dose": detail.dose
-                }
 
         return jsonify(response_data), 200
 
@@ -624,7 +603,6 @@ def get_patient_data(uuid):
 @jwt_required()
 def get_family_data(uuid):
     try:
-        # 1. Cari Rekam Medisnya dulu
         record = MedicalRecord.query.filter_by(record_id=uuid).first()
         if not record:
             return jsonify({"msg": "Record tidak ditemukan"}), 404
@@ -729,7 +707,7 @@ def get_family_planning_record_data(uuid):
 
         current_family_planning_record = FamilyPlanningRecord.query.filter_by(record_id=uuid).first()
         if not  current_family_planning_record:
-            return jsonify({"msg": "Data kehamilan tidak ditemukan"}), 404
+            return jsonify({"msg": "Data Keluarga Berencana tidak ditemukan"}), 404
         
 
         response_data = {

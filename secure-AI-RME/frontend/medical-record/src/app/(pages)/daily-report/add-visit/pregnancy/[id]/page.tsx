@@ -155,7 +155,7 @@ const AddVisitPregnancy = () => {
             <div className="flex-1 flex flex-col py-10 gap-6">
                 <div className="flex flex-row gap-10 w-full ">
                     <div className="flex flex-col flex-1 text-sm gap-2">
-                        <label className="block mb-1 font-bold text-[#000]">Medical Record</label>
+                        <label className="block mb-1 font-bold text-black">Medical Record</label>
                         <div
                             style={{ backgroundColor: '#C3C3C3' }}
                             className="w-full p-2 border border-black-400 rounded-md text-black shadow-sm cursor-not-allowed"
@@ -164,7 +164,7 @@ const AddVisitPregnancy = () => {
                         </div>
                     </div>
                     <div className="flex flex-col flex-1 text-sm gap-2">
-                        <label className="block mb-1 font-bold text-[#000]">Tipe Kunjungan</label>
+                        <label className="block mb-1 font-bold text-black">Tipe Kunjungan</label>
                         <div
                             style={{ backgroundColor: '#C3C3C3' }}
                             className="w-full p-2 border border-black-400 rounded-md text-black shadow-sm cursor-not-allowed"
@@ -173,7 +173,7 @@ const AddVisitPregnancy = () => {
                         </div>
                     </div>
                     <div className="flex flex-col flex-1 text-sm gap-2">
-                        <label className="block mb-1 font-bold text-[#000]">Tanggal Kunjungan</label>
+                        <label className="block mb-1 font-bold text-black">Tanggal Kunjungan</label>
                         <div
                             style={{ backgroundColor: '#C3C3C3' }}
                             className="w-full p-2 border border-black-400 rounded-md text-black shadow-sm cursor-not-allowed"
@@ -182,7 +182,7 @@ const AddVisitPregnancy = () => {
                         </div>
                     </div>
                     <div className="flex flex-col flex-1 text-sm gap-2">
-                        <label className="block mb-1 font-bold text-[#000]">Waktu</label>
+                        <label className="block mb-1 font-bold text-black">Waktu</label>
                         <div
                             style={{ backgroundColor: '#C3C3C3' }}
                             className="w-full p-2 border border-black-400 rounded-md text-black shadow-sm cursor-not-allowed"
@@ -194,7 +194,7 @@ const AddVisitPregnancy = () => {
 
                 <div>
                     <div className="flex flex-col flex-1 text-sm gap-2">
-                        <label className="block mb-1 font-bold text-[#000]">Nama Pasien</label>
+                        <label className="block mb-1 font-bold text-black">Nama Pasien</label>
                         <div
                             style={{ backgroundColor: '#C3C3C3' }}
                             className="w-full p-2 border border-black-400 rounded-md text-black shadow-sm cursor-not-allowed"
@@ -208,31 +208,31 @@ const AddVisitPregnancy = () => {
             <div className="flex-1 flex flex-col py-5 gap-6">
                 <div className="flex flex-row gap-10 w-full ">
                     <div className="flex flex-col flex-1 text-sm gap-2">
-                        <label className="block mb-1 font-bold text-[#000]">Berat</label>
+                        <label className="block mb-1 font-bold text-black">Berat</label>
                         <input type="text" name="weight" value={weight} onChange={(e) => setWeight(e.target.value)} id="weight" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                     <div className="flex flex-col flex-1 text-sm gap-2">
-                        <label className="block mb-1 font-bold text-[#000]">Tinggi</label>
+                        <label className="block mb-1 font-bold text-black">Tinggi</label>
                         <input type="text" name="height" value={height} onChange={(e) => setHeight(e.target.value)} id="height" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
 
                     <div className="flex flex-col flex-1 text-sm gap-2">
-                        <label className="block mb-1 font-bold text-[#000]">Tekanan Darah</label>
+                        <label className="block mb-1 font-bold text-black">Tekanan Darah</label>
                         <input type="text" name="blood_pressure" value={bloodPressure} onChange={(e) => setBloodPressure(e.target.value)} id="blood_pressure" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                     <div className="flex flex-col flex-1 text-sm gap-2">
-                        <label className="block mb-1 font-bold text-[#000]">Suhu Badan</label>
+                        <label className="block mb-1 font-bold text-black">Suhu Badan</label>
                         <input type="text" name="temperature" value={temperature} onChange={(e) => setTemperature(e.target.value)} id="temperature" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
 
                 </div>
                 <div className="flex flex-row gap-10">
                     <div className="flex flex-col text-sm gap-2">
-                        <label className="block mb-1 font-bold text-[#000]">Frekuensi Pernapasan</label>
+                        <label className="block mb-1 font-bold text-black">Frekuensi Pernapasan</label>
                         <input type="text" name="respiratory_rate" value={respiratoryRate} onChange={(e) => setRespiratoryRate(e.target.value)} id="respiratory_rate" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                     <div className="flex flex-col text-sm gap-2">
-                        <label className="block mb-1 font-bold text-[#000]">Detak Jantung</label>
+                        <label className="block mb-1 font-bold text-black">Detak Jantung</label>
                         <input type="text" name="heart_rate" value={heartRate} onChange={(e) => setHeartRate(e.target.value)} id="heart_rate" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                 </div>
@@ -240,19 +240,19 @@ const AddVisitPregnancy = () => {
             <div className="border-b-2 text-[#D9D9D9] font-bold"> <p className="text-sm border-b-2 w-fit border-[#739072] text-[#739072] font-bold">SOAP</p></div>
             <div className="flex-1 flex flex-col py-5 gap-6">
                 <div className="flex flex-col text-sm gap-2">
-                    <label className="block mb-1 font-bold text-[#000]">Subjective</label>
+                    <label className="block mb-1 font-bold text-black">Subjective</label>
                     <textarea name="subjective" value={subjective} onChange={(e) => setSubjective(e.target.value)} id="subjective" className="w-full h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                 </div>
                 <div className="flex flex-col text-sm gap-2">
-                    <label className="block mb-1 font-bold text-[#000]">Objective</label>
+                    <label className="block mb-1 font-bold text-black">Objective</label>
                     <textarea name="objective" value={objective} onChange={(e) => setObjective(e.target.value)} id="objective" className="w-full h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                 </div>
                 <div className="flex flex-col text-sm gap-2">
-                    <label className="block mb-1 font-bold text-[#000]">Assessment</label>
+                    <label className="block mb-1 font-bold text-black">Assessment</label>
                     <textarea name="assessment" value={assessment} onChange={(e) => setAssessment(e.target.value)} id="assessment" className="w-full h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                 </div>
                 <div className="flex flex-col text-sm gap-2">
-                    <label className="block mb-1 font-bold text-[#000]">Plan</label>
+                    <label className="block mb-1 font-bold text-black">Plan</label>
                     <textarea name="plan" value={plan} onChange={(e) => setPlan(e.target.value)} id="plan" className="w-full h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                 </div>
             </div>
