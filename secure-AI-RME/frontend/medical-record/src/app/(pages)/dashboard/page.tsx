@@ -4,6 +4,32 @@ import Image from "next/image";
 import Cookies from "js-cookie";
 import api from "@/utils/app";
 
+interface DateLabelProps {
+    className?: string;
+    emptyValue?: string;
+}
+
+export const DateLabel = ({ className, emptyValue = "\u00A0" }: DateLabelProps) => {
+    const [dateLabel, setDateLabel] = useState<string>("");
+
+    const dateFormatter = useMemo(
+        () =>
+            new Intl.DateTimeFormat("id-ID", {
+                weekday: "long",
+                day: "2-digit",
+                month: "long",
+                year: "numeric",
+            }),
+        []
+    );
+
+    useEffect(() => {
+        setDateLabel(dateFormatter.format(new Date()));
+    }, [dateFormatter]);
+
+    return <p className={className}>{dateLabel || emptyValue}</p>;
+};
+
 interface CurrentUser {
     fullname: string;
     role: string;
@@ -18,23 +44,7 @@ function formatDisplayRole(role: string): string {
 }
 
 const Dashboard = () => {
-    const [dateLabel, setDateLabel] = useState<string>("");
     const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
-
-    const dateFormatter = useMemo(
-        () =>
-            new Intl.DateTimeFormat(undefined, {
-                weekday: "long",
-                day: "2-digit",
-                month: "long",
-                year: "numeric",
-            }),
-        []
-    );
-
-    useEffect(() => {
-        setDateLabel(dateFormatter.format(new Date()));
-    }, [dateFormatter]);
 
     useEffect(() => {
         let cancelled = false;
@@ -70,8 +80,8 @@ const Dashboard = () => {
                                 <h1 className="text-[25px] font-bold">
                                     {displayName ? `Hi, ${displayName}!` : "Hi!"}
                                 </h1>
-                                <p className="text-[20px]">Welcome Back! It’s a good time to manage your databases. </p>
-                                <p className="text-[20px]">{dateLabel || "\u00A0"}</p>
+                                <p className="text-[20px]">Selamat Datang Kembali di Sistem Informasi dan Manajemen Klinik. </p>
+                                <DateLabel className="text-[20px]" />
                             </div>
                             <div className="illustration">
                                 <Image src="/doctor-icon.png" alt="img" width={160} height={160} />
@@ -85,32 +95,32 @@ const Dashboard = () => {
                     </div>
                     <div className="flex gap-x-[40px]">
                         <div className="bg-[#FFFFFF] drop-shadow-lg py-6 px-7 rounded-[10px] text-center flex-1">
-                            <h3 className="text-[20px]">Visit Total Montly</h3>
-                            <p className="font-bold text-[20px]">300 visits</p>
+                            <h3 className="text-[20px]">Total Pengunjung Bulanan</h3>
+                            <p className="font-bold text-[20px]">300 Kunjungan</p>
                         </div>
                         <div className=" bg-[#FFFFFF] drop-shadow-lg py-6 px-7 rounded-[10px] text-center flex-1">
-                            <h3 className="text-[20px]">Income Monthly</h3>
+                            <h3 className="text-[20px]">Pemasukan Bulanan</h3>
                             <p className="font-bold text-[20px]">Rp. 500.000</p>
                         </div>
                         <div className=" bg-[#FFFFFF] drop-shadow-lg py-6 px-7 rounded-[10px] text-center flex-1">
-                            <h3 className="text-[20px]">Outcome Monthly</h3>
+                            <h3 className="text-[20px]">Pengeluaran Bulanan</h3>
                             <p className="font-bold text-[20px]">Rp. 100.000</p>
                         </div>
                     </div>
                     <div className="flex flex-row gap-6 mt-6 w-full">
                         <div className="flex-[1.5] flex flex-col gap-y-[40px]">
                             <div className="bg-[#FFFFFF] drop-shadow-lg h-130 rounded-[10px] text-center px-5 py-6">
-                                <h1 className="text-xl">Visit Total Graphic</h1>
+                                <h1 className="text-xl">Grafik Pengunjung Bulanan</h1>
                             </div>
                             <div className="bg-[#FFFFFF] drop-shadow-lg h-130 rounded-[10px] text-center px-5 py-6">
-                                <h1 className="text-xl">Financial Graphic</h1>
+                                <h1 className="text-xl">Grafik Keuangan Bulanan</h1>
                             </div>
                         </div>
                         <div className="flex-[1] flex flex-col gap-y-[40px]">
                             <div className="h-80 bg-[#FFFFFF] drop-shadow-lg rounded-[10px] text-center px-5 py-6">
-                                <h1 className="text-xl">Visit Forecast</h1></div>
+                                <h1 className="text-xl">Perkiraan Pengunjung Bulanan</h1></div>
                             <div className="flex-1 bg-[#FFFFFF] drop-shadow-lg rounded-[10px] text-center px-5 py-6">
-                                <h1 className="text-xl">Top 5 diagnosis of the month</h1>
+                                <h1 className="text-xl">Top 5 Diagnosa Bulanan</h1>
                             </div>
                         </div>
                     </div>
