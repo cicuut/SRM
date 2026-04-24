@@ -19,7 +19,7 @@ interface VisitList {
   visit_id: string;
   visit_number: string;
   rm_id: string;
-  rm_number: string;
+  record_number: string;
   record_type: string;
   patient_name: string;
   nik: string;
@@ -78,7 +78,7 @@ const DailyReport = () => {
 
     setIsModalOpen(false);
     setIsDropdownOpen(false);
-    setSelectedType("Masukan Identitas Pasien (NIK atau Tanggal Lahir)");
+    setSelectedType("Masukan Identitas Pasien (Nama, NIK atau Tanggal Lahir)");
     setLoading(true);
     switch (selectedType) {
       case "Rekam Medis Kehamilan":
@@ -112,9 +112,9 @@ const DailyReport = () => {
   const handleVisit = (rmId: string, type: string) => {
     const typeMap: { [key: string]: string } = {
       Kehamilan: "pregnancy",
-      "Keluarga Berencana": "kb",
+      "Keluarga Berencana": "familyplanning",
       "Poli Umum": "general",
-      "Bayi dan Imunisasi": "immunization",
+      "Imunisasi": "immunization",
       Persalinan: "delivery",
     };
     const typePath = typeMap[type] || "general";
@@ -122,8 +122,7 @@ const DailyReport = () => {
   };
 
   const handleSearch = async (query: string) => {
-    if (query.length < 3) return; // Minimal 3 huruf baru cari
-
+    if (query.length < 3) return; 
     try {
       const token = Cookies.get("access_token");
       const response = await axios.get(
@@ -226,7 +225,7 @@ const DailyReport = () => {
                 >
                   <td className="px-4 py-4 text-center">{item.visit_number}</td>
                   <td className="px-4 py-4 ">{item.visit_date}</td>
-                  <td className="px-4 py-4 text-center">{item.rm_number}</td>
+                    <td className="px-4 py-4 text-center">{item.record_number}</td>
                   <td className="px-4 py-4 ">{item.patient_name}</td>
                   <td className="px-4 py-4 text-center">{item.record_type}</td>
                   <td className="px-6 py-4">{item.made_by}</td>
@@ -258,7 +257,7 @@ const DailyReport = () => {
                 <input
                   type="text"
                   className="w-full bg-[#eeeeee] focus:outline-none rounded-lg h-12 p-4 border focus:border-[#739072]"
-                  placeholder="Masukkan NIK atau Nama Pasien..."
+                  placeholder="Masukkan Nama, NIK, atau Tanggal Lahir..."
                   value={verificationInput}
                   onChange={(e) => {
                     const val = e.target.value;
@@ -290,7 +289,7 @@ const DailyReport = () => {
                             <p className="text-[10px] text-gray-500 flex gap-2">
                               <span>NIK: {patient.nik}</span>
                               <span className="text-gray-300">|</span>
-                              <span>RM: {patient.rm_number}</span>
+                              <span>RM: {patient.record_number}</span>
                             </p>
                           </div>
                           <span className="text-[9px] font-bold bg-[#E9F0E8] text-[#4F6F52] px-3 py-1 rounded-full border border-[#D2E3C8]">
@@ -374,7 +373,7 @@ const DailyReport = () => {
                       "Kehamilan",
                       "Keluarga Berencana",
                       "Poli Umum",
-                      "Bayi dan Imunisasi",
+                      "Imunisasi",
                       "Persalinan",
                     ].map((item) => (
                       <li

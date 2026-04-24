@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
-from app.models import PregnancyRecord, User, db, Patient, MedicalRecord, VisitMaster, VisitPregnancy
-from app.utils import generate_visit_number, get_latest_visits_count, decrypt_data
+from app.models import PregnancyRecord, User, db, Patient, MedicalRecord, VisitMaster, VisitPregnancy, VisitFamilyPlanning, ImmunizationRecord, VisitImunization
+from app.utils import generate_visit_number, get_latest_visits_count, decrypt_data, get_column_name
 from datetime import datetime
 from flask_jwt_extended import get_jwt_identity, jwt_required, get_jwt
 from sqlalchemy import or_
@@ -14,12 +14,8 @@ visit_report_bp = Blueprint('visit_report', __name__)
 def get_visit_number():
 
     try:
-        record_id = request.args.get('record_id')
-
-        if not record_id:
-            return jsonify({"msg": "record_id is required"}), 400
         
-        count = get_latest_visits_count(record_id)
+        count = get_latest_visits_count()
         next_visit_number = generate_visit_number(count)
 
         return jsonify({
@@ -78,7 +74,7 @@ def get_all_records():
                 "visit_id": visit.visit_id,
                 "visit_date": visit.visit_date,
                 "visit_number": visit.visit_number,
-                "rm_number": medical_record.record_number,
+                "record_number": medical_record.record_number,
                 "patient_name": decrypted_name,
                 "nik": decrypted_nik,
                 "record_type": medical_record.record_type,
@@ -214,6 +210,160 @@ def get_pregnancy_visit(uuid):
           "objective": decrypted_objective, 
           "assessment": decrypted_assessment,
           "plan": decrypted_plan
+        }), 200
+
+    except Exception as e:
+        return jsonify({"msg": "Server error", "error": str(e)}), 500
+
+@visit_report_bp.route('/add-visit-family-planning', methods=['POST'])
+@jwt_required()
+def add_visit_familyplanning():
+    user_id = get_jwt_identity()
+    data = request.get_json()
+    
+    try:
+       #Add visit master
+        new_visit = VisitMaster(
+            record_id=data.get('record_id'),
+            user_id=user_id,
+            visit_number=data.get('visit_number'),
+            visit_date=datetime.utcnow(),
+            visit_time=datetime.utcnow()
+        )
+        db.session.add(new_visit)
+        db.session.flush() 
+        
+        # 2. Add Visit Family Planning
+        new_familyplanning_visit = VisitFamilyPlanning(
+            visit_id=new_visit.visit_id,
+            weight_kg=data.get('weight'),
+            height_cm=data.get('height'),
+            kb_method=data.get('contraceptive_method'),
+            return_visit_date=data.get('return_visit_date'),
+            complaint=data.get('complaint')
+        )
+        
+        db.session.add(new_familyplanning_visit)
+        db.session.flush() 
+        db.session.commit()
+        
+        
+        return jsonify({
+            "msg": "Visit added successfully", 
+            "rm_number": new_visit.record_id,
+            "visit_id": new_visit.visit_id
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": "Failed to add visit", "error": str(e)}), 500
+    
+@visit_report_bp.route('/get-visit-family-planning/<uuid>', methods=['GET'])
+@jwt_required()
+def get_familyplanning_visit(uuid):
+    try:
+        visit_report=VisitMaster.query.filter_by(visit_id=uuid).first()
+        if not visit_report:
+            return jsonify({"msg": "Data kunjungan tidak ditemukan"}), 404
+
+        current_familyplanning_visit = VisitFamilyPlanning.query.filter_by(visit_id=uuid).first()
+        if not  current_familyplanning_visit:
+            return jsonify({"msg": "Data KB tidak ditemukan"}), 404
+        
+
+        decrypted_complaint = decrypt_data(current_familyplanning_visit.complaint)
+
+        return jsonify({
+            "complaint": decrypted_complaint,
+            "weight_kg": current_familyplanning_visit.weight_kg,
+            "height_cm": current_familyplanning_visit.height_cm,
+            "contraceptive_method": current_familyplanning_visit.kb_method,
+            "return_visit_date": current_familyplanning_visit.return_visit_date.strftime('%Y-%m-%d') if current_familyplanning_visit.return_visit_date else None
+        }), 200
+
+    except Exception as e:
+        return jsonify({"msg": "Server error", "error": str(e)}), 500
+    
+@visit_report_bp.route('/add-visit-immunization', methods=['POST'])
+@jwt_required()
+def add_visit_immunization():
+    user_id = get_jwt_identity()
+    data = request.get_json()
+    record_id = data.get('record_id')
+    vaccine_given = data.get('vaccine_given') 
+    dosage_given = data.get('dosage_given')  
+    visit_date = datetime.utcnow().date()
+
+    try:
+        # 1. Cari atau Buat Kartu Imunisasi (ImmunizationRecord)
+        imm_record = ImmunizationRecord.query.filter_by(record_id=record_id).first()
+        if not imm_record:
+            imm_record = ImmunizationRecord(record_id=record_id)
+            db.session.add(imm_record)
+            db.session.flush()
+
+        # 2. Update tanggal di kolom yang sesuai secara dinamis
+        col_name = get_column_name(vaccine_given, dosage_given)
+        
+        # Cek apakah kolom tersebut ada di model
+        if hasattr(imm_record, col_name):
+            setattr(imm_record, col_name, visit_date)
+        else:
+            return jsonify({"msg": f"Kolom {col_name} tidak ditemukan di database"}), 400
+
+        # 2. Add Visit Family Planning
+        new_visit = VisitMaster(
+            record_id=record_id,
+            user_id=user_id,
+            visit_number=data.get('visit_number'),
+            visit_date=datetime.utcnow(),
+            visit_time=datetime.utcnow()
+        )
+        db.session.add(new_visit)
+        db.session.flush()
+
+        # 4. Simpan data detail Visit Imunisasi
+        new_detail = VisitImunization(
+            visit_id=new_visit.visit_id,
+            ir_id=imm_record.ir_id,
+            baby_weight=data.get('weight_kg'),
+            baby_height=data.get('height_cm'),
+            body_temp=data.get('body_temperature'),
+            head_circumference=data.get('head_circumference'),
+            abdominal_circumference=data.get('abdominal_circumference'),
+            dosage_given=dosage_given,
+            vaccine_given=vaccine_given
+        )
+        db.session.add(new_detail)
+        
+        db.session.commit()
+        return jsonify({"msg": "Data Imunisasi Berhasil Disimpan!"}), 201
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": "Gagal simpan data", "error": str(e)}), 500
+    
+@visit_report_bp.route('/get-visit-immunization/<uuid>', methods=['GET'])
+@jwt_required()
+def get_immunization_visit(uuid):
+    try:
+        visit_report=VisitMaster.query.filter_by(visit_id=uuid).first()
+        if not visit_report:
+            return jsonify({"msg": "Data kunjungan tidak ditemukan"}), 404
+
+        current_immunization_visit = VisitImunization.query.filter_by(visit_id=uuid).first()
+        if not  current_immunization_visit:
+            return jsonify({"msg": "Data Imunisasi tidak ditemukan"}), 404
+        
+
+        return jsonify({
+            "weight_kg": current_immunization_visit.baby_weight,
+            "height_cm": current_immunization_visit.baby_height,
+            "body_temperature": current_immunization_visit.body_temp,
+            "head_circumference": current_immunization_visit.head_circumference,
+            "abdominal_circumference": current_immunization_visit.abdominal_circumference,
+            "vaccine_given": current_immunization_visit.vaccine_given,
+            "dosage_given": current_immunization_visit.dosage_given
         }), 200
 
     except Exception as e:

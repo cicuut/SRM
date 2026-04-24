@@ -30,20 +30,23 @@ def generate_record_number(record_type, latest_count):
     sequence = f"{(latest_count + 1):03d}"
     return f"{prefix}-{year}-{sequence}"
 
-def get_latest_visits_count(record_id):
-    from app.models import VisitMaster
-    from app.models import MedicalRecord 
+def get_latest_visits_count():
+    from app.models import VisitMaster 
     
-    count = VisitMaster.query.join(MedicalRecord)\
-        .filter(MedicalRecord.record_id == record_id)\
-        .count()
+    count = VisitMaster.query.count()
     return count
 
 def generate_visit_number(latest_count):
     prefix = "VIS"  
     year = datetime.now().year
-    sequence = f"{(latest_count + 1):03d}"
+    sequence = f"{(latest_count + 1):04d}"
     return f"{prefix}-{year}-{sequence}"
+
+def get_column_name(vaccine, dosage):
+    v_name = vaccine.lower()
+    d_num = ''.join(filter(str.isdigit, dosage)) 
+    
+    return f"{v_name}_{d_num}"
 
 
 load_dotenv()

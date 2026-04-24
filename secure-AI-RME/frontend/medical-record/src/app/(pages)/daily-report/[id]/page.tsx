@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation';
 import Cookies from 'js-cookie';
 import PregnancyDetail from '@/app/(pages)/medical-record/(medical-record-detail)/pregnancyDetail';
 import VisitPregnancyDetail from '../visit-detail/pregnancyDetail';
-import VisitFamilyPlanningDetail from '../visit-detail/familyPlannnigDetail';
+import VisitFamilyPlanningDetail from '../visit-detail/familyPlanningDetail';
 import VisitImmunizationDetail from '../visit-detail/immunizationDetail';
 import VisitGeneralDetail from '../visit-detail/generalDetail';
 

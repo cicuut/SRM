@@ -7,18 +7,16 @@ import VisitInformation from "@/components/visit/visit-information";
 import Cookies from "js-cookie";
 
 
-interface VisitImmunizationDetailProps {
+interface VisitFamilyPlanningDetailProps {
     weight_kg?: string;
     height_cm?: string;
-    vaccine_given?: string;
-    dosage_given?: string;
-    body_temperature?: string;
-    head_circumference?: string;
-    abdominal_circumference?: string;
+    contraceptive_method?: string;
+    complaint?: string;
+    return_visit_date?: string;
 }
-const VisitImmunizationDetail = () => {
-    const [visitImmunizationDetail, setVisitImmunizationDetail] =
-        useState<VisitImmunizationDetailProps | null>(null);
+const VisitFamilyPlanningDetail = () => {
+    const [visitFamilyPlanningDetail, setVisitFamilyPlanningDetail] =
+        useState<VisitFamilyPlanningDetailProps | null>(null);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
     const params = useParams();
@@ -26,12 +24,12 @@ const VisitImmunizationDetail = () => {
 
 
     useEffect(() => {
-        const fetchVisitImmunizationData = async () => {
+        const fetchVisitFamilyPlanningData = async () => {
             if (!uuid) return;
             try {
                 const token = Cookies.get("access_token");
                 const response = await fetch(
-                    `http://localhost:5000/api/visit-report/get-visit-immunization/${uuid}`,
+                    `http://localhost:5000/api/visit-report/get-visit-family-planning/${uuid}`,
                     {
                         headers: {
                             Authorization: `Bearer ${token}`,
@@ -43,7 +41,7 @@ const VisitImmunizationDetail = () => {
                 if (!response.ok) throw new Error("Gagal mengambil data pasien");
 
                 const data = await response.json();
-                setVisitImmunizationDetail(data);
+                setVisitFamilyPlanningDetail(data);
             } catch (err: any) {
                 setError(err.message);
             } finally {
@@ -51,7 +49,7 @@ const VisitImmunizationDetail = () => {
             }
         };
 
-        fetchVisitImmunizationData();
+        fetchVisitFamilyPlanningData();
     }, [uuid]);
     return (
         <div className="min-h-screen mt-10 flex flex-col bg-[#FDFEF9] w-full">
@@ -65,48 +63,34 @@ const VisitImmunizationDetail = () => {
                 <div className="flex flex-col text-sm gap-2 min-w-[200px]">
                     <label className="block mb-1 font-bold text-black">Berat Badan</label>
                     <div className="w-full  p-2 overflow-y-auto text-wrap rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-                        {visitImmunizationDetail?.weight_kg}
+                        {visitFamilyPlanningDetail?.weight_kg}
                     </div>
                 </div>
                 <div className="flex flex-col text-sm gap-2 min-w-[200px]">
                     <label className="block mb-1 font-bold text-black">Tinggi Badan</label>
                     <div className="w-full  p-2 overflow-y-auto text-wrap rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-                        {visitImmunizationDetail?.height_cm}
-                    </div>
-                </div>
-                 <div className="flex flex-col text-sm gap-2 min-w-[200px]">
-                    <label className="block mb-1 font-bold text-black">Suhu Tubuh</label>
-                    <div className="w-full  p-2 overflow-y-auto text-wrap rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-                        {visitImmunizationDetail?.body_temperature}
+                        {visitFamilyPlanningDetail?.height_cm}
                     </div>
                 </div>
             </div>
             <div className="flex flex-row py-5 gap-6">
                 <div className="flex flex-col text-sm gap-2 min-w-[200px] ">
-                    <label className="block mb-1 font-bold text-black">Lingkar Kepala</label>
+                    <label className="block mb-1 font-bold text-black">Metode KB</label>
                     <div className="w-full p-2 rounded-md  overflow-y-auto text-wrap   bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-                        {visitImmunizationDetail?.head_circumference}
+                        {visitFamilyPlanningDetail?.contraceptive_method}
                     </div>
                 </div>
                 <div className="flex flex-col text-sm gap-2 min-w-[200px]">
-                    <label className="block mb-1 font-bold text-black">Lingkar Perut</label>
+                    <label className="block mb-1 font-bold text-black">Kunjungan Berikutnya</label>
                     <div className="w-full  p-2 rounded-md  overflow-y-auto text-wrap bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-                        {visitImmunizationDetail?.abdominal_circumference}
+                        {visitFamilyPlanningDetail?.return_visit_date}
                     </div>
                 </div>
             </div>
             <div className="flex flex-col text-sm gap-2">
-                <div className="flex flex-col text-sm gap-2 min-w-[200px]">
-                    <label className="block mb-1 font-bold text-black">Imunisasi</label>
-                    <div className="w-full  p-2 rounded-md  overflow-y-auto text-wrap bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-                        {visitImmunizationDetail?.vaccine_given}
-                    </div>
-                </div>
-                <div className="flex flex-col text-sm gap-2 min-w-[200px]">
-                    <label className="block mb-1 font-bold text-black">Dosis</label>
-                    <div className="w-full  p-2 rounded-md  overflow-y-auto text-wrap bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-                        {visitImmunizationDetail?.dosage_given}
-                    </div>
+                <label className="block mb-1 font-bold text-black">Keluhan</label>
+                <div className="w-full h-30 p-2 rounded-md  overflow-y-auto text-wrap  bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
+                    {visitFamilyPlanningDetail?.complaint}
                 </div>
             </div>
         </div>
@@ -114,4 +98,4 @@ const VisitImmunizationDetail = () => {
     )
 
 }
-export default VisitImmunizationDetail;
+export default VisitFamilyPlanningDetail;

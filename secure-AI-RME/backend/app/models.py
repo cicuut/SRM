@@ -212,4 +212,29 @@ class VisitPregnancy(db.Model):
     assessment = db.Column(EncryptedText, nullable=True)
     plan = db.Column(EncryptedText, nullable=True)
 
+class VisitFamilyPlanning(db.Model):
+    __tablename__ = 'kb_visit'
+    
+    visit_kb_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    visit_id = db.Column(db.String(36), db.ForeignKey('visit_master.visit_id'), nullable=False)
+    kb_id = db.Column(db.String(36), db.ForeignKey('pregnancy_record.pr_id'), nullable=False)
+    weight_kg = db.Column(db.String(20), nullable=True)
+    height_cm = db.Column(db.String(20), nullable=True)
+    kb_method = db.Column(db.String(50), nullable=True)
+    return_visit_date = db.Column(db.Date, nullable=True)
+    complaint = db.Column(EncryptedText, nullable=True)
+
+class VisitImunization(db.Model):
+    __tablename__ = 'immunization_visit'
+    
+    visit_imun_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    visit_id = db.Column(db.String(36), db.ForeignKey('visit_master.visit_id'), nullable=False)
+    ir_id = db.Column(db.String(36), db.ForeignKey('immunization_record.ir_id'), nullable=False)
+    baby_weight = db.Column(db.String(20), nullable=True)
+    baby_height = db.Column(db.String(20), nullable=True)
+    body_temp = db.Column(db.String(20), nullable=True)
+    head_circumference = db.Column(db.String(20), nullable=True)
+    abdominal_circumference = db.Column(db.String(20), nullable=True)
+    dosage_given = db.Column(db.String(50), nullable=True)
+    vaccine_given = db.Column(db.String(50), nullable=True)
     

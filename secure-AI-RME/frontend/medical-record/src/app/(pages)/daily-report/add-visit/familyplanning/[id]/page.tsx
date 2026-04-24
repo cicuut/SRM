@@ -6,8 +6,9 @@ import axios from "axios";
 import { useEffect } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import Swal from "sweetalert2";
+import { set } from "nprogress";
 
-interface AddVisitPregnancyProps {
+interface AddVisitFamilyPlanningProps {
     record_id?: string;
     record_type?: string;
     patient_name?: string;
@@ -16,7 +17,7 @@ interface AddVisitPregnancyProps {
     visit_time?: string;
 }
 
-const AddVisitPregnancy = () => {
+const AddVisitFamilyPlanning = () => {
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
     const params = useParams();
@@ -25,16 +26,11 @@ const AddVisitPregnancy = () => {
     const [visitNumber, setVisitNumber] = useState("Generating Visit Number");
     const [weight, setWeight] = useState("");
     const [height, setHeight] = useState("");
-    const [heartRate, setHeartRate] = useState("");
-    const [bloodPressure, setBloodPressure] = useState("");
-    const [respiratoryRate, setRespiratoryRate] = useState("");
-    const [temperature, setTemperature] = useState("");
-    const [subjective, setSubjective] = useState("");
-    const [objective, setObjective] = useState("");
-    const [assessment, setAssessment] = useState("");
-    const [plan, setPlan] = useState("");
+    const [contraceptive_method, setContraceptiveMethod] = useState("");
+    const [next_visit, setNextVisit] = useState("");
+    const [complaint, setComplaint] = useState("");
     const uuid = params.id;
-    const [data, setData] = useState<AddVisitPregnancyProps | null>(null);
+    const [data, setData] = useState<AddVisitFamilyPlanningProps | null>(null);
 
     const fetchVisitNumber = async () => {
         try {
@@ -102,25 +98,21 @@ const AddVisitPregnancy = () => {
                 visit_number: visitNumber,
                 date: data?.visit_date,
                 time: data?.visit_time,
-                subjective: subjective,
-                objective: objective,
-                assessment: assessment,
-                plan: plan,
+                contraceptive_method: contraceptive_method,
+                return_visit_date: next_visit,
+                complaint: complaint,
                 weight: weight,
                 height: height,
-                heart_rate: heartRate,
-                respiratory_rate: respiratoryRate,
-                temperature: temperature,
                 record_id: uuid,
             };
-            const response = await axios.post("http://localhost:5000/api/visit-report/add-visit-pregnancy", payload, {
+            const response = await axios.post("http://localhost:5000/api/visit-report/add-visit-family-planning", payload, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
             if (response.status === 201) {
                 Swal.fire({
                     title: "Success",
-                    text: "Data KB NADI berhasil disimpan!",
+                    text: "Data KB berhasil disimpan!",
                     icon: "success",
                     timer: 2000,
                     confirmButtonColor: "#739072"
@@ -205,55 +197,39 @@ const AddVisitPregnancy = () => {
                 </div>
             </div>
             <div className="border-b-2 text-[#D9D9D9] font-bold"> <p className="text-sm border-b-2 w-fit border-[#739072] text-[#739072] font-bold">Tanda Vital</p></div>
-            <div className="flex-1 flex flex-col py-5 gap-6">
-                <div className="flex flex-row gap-10 w-full ">
-                    <div className="flex flex-col flex-1 text-sm gap-2">
+            <div className="flex-1 flex flex-row py-5 gap-6">
+                    <div className="flex flex-col flex-1 text-sm gap-2 max-w-[200px]">
                         <label className="block mb-1 font-bold text-black">Berat</label>
-                        <input type="text" name="weight" value={weight} onChange={(e) => setWeight(e.target.value)} id="weight" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        <input type="text" name="weight" value={weight} onChange={(e) => setWeight(e.target.value)} id="weight" className="w-full p-2 h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
-                    <div className="flex flex-col flex-1 text-sm gap-2">
+                    <div className="flex flex-col flex-1 text-sm gap-2 max-w-[200px]">
                         <label className="block mb-1 font-bold text-black">Tinggi</label>
-                        <input type="text" name="height" value={height} onChange={(e) => setHeight(e.target.value)} id="height" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        <input type="text" name="height" value={height} onChange={(e) => setHeight(e.target.value)} id="height" className="w-full p-2 h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
-
-                    <div className="flex flex-col flex-1 text-sm gap-2">
-                        <label className="block mb-1 font-bold text-black">Tekanan Darah</label>
-                        <input type="text" name="blood_pressure" value={bloodPressure} onChange={(e) => setBloodPressure(e.target.value)} id="blood_pressure" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                    </div>
-                    <div className="flex flex-col flex-1 text-sm gap-2">
-                        <label className="block mb-1 font-bold text-black">Suhu Badan</label>
-                        <input type="text" name="temperature" value={temperature} onChange={(e) => setTemperature(e.target.value)} id="temperature" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                    </div>
-
-                </div>
-                <div className="flex flex-row gap-10">
-                    <div className="flex flex-col text-sm gap-2">
-                        <label className="block mb-1 font-bold text-black">Frekuensi Pernapasan</label>
-                        <input type="text" name="respiratory_rate" value={respiratoryRate} onChange={(e) => setRespiratoryRate(e.target.value)} id="respiratory_rate" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                    </div>
-                    <div className="flex flex-col text-sm gap-2">
-                        <label className="block mb-1 font-bold text-black">Detak Jantung</label>
-                        <input type="text" name="heart_rate" value={heartRate} onChange={(e) => setHeartRate(e.target.value)} id="heart_rate" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                    </div>
-                </div>
             </div>
             <div className="border-b-2 text-[#D9D9D9] font-bold"> <p className="text-sm border-b-2 w-fit border-[#739072] text-[#739072] font-bold">SOAP</p></div>
             <div className="flex-1 flex flex-col py-5 gap-6">
-                <div className="flex flex-col text-sm gap-2">
-                    <label className="block mb-1 font-bold text-black">Subjective</label>
-                    <textarea name="subjective" value={subjective} onChange={(e) => setSubjective(e.target.value)} id="subjective" className="w-full h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                <div className="flex flex-row gap-x-10  w-full ">
+                    <div className="flex flex-col text-sm gap-2 min-w-[200px]">
+                        <label className="block mb-1 font-bold text-black">Metode Kontrasepsi</label>
+
+                        <select value={contraceptive_method} onChange={(e) => setContraceptiveMethod(e.target.value)} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
+                            <option value="" disabled>Pilih</option>
+                            <option value="PIL">PIL</option>
+                            <option value="Suntik 1 Bulan">Suntik 1 Bulan</option>
+                            <option value="Suntik 3 Bulan">Suntik 3 Bulan</option>
+                            <option value="IUD">IUD</option>
+                            <option value="Inplan">Inplan</option>
+                        </select>
+                    </div>
+                    <div className="flex flex-col text-sm gap-2 min-w-[200px]">
+                        <label className="block mb-1 font-bold text-black">Kunjungan Selanjutnya</label>
+                        <input type="date" name="next_visit" value={next_visit} onChange={(e) => setNextVisit(e.target.value)} id="next_visit" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                    </div>
                 </div>
                 <div className="flex flex-col text-sm gap-2">
-                    <label className="block mb-1 font-bold text-black">Objective</label>
-                    <textarea name="objective" value={objective} onChange={(e) => setObjective(e.target.value)} id="objective" className="w-full h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                </div>
-                <div className="flex flex-col text-sm gap-2">
-                    <label className="block mb-1 font-bold text-black">Assessment</label>
-                    <textarea name="assessment" value={assessment} onChange={(e) => setAssessment(e.target.value)} id="assessment" className="w-full h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                </div>
-                <div className="flex flex-col text-sm gap-2">
-                    <label className="block mb-1 font-bold text-black">Plan</label>
-                    <textarea name="plan" value={plan} onChange={(e) => setPlan(e.target.value)} id="plan" className="w-full h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                    <label className="block mb-1 font-bold text-black">Keluhan</label>
+                    <textarea name="complaint" value={complaint} onChange={(e) => setComplaint(e.target.value)} id="complaint" className="w-full h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                 </div>
             </div>
 
@@ -271,4 +247,4 @@ const AddVisitPregnancy = () => {
     )
 
 }
-export default AddVisitPregnancy;
+export default AddVisitFamilyPlanning;
