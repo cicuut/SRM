@@ -91,7 +91,7 @@ const ActivityHistory = () => {
                         </div>
                     </div>
 
-                    <h2 className="text-[32px] leading-none font-semibold text-[#5F785F]">
+                    <h2 className="text-[24px] leading-none font-semibold text-[#5F785F]">
                         Audit Log
                     </h2>
 
