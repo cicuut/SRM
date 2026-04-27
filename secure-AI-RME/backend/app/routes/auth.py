@@ -41,7 +41,7 @@ def register():
         db.session.commit()
         db.session.refresh(new_user)
         
-        additional_claims = {"clinic_id": user.clinic_id}
+        additional_claims = {"clinic_id": new_user.clinic_id}
         access_token = create_access_token(identity=str(new_user.user_id), additional_claims=additional_claims)
        
         return jsonify({

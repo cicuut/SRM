@@ -212,4 +212,5 @@ class VisitPregnancy(db.Model):
     assessment = db.Column(EncryptedText, nullable=True)
     plan = db.Column(EncryptedText, nullable=True)
 
+
     
