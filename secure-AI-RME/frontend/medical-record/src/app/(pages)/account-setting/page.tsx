@@ -79,7 +79,7 @@ const emptyFormData: AccountFormData = {
 };
 
 const inputClassName =
-    'mt-[6px] h-[24px] w-full rounded-[3px] border border-[#BFC7BB] bg-transparent px-2 text-[11px] text-[#222222] outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072]';
+    'mt-[6px] h-[24px] w-full min-w-0 box-border rounded-[3px] border border-[#BFC7BB] bg-transparent px-2 text-[11px] text-[#222222] outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072]';
 
 const personalFields: FieldConfig[] = [
     {
@@ -216,7 +216,7 @@ const SectionCard = ({
 }: SectionCardProps) => {
     return (
         <section
-            className={`w-full rounded-[8px] border border-[#D2D8CF] bg-transparent px-[30px] py-[28px] ${className}`}
+            className={`box-border w-full max-w-full rounded-[8px] border border-[#D2D8CF] bg-transparent px-4 py-[28px] sm:px-[30px] ${className}`}
         >
             <h2 className="text-[16px] leading-none font-bold text-black">
                 {title}
@@ -226,14 +226,14 @@ const SectionCard = ({
                 {description}
             </p>
 
-            <div className="mt-[22px] grid grid-cols-1 gap-x-[52px] gap-y-[12px] md:grid-cols-[270px_270px]">
+            <div className="mt-[22px] grid w-full min-w-0 grid-cols-1 gap-x-[52px] gap-y-[12px] md:grid-cols-2">
                 {fields.map((field) => {
                     const isReadOnly = Boolean(field.readOnly);
 
                     return (
                         <label
                             key={field.name}
-                            className={`block ${
+                            className={`block min-w-0 ${
                                 field.fullWidth ? 'md:col-span-2' : ''
                             }`}
                         >
@@ -552,110 +552,117 @@ const AccountSetting = () => {
     };
 
     return (
-        <div className="min-h-screen flex bg-[#FDFEF9] overflow-x-hidden">
-            <Sidebar />
+        <div className="min-h-dvh w-full max-w-full overflow-x-hidden bg-[#FDFEF9]">
+            <div className="flex min-h-dvh w-full max-w-full overflow-x-hidden">
+                <Sidebar />
 
-            <main className="flex-1 flex flex-col ml-0 pt-[26px] pb-[40px] pl-[28px] pr-[28px] min-w-0 overflow-x-hidden">
-                <div className="w-full max-w-[960px]">
-                    <div className="mt-[28px] w-full min-h-[96px] rounded-[8px] bg-[#86A789] px-[38px] py-[22px] shadow-md flex flex-col gap-[18px] md:flex-row md:items-center md:justify-between">
-                        <div className="flex items-center gap-[22px]">
-                            <div className="relative w-[64px] h-[64px] rounded-full overflow-hidden bg-[#FDFEF9] shrink-0 flex items-center justify-center text-[24px] font-bold text-[#5F785F]">
-                                <span>{initials}</span>
+                <main className="box-border flex min-w-0 flex-1 flex-col overflow-x-hidden px-4 pb-[40px] pt-[26px] sm:px-[28px]">
+                    <div className="box-border w-full max-w-none min-w-0">
+                        <div className="mt-[28px] box-border flex min-h-[96px] w-full max-w-full flex-col gap-[18px] rounded-[8px] bg-[#86A789] px-4 py-[22px] shadow-md sm:px-[38px] lg:flex-row lg:items-center lg:justify-between">
+                            <div className="flex min-w-0 items-center gap-[22px]">
+                                <div className="relative flex h-[64px] w-[64px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#FDFEF9] text-[24px] font-bold text-[#5F785F]">
+                                    <span>{initials}</span>
+                                </div>
+
+                                <div className="min-w-0">
+                                    <h2 className="truncate text-[22px] leading-none font-bold text-white">
+                                        {isLoading ? 'Loading...' : displayName}
+                                    </h2>
+
+                                    <p className="mt-[8px] truncate text-[12px] leading-none font-medium text-white">
+                                        {isLoading
+                                            ? 'Loading role...'
+                                            : displayRole}
+                                    </p>
+                                </div>
                             </div>
 
-                            <div>
-                                <h2 className="text-[22px] leading-none font-bold text-white">
-                                    {isLoading ? 'Loading...' : displayName}
-                                </h2>
+                            <div className="flex flex-wrap items-center gap-[12px] sm:gap-[18px] lg:justify-end">
+                                <button
+                                    type="button"
+                                    disabled
+                                    className="h-[32px] shrink-0 rounded-[50px] bg-white px-[22px] text-[12px] font-bold text-black opacity-70 shadow-sm cursor-not-allowed"
+                                    title="Fitur update photo belum tersedia di backend"
+                                >
+                                    Update Photo
+                                </button>
 
-                                <p className="mt-[8px] text-[12px] leading-none font-medium text-white">
-                                    {isLoading ? 'Loading role...' : displayRole}
-                                </p>
+                                <button
+                                    type="button"
+                                    disabled
+                                    className="h-[32px] shrink-0 rounded-[50px] bg-white px-[22px] text-[12px] font-bold text-black opacity-70 shadow-sm cursor-not-allowed"
+                                    title="Fitur delete account belum tersedia di backend"
+                                >
+                                    Delete Account
+                                </button>
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-[18px]">
-                            <button
-                                type="button"
-                                disabled
-                                className="h-[32px] px-[22px] rounded-[50px] bg-white text-[12px] font-bold text-black shadow-sm opacity-70 cursor-not-allowed"
-                                title="Fitur update photo belum tersedia di backend"
-                            >
-                                Update Photo
-                            </button>
+                        {errorMessage && (
+                            <div className="mt-[18px] box-border w-full rounded-[6px] border border-red-200 bg-red-50 px-[16px] py-[10px] text-[12px] text-red-700">
+                                {errorMessage}
+                            </div>
+                        )}
 
-                            <button
-                                type="button"
-                                disabled
-                                className="h-[32px] px-[22px] rounded-[50px] bg-white text-[12px] font-bold text-black shadow-sm opacity-70 cursor-not-allowed"
-                                title="Fitur delete account belum tersedia di backend"
+                        {successMessage && (
+                            <div className="mt-[18px] box-border w-full rounded-[6px] border border-green-200 bg-green-50 px-[16px] py-[10px] text-[12px] text-green-700">
+                                {successMessage}
+                            </div>
+                        )}
+
+                        {isLoading ? (
+                            <div className="mt-[26px] box-border w-full rounded-[8px] border border-[#D2D8CF] px-[30px] py-[28px] text-[12px] text-black">
+                                Mengambil data akun...
+                            </div>
+                        ) : (
+                            <form
+                                onSubmit={handleSubmit}
+                                className="mt-[26px] box-border w-full max-w-full"
                             >
-                                Delete Account
-                            </button>
-                        </div>
+                                <SectionCard
+                                    title="Personal Information"
+                                    description="Data ini diambil dari akun user yang sedang login"
+                                    fields={personalFields}
+                                    formData={formData}
+                                    onChange={handleChange}
+                                    disabled={isSubmitting}
+                                    className="min-h-[220px]"
+                                />
+
+                                <SectionCard
+                                    title="Clinic Information"
+                                    description="Data ini diambil dari klinik yang terhubung dengan akun user"
+                                    fields={clinicFields}
+                                    formData={formData}
+                                    onChange={handleChange}
+                                    disabled={isSubmitting}
+                                    className="mt-[26px] min-h-[240px]"
+                                />
+
+                                <SectionCard
+                                    title="Change Password"
+                                    description="Kosongkan bagian ini jika tidak ingin mengganti password"
+                                    fields={passwordFields}
+                                    formData={formData}
+                                    onChange={handleChange}
+                                    disabled={isSubmitting}
+                                    className="mt-[26px] min-h-[170px]"
+                                />
+
+                                <button
+                                    type="submit"
+                                    disabled={isSubmitting}
+                                    className="mt-[26px] h-[34px] rounded-[50px] bg-[#86A789] px-[22px] text-[12px] font-semibold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-70"
+                                >
+                                    {isSubmitting
+                                        ? 'Updating...'
+                                        : 'Update Changes'}
+                                </button>
+                            </form>
+                        )}
                     </div>
-
-                    {errorMessage && (
-                        <div className="mt-[18px] rounded-[6px] border border-red-200 bg-red-50 px-[16px] py-[10px] text-[12px] text-red-700">
-                            {errorMessage}
-                        </div>
-                    )}
-
-                    {successMessage && (
-                        <div className="mt-[18px] rounded-[6px] border border-green-200 bg-green-50 px-[16px] py-[10px] text-[12px] text-green-700">
-                            {successMessage}
-                        </div>
-                    )}
-
-                    {isLoading ? (
-                        <div className="mt-[26px] rounded-[8px] border border-[#D2D8CF] px-[30px] py-[28px] text-[12px] text-black">
-                            Mengambil data akun...
-                        </div>
-                    ) : (
-                        <form onSubmit={handleSubmit} className="mt-[26px]">
-                            <SectionCard
-                                title="Personal Information"
-                                description="Data ini diambil dari akun user yang sedang login"
-                                fields={personalFields}
-                                formData={formData}
-                                onChange={handleChange}
-                                disabled={isSubmitting}
-                                className="min-h-[220px]"
-                            />
-
-                            <SectionCard
-                                title="Clinic Information"
-                                description="Data ini diambil dari klinik yang terhubung dengan akun user"
-                                fields={clinicFields}
-                                formData={formData}
-                                onChange={handleChange}
-                                disabled={isSubmitting}
-                                className="mt-[26px] min-h-[240px]"
-                            />
-
-                            <SectionCard
-                                title="Change Password"
-                                description="Kosongkan bagian ini jika tidak ingin mengganti password"
-                                fields={passwordFields}
-                                formData={formData}
-                                onChange={handleChange}
-                                disabled={isSubmitting}
-                                className="mt-[26px] min-h-[170px]"
-                            />
-
-                            <button
-                                type="submit"
-                                disabled={isSubmitting}
-                                className="mt-[26px] h-[34px] px-[22px] rounded-[50px] bg-[#86A789] text-[12px] font-semibold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-70"
-                            >
-                                {isSubmitting
-                                    ? 'Updating...'
-                                    : 'Update Changes'}
-                            </button>
-                        </form>
-                    )}
-                </div>
-            </main>
+                </main>
+            </div>
         </div>
     );
 };
