@@ -12,16 +12,39 @@ const API_BASE_URL =
 type AccountFormData = {
     fullname: string;
     email: string;
-    strNumber: string;
+    strnumber: string;
     role: string;
-    clinicName: string;
-    sipbNo: string;
-    clinicAddress: string;
-    clinicPhoneNumber: string;
-    clinicEmail: string;
     currentPassword: string;
     newPassword: string;
     confirmNewPassword: string;
+};
+
+type UserData = {
+    id: string;
+    fullname: string;
+    email: string;
+    role?: string;
+    user_role?: string;
+    strnumber?: string | null;
+    clinic_id?: string | null;
+    is_active?: boolean;
+    created_at?: string | null;
+    last_login?: string | null;
+};
+
+type ClinicData = {
+    id: string;
+    clinic_name: string;
+    clinic_address: string;
+    license_number: string;
+    clinic_email: string;
+    clinic_phone: string;
+};
+
+type AccountApiResponse = {
+    msg?: string;
+    user: UserData;
+    clinic?: ClinicData | null;
 };
 
 type FieldConfig = {
@@ -33,53 +56,39 @@ type FieldConfig = {
     readOnly?: boolean;
 };
 
-type AccountApiResponse = {
-    msg?: string;
-    user: {
-        id: string;
-        fullname: string;
-        email: string;
-        role: string;
-        strnumber?: string | null;
-        clinic_id?: string | null;
-    };
-    clinic?: {
-        id: string;
-        clinic_name: string;
-        clinic_address: string;
-        license_number: string;
-        clinic_email: string;
-        clinic_phone: string;
-    } | null;
-};
-
 type SectionCardProps = {
     title: string;
     description: string;
     fields: FieldConfig[];
     formData: AccountFormData;
     onChange: (event: ChangeEvent<HTMLInputElement>) => void;
-    className?: string;
     disabled?: boolean;
+    className?: string;
+};
+
+type InfoItemProps = {
+    label: string;
+    value?: string | null;
+};
+
+type ClinicSummaryProps = {
+    clinic: ClinicData | null;
+    canOpenManagement: boolean;
+    onOpenManagement: () => void;
 };
 
 const emptyFormData: AccountFormData = {
     fullname: '',
     email: '',
-    strNumber: '',
+    strnumber: '',
     role: '',
-    clinicName: '',
-    sipbNo: '',
-    clinicAddress: '',
-    clinicPhoneNumber: '',
-    clinicEmail: '',
     currentPassword: '',
     newPassword: '',
     confirmNewPassword: '',
 };
 
 const inputClassName =
-    'mt-[6px] h-[24px] w-full min-w-0 box-border rounded-[3px] border border-[#BFC7BB] bg-transparent px-2 text-[11px] text-[#222222] outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072]';
+    'mt-[6px] h-[28px] w-full min-w-0 box-border rounded-[4px] border border-[#BFC7BB] bg-white px-2 text-[11px] text-[#222222] shadow-sm outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072]';
 
 const personalFields: FieldConfig[] = [
     {
@@ -95,40 +104,12 @@ const personalFields: FieldConfig[] = [
     },
     {
         label: 'STR Number',
-        name: 'strNumber',
+        name: 'strnumber',
     },
     {
         label: 'Role',
         name: 'role',
         readOnly: true,
-    },
-];
-
-const clinicFields: FieldConfig[] = [
-    {
-        label: 'Clinic Name',
-        name: 'clinicName',
-    },
-    {
-        label: 'SIPB No',
-        name: 'sipbNo',
-    },
-    {
-        label: 'Clinic Address',
-        name: 'clinicAddress',
-        fullWidth: true,
-    },
-    {
-        label: 'Clinic Phone Number',
-        name: 'clinicPhoneNumber',
-        type: 'tel',
-        autoComplete: 'tel',
-    },
-    {
-        label: 'Clinic Email',
-        name: 'clinicEmail',
-        type: 'email',
-        autoComplete: 'email',
     },
 ];
 
@@ -153,6 +134,14 @@ const passwordFields: FieldConfig[] = [
         autoComplete: 'new-password',
     },
 ];
+
+const readJson = async (response: Response) => {
+    try {
+        return await response.json();
+    } catch {
+        return {};
+    }
+};
 
 const formatRole = (role: string) => {
     if (!role) return '-';
@@ -179,29 +168,38 @@ const getInitials = (name: string) => {
 };
 
 const mapApiDataToForm = (data: AccountApiResponse): AccountFormData => {
+    const role = data.user?.role || data.user?.user_role || '';
+
     return {
         fullname: data.user?.fullname || '',
         email: data.user?.email || '',
-        strNumber: data.user?.strnumber || '',
-        role: data.user?.role || '',
-        clinicName: data.clinic?.clinic_name || '',
-        sipbNo: data.clinic?.license_number || '',
-        clinicAddress: data.clinic?.clinic_address || '',
-        clinicPhoneNumber: data.clinic?.clinic_phone || '',
-        clinicEmail: data.clinic?.clinic_email || '',
+        strnumber: data.user?.strnumber || '',
+        role,
         currentPassword: '',
         newPassword: '',
         confirmNewPassword: '',
     };
 };
 
-const hasAnyClinicData = (formData: AccountFormData) => {
+const wantsPasswordChange = (formData: AccountFormData) => {
     return Boolean(
-        formData.clinicName ||
-            formData.sipbNo ||
-            formData.clinicAddress ||
-            formData.clinicPhoneNumber ||
-            formData.clinicEmail,
+        formData.currentPassword ||
+            formData.newPassword ||
+            formData.confirmNewPassword,
+    );
+};
+
+const InfoItem = ({ label, value }: InfoItemProps) => {
+    return (
+        <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">
+                {label}
+            </p>
+
+            <p className="mt-[6px] min-h-[18px] break-words text-[12px] font-semibold text-black">
+                {value || '-'}
+            </p>
+        </div>
     );
 };
 
@@ -211,22 +209,22 @@ const SectionCard = ({
     fields,
     formData,
     onChange,
-    className = '',
     disabled = false,
+    className = '',
 }: SectionCardProps) => {
     return (
         <section
-            className={`box-border w-full max-w-full rounded-[8px] border border-[#D2D8CF] bg-transparent px-4 py-[28px] sm:px-[30px] ${className}`}
+            className={`box-border w-full max-w-full rounded-[8px] border border-[#D2D8CF] bg-white px-4 py-[28px] shadow-sm sm:px-[30px] ${className}`}
         >
             <h2 className="text-[16px] leading-none font-bold text-black">
                 {title}
             </h2>
 
-            <p className="mt-[8px] text-[10px] leading-none text-black">
+            <p className="mt-[8px] text-[10px] leading-snug text-black">
                 {description}
             </p>
 
-            <div className="mt-[22px] grid w-full min-w-0 grid-cols-1 gap-x-[52px] gap-y-[12px] md:grid-cols-2">
+            <div className="mt-[22px] grid w-full min-w-0 grid-cols-1 gap-x-[52px] gap-y-[14px] md:grid-cols-2">
                 {fields.map((field) => {
                     const isReadOnly = Boolean(field.readOnly);
 
@@ -267,20 +265,71 @@ const SectionCard = ({
     );
 };
 
+const ClinicSummary = ({
+    clinic,
+    canOpenManagement,
+    onOpenManagement,
+}: ClinicSummaryProps) => {
+    return (
+        <section className="mt-[26px] box-border w-full max-w-full rounded-[8px] border border-[#D2D8CF] bg-white px-4 py-[28px] shadow-sm sm:px-[30px]">
+            <div className="flex flex-col gap-[14px] lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                    <h2 className="text-[16px] leading-none font-bold text-black">
+                        Clinic Summary
+                    </h2>
+
+                    <p className="mt-[8px] text-[10px] leading-snug text-black">
+                        Data klinik ditampilkan di sini sebagai informasi akun.
+                        Untuk mengubah data klinik, gunakan Management Setting.
+                    </p>
+                </div>
+
+                {canOpenManagement && (
+                    <button
+                        type="button"
+                        onClick={onOpenManagement}
+                        className="h-[34px] shrink-0 rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072]"
+                    >
+                        Open Management Setting
+                    </button>
+                )}
+            </div>
+
+            <div className="mt-[22px] grid w-full min-w-0 grid-cols-1 gap-x-[52px] gap-y-[16px] md:grid-cols-2">
+                <InfoItem label="Clinic Name" value={clinic?.clinic_name} />
+                <InfoItem label="SIPB No" value={clinic?.license_number} />
+                <InfoItem label="Clinic Email" value={clinic?.clinic_email} />
+                <InfoItem label="Clinic Phone" value={clinic?.clinic_phone} />
+
+                <div className="md:col-span-2">
+                    <InfoItem
+                        label="Clinic Address"
+                        value={clinic?.clinic_address}
+                    />
+                </div>
+            </div>
+        </section>
+    );
+};
+
 const AccountSetting = () => {
     const router = useRouter();
 
     const [formData, setFormData] =
         useState<AccountFormData>(emptyFormData);
+    const [clinic, setClinic] = useState<ClinicData | null>(null);
+
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [hasClinic, setHasClinic] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
 
     const displayName = formData.fullname || 'User';
     const displayRole = formatRole(formData.role);
     const initials = getInitials(displayName);
+    const canOpenManagement = ['owner', 'admin'].includes(
+        formData.role.toLowerCase(),
+    );
 
     const getToken = () => {
         return Cookies.get('access_token');
@@ -295,6 +344,7 @@ const AccountSetting = () => {
         try {
             setIsLoading(true);
             setErrorMessage('');
+            setSuccessMessage('');
 
             const token = getToken();
 
@@ -311,9 +361,9 @@ const AccountSetting = () => {
                 },
             });
 
-            const data = await response.json();
+            const data = (await readJson(response)) as AccountApiResponse;
 
-            if (response.status === 401) {
+            if (response.status === 401 || response.status === 422) {
                 handleUnauthorized();
                 return;
             }
@@ -323,7 +373,7 @@ const AccountSetting = () => {
             }
 
             setFormData(mapApiDataToForm(data));
-            setHasClinic(Boolean(data?.clinic));
+            setClinic(data.clinic || null);
         } catch (error) {
             const message =
                 error instanceof Error
@@ -360,39 +410,15 @@ const AccountSetting = () => {
             return 'Email wajib diisi';
         }
 
-        if (!formData.strNumber.trim()) {
+        if (!formData.email.includes('@')) {
+            return 'Format email tidak valid';
+        }
+
+        if (!formData.strnumber.trim()) {
             return 'STR number wajib diisi';
         }
 
-        if (hasClinic || hasAnyClinicData(formData)) {
-            if (!formData.clinicName.trim()) {
-                return 'Clinic name wajib diisi';
-            }
-
-            if (!formData.sipbNo.trim()) {
-                return 'SIPB No wajib diisi';
-            }
-
-            if (!formData.clinicAddress.trim()) {
-                return 'Clinic address wajib diisi';
-            }
-
-            if (!formData.clinicPhoneNumber.trim()) {
-                return 'Clinic phone number wajib diisi';
-            }
-
-            if (!formData.clinicEmail.trim()) {
-                return 'Clinic email wajib diisi';
-            }
-        }
-
-        const wantsPasswordChange = Boolean(
-            formData.currentPassword ||
-                formData.newPassword ||
-                formData.confirmNewPassword,
-        );
-
-        if (wantsPasswordChange) {
+        if (wantsPasswordChange(formData)) {
             if (
                 !formData.currentPassword ||
                 !formData.newPassword ||
@@ -401,58 +427,39 @@ const AccountSetting = () => {
                 return 'Semua field password wajib diisi jika ingin mengganti password';
             }
 
+            if (formData.newPassword.length < 8) {
+                return 'Password baru minimal 8 karakter';
+            }
+
             if (formData.newPassword !== formData.confirmNewPassword) {
                 return 'Konfirmasi password baru tidak sama';
             }
 
-            if (formData.newPassword.length < 8) {
-                return 'Password baru minimal 8 karakter';
+            if (formData.currentPassword === formData.newPassword) {
+                return 'Password baru tidak boleh sama dengan password lama';
             }
         }
 
         return '';
     };
 
-    const updateProfileAndClinic = async (token: string) => {
-        const payload: {
-            fullname: string;
-            email: string;
-            strnumber: string;
-            clinic?: {
-                clinic_name: string;
-                license_number: string;
-                clinic_address: string;
-                clinic_phone: string;
-                clinic_email: string;
-            };
-        } = {
-            fullname: formData.fullname.trim(),
-            email: formData.email.trim(),
-            strnumber: formData.strNumber.trim(),
-        };
-
-        if (hasClinic || hasAnyClinicData(formData)) {
-            payload.clinic = {
-                clinic_name: formData.clinicName.trim(),
-                license_number: formData.sipbNo.trim(),
-                clinic_address: formData.clinicAddress.trim(),
-                clinic_phone: formData.clinicPhoneNumber.trim(),
-                clinic_email: formData.clinicEmail.trim(),
-            };
-        }
-
+    const updateProfile = async (token: string) => {
         const response = await fetch(`${API_BASE_URL}/auth/me`, {
             method: 'PATCH',
             headers: {
                 Authorization: `Bearer ${token}`,
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(payload),
+            body: JSON.stringify({
+                fullname: formData.fullname.trim(),
+                email: formData.email.trim(),
+                strnumber: formData.strnumber.trim(),
+            }),
         });
 
-        const data = await response.json();
+        const data = (await readJson(response)) as AccountApiResponse;
 
-        if (response.status === 401) {
+        if (response.status === 401 || response.status === 422) {
             handleUnauthorized();
             return null;
         }
@@ -461,17 +468,11 @@ const AccountSetting = () => {
             throw new Error(data?.msg || 'Gagal memperbarui data akun');
         }
 
-        return data as AccountApiResponse;
+        return data;
     };
 
     const changePassword = async (token: string) => {
-        const wantsPasswordChange = Boolean(
-            formData.currentPassword ||
-                formData.newPassword ||
-                formData.confirmNewPassword,
-        );
-
-        if (!wantsPasswordChange) {
+        if (!wantsPasswordChange(formData)) {
             return;
         }
 
@@ -488,9 +489,9 @@ const AccountSetting = () => {
             }),
         });
 
-        const data = await response.json();
+        const data = await readJson(response);
 
-        if (response.status === 401) {
+        if (response.status === 401 || response.status === 422) {
             handleUnauthorized();
             return;
         }
@@ -522,7 +523,7 @@ const AccountSetting = () => {
                 return;
             }
 
-            const updatedAccount = await updateProfileAndClinic(token);
+            const updatedAccount = await updateProfile(token);
 
             if (!updatedAccount) {
                 return;
@@ -530,15 +531,14 @@ const AccountSetting = () => {
 
             await changePassword(token);
 
-            setFormData({
-                ...mapApiDataToForm(updatedAccount),
-                currentPassword: '',
-                newPassword: '',
-                confirmNewPassword: '',
-            });
+            setFormData(mapApiDataToForm(updatedAccount));
+            setClinic(updatedAccount.clinic || null);
 
-            setHasClinic(Boolean(updatedAccount?.clinic));
-            setSuccessMessage('Account setting berhasil diperbarui');
+            setSuccessMessage(
+                wantsPasswordChange(formData)
+                    ? 'Account setting dan password berhasil diperbarui'
+                    : 'Account setting berhasil diperbarui',
+            );
         } catch (error) {
             const message =
                 error instanceof Error
@@ -556,62 +556,70 @@ const AccountSetting = () => {
             <div className="flex min-h-dvh w-full max-w-full overflow-x-hidden">
                 <Sidebar />
 
-                <main className="box-border flex min-w-0 flex-1 flex-col overflow-x-hidden px-4 pb-[40px] pt-[26px] sm:px-[28px]">
+                <main className="box-border flex min-w-0 flex-1 flex-col overflow-x-hidden pb-[40px] pl-4 pr-0 pt-[26px] sm:pl-[28px] sm:pr-0">
                     <div className="box-border w-full max-w-none min-w-0">
-                        <div className="mt-[28px] box-border flex min-h-[96px] w-full max-w-full flex-col gap-[18px] rounded-[8px] bg-[#86A789] px-4 py-[22px] shadow-md sm:px-[38px] lg:flex-row lg:items-center lg:justify-between">
+                        <div className="mt-[28px] box-border flex min-h-[104px] w-full max-w-full flex-col gap-[18px] rounded-l-[8px] bg-[#86A789] px-4 py-[22px] shadow-md sm:px-[38px] lg:flex-row lg:items-center lg:justify-between">
                             <div className="flex min-w-0 items-center gap-[22px]">
                                 <div className="relative flex h-[64px] w-[64px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#FDFEF9] text-[24px] font-bold text-[#5F785F]">
                                     <span>{initials}</span>
                                 </div>
 
                                 <div className="min-w-0">
-                                    <h2 className="truncate text-[22px] leading-none font-bold text-white">
+                                    <h2 className="truncate text-[22px] font-bold leading-none text-white">
                                         {isLoading ? 'Loading...' : displayName}
                                     </h2>
 
-                                    <p className="mt-[8px] truncate text-[12px] leading-none font-medium text-white">
+                                    <p className="mt-[8px] truncate text-[12px] font-medium leading-none text-white">
                                         {isLoading
                                             ? 'Loading role...'
                                             : displayRole}
                                     </p>
+
+                                    <p className="mt-[8px] truncate text-[11px] font-medium leading-none text-white/90">
+                                        {clinic?.clinic_name ||
+                                            'Clinic belum tersedia'}
+                                    </p>
                                 </div>
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-[12px] sm:gap-[18px] lg:justify-end">
-                                <button
-                                    type="button"
-                                    disabled
-                                    className="h-[32px] shrink-0 rounded-[50px] bg-white px-[22px] text-[12px] font-bold text-black opacity-70 shadow-sm cursor-not-allowed"
-                                    title="Fitur update photo belum tersedia di backend"
-                                >
-                                    Update Photo
-                                </button>
+                            <div className="flex flex-wrap items-center gap-[12px] lg:justify-end">
+                                {canOpenManagement && (
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            router.push('/management-setting')
+                                        }
+                                        className="h-[32px] shrink-0 rounded-[50px] bg-white px-[18px] text-[12px] font-bold text-[#5F785F] shadow-sm transition-all hover:bg-[#F4F4F4]"
+                                    >
+                                        Management Setting
+                                    </button>
+                                )}
 
                                 <button
                                     type="button"
-                                    disabled
-                                    className="h-[32px] shrink-0 rounded-[50px] bg-white px-[22px] text-[12px] font-bold text-black opacity-70 shadow-sm cursor-not-allowed"
-                                    title="Fitur delete account belum tersedia di backend"
+                                    onClick={fetchAccountData}
+                                    disabled={isLoading || isSubmitting}
+                                    className="h-[32px] shrink-0 rounded-[50px] bg-white px-[18px] text-[12px] font-bold text-black shadow-sm transition-all hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-70"
                                 >
-                                    Delete Account
+                                    Refresh Data
                                 </button>
                             </div>
                         </div>
 
                         {errorMessage && (
-                            <div className="mt-[18px] box-border w-full rounded-[6px] border border-red-200 bg-red-50 px-[16px] py-[10px] text-[12px] text-red-700">
+                            <div className="mt-[18px] box-border w-full rounded-l-[6px] border border-red-200 bg-red-50 px-[16px] py-[10px] text-[12px] text-red-700">
                                 {errorMessage}
                             </div>
                         )}
 
                         {successMessage && (
-                            <div className="mt-[18px] box-border w-full rounded-[6px] border border-green-200 bg-green-50 px-[16px] py-[10px] text-[12px] text-green-700">
+                            <div className="mt-[18px] box-border w-full rounded-l-[6px] border border-green-200 bg-green-50 px-[16px] py-[10px] text-[12px] text-green-700">
                                 {successMessage}
                             </div>
                         )}
 
                         {isLoading ? (
-                            <div className="mt-[26px] box-border w-full rounded-[8px] border border-[#D2D8CF] px-[30px] py-[28px] text-[12px] text-black">
+                            <div className="mt-[26px] box-border w-full rounded-l-[8px] border border-[#D2D8CF] bg-white px-[30px] py-[28px] text-[12px] text-black">
                                 Mengambil data akun...
                             </div>
                         ) : (
@@ -626,17 +634,15 @@ const AccountSetting = () => {
                                     formData={formData}
                                     onChange={handleChange}
                                     disabled={isSubmitting}
-                                    className="min-h-[220px]"
+                                    className="min-h-[220px] rounded-r-none"
                                 />
 
-                                <SectionCard
-                                    title="Clinic Information"
-                                    description="Data ini diambil dari klinik yang terhubung dengan akun user"
-                                    fields={clinicFields}
-                                    formData={formData}
-                                    onChange={handleChange}
-                                    disabled={isSubmitting}
-                                    className="mt-[26px] min-h-[240px]"
+                                <ClinicSummary
+                                    clinic={clinic}
+                                    canOpenManagement={canOpenManagement}
+                                    onOpenManagement={() =>
+                                        router.push('/management-setting')
+                                    }
                                 />
 
                                 <SectionCard
@@ -646,7 +652,7 @@ const AccountSetting = () => {
                                     formData={formData}
                                     onChange={handleChange}
                                     disabled={isSubmitting}
-                                    className="mt-[26px] min-h-[170px]"
+                                    className="mt-[26px] min-h-[170px] rounded-r-none"
                                 />
 
                                 <button
