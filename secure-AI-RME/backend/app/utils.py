@@ -80,3 +80,11 @@ def decrypt_data(encrypted_text):
     except (ValueError, KeyError, TypeError) as e:
         print(f"Decryption failed (likely old data or wrong key): {e}")
         return encrypted_text
+    
+def clean_float(value):
+    if value is None or str(value).strip() == "":
+        return None
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return None

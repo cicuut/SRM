@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation"
 import Link from "next/link";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faChevronRight } from "@fortawesome/free-solid-svg-icons";
+import Image from "next/image";
 
 const Header = () => {
     const pathname = usePathname();
@@ -34,8 +35,6 @@ const Header = () => {
     return (
         <header className="py-4">
             <nav className="flex items-center gap-2 text-2xl font-bold text-[#4F6F52]">
-
-
                 <Link href="/" className="hover:opacity-80 transition-opacity underline">
                     {breadcrumbNameMap[""]}
                 </Link>
@@ -52,9 +51,9 @@ const Header = () => {
 
                     return (
                         <React.Fragment key={url}>
-                            <FontAwesomeIcon icon={faChevronRight} className="text-sm mx-1 opacity-50" />
+                            <Image src="angle-right.svg" alt="img" width={30} height={30} className="mx-1 opacity-50" />
                             {isLast ? (
-                                <span className="underline">{label}</span>
+                                <span className="underline cursor-pointer">{label}</span>
                             ) : (
                                 <Link href={url} className="hover:opacity-80 transition-opacity underline">
                                     {label}

@@ -2,7 +2,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Cookies from 'js-cookie';
-import PregnancyDetail from '@/app/(pages)/medical-record/(medical-record-detail)/pregnancyDetail';
 import VisitPregnancyDetail from '../visit-detail/pregnancyDetail';
 import VisitFamilyPlanningDetail from '../visit-detail/familyPlanningDetail';
 import VisitImmunizationDetail from '../visit-detail/immunizationDetail';
@@ -48,7 +47,7 @@ export default function VisitDetailPage() {
                 return <VisitFamilyPlanningDetail {...visit.details} />;
             case 'Imunisasi':
                 return <VisitImmunizationDetail {...visit.details} />;
-            case 'General':
+            case 'Umum':
                 return <VisitGeneralDetail {...visit.details} />;
             default:
                 return <div className="p-4">Tipe rekam medis tidak dikenali.</div>;

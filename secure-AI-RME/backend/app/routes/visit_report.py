@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from app.models import PregnancyRecord, User, db, Patient, MedicalRecord, VisitMaster, VisitPregnancy, VisitFamilyPlanning, ImmunizationRecord, VisitImunization
+from app.models import PregnancyRecord, User, db, Patient, MedicalRecord, VisitMaster, VisitPregnancy, VisitFamilyPlanning, ImmunizationRecord, VisitImunization, VisitGeneral
 from app.utils import generate_visit_number, get_latest_visits_count, decrypt_data, get_column_name
 from datetime import datetime
 from flask_jwt_extended import get_jwt_identity, jwt_required, get_jwt
@@ -209,7 +209,13 @@ def get_pregnancy_visit(uuid):
           "subjective": decrypted_subjective,
           "objective": decrypted_objective, 
           "assessment": decrypted_assessment,
-          "plan": decrypted_plan
+          "plan": decrypted_plan,
+          "weight": current_pregnancy_visit.weight_kg,
+          "height": current_pregnancy_visit.height_cm,
+          "body_temperature": current_pregnancy_visit.body_temperature,
+          "respiratory_rate": current_pregnancy_visit.respiratory_rate,
+          "heart_rate": current_pregnancy_visit.heart_rate,
+          "blood_pressure": current_pregnancy_visit.blood_pressure
         }), 200
 
     except Exception as e:
@@ -237,7 +243,7 @@ def add_visit_familyplanning():
         new_familyplanning_visit = VisitFamilyPlanning(
             visit_id=new_visit.visit_id,
             weight_kg=data.get('weight'),
-            height_cm=data.get('height'),
+            blood_pressure=data.get('blood_pressure'),
             kb_method=data.get('contraceptive_method'),
             return_visit_date=data.get('return_visit_date'),
             complaint=data.get('complaint')
@@ -276,7 +282,7 @@ def get_familyplanning_visit(uuid):
         return jsonify({
             "complaint": decrypted_complaint,
             "weight_kg": current_familyplanning_visit.weight_kg,
-            "height_cm": current_familyplanning_visit.height_cm,
+            "blood_pressure": current_familyplanning_visit.blood_pressure,
             "contraceptive_method": current_familyplanning_visit.kb_method,
             "return_visit_date": current_familyplanning_visit.return_visit_date.strftime('%Y-%m-%d') if current_familyplanning_visit.return_visit_date else None
         }), 200
@@ -364,6 +370,75 @@ def get_immunization_visit(uuid):
             "abdominal_circumference": current_immunization_visit.abdominal_circumference,
             "vaccine_given": current_immunization_visit.vaccine_given,
             "dosage_given": current_immunization_visit.dosage_given
+        }), 200
+
+    except Exception as e:
+        return jsonify({"msg": "Server error", "error": str(e)}), 500
+
+@visit_report_bp.route('/add-visit-general', methods=['POST'])
+@jwt_required()
+def add_visit_general():
+    user_id = get_jwt_identity()
+    data = request.get_json()
+    
+    try:
+       #Add visit master
+        new_visit = VisitMaster(
+            record_id=data.get('record_id'),
+            user_id=user_id,
+            visit_number=data.get('visit_number'),
+            visit_date=datetime.utcnow(),
+            visit_time=datetime.utcnow()
+        )
+        db.session.add(new_visit)
+        db.session.flush() 
+        
+        # 2. Add Visit Pregnancy
+        new_general_visit = VisitGeneral(
+            visit_id=new_visit.visit_id,
+            subjective=data.get('subjective'),
+            objective=data.get('objective'),
+            assessment=data.get('assessment'),
+            plan=data.get('plan')
+        )
+        
+        db.session.add(new_general_visit)
+        db.session.flush() 
+        db.session.commit()
+        
+        
+        return jsonify({
+            "msg": "Visit added successfully", 
+            "rm_number": new_visit.record_id,
+            "visit_id": new_visit.visit_id
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": "Failed to add visit", "error": str(e)}), 500
+    
+@visit_report_bp.route('/get-visit-general/<uuid>', methods=['GET'])
+@jwt_required()
+def get_general_visit(uuid):
+    try:
+        visit_report=VisitMaster.query.filter_by(visit_id=uuid).first()
+        if not visit_report:
+            return jsonify({"msg": "Data kunjungan tidak ditemukan"}), 404
+
+        current_general_visit  = VisitGeneral.query.filter_by(visit_id=uuid).first()
+        if not current_general_visit:
+            return jsonify({"msg": "Data Imunisasi tidak ditemukan"}), 404
+        
+        decrypted_subjective = decrypt_data(current_general_visit.subjective)
+        decrypted_objective = decrypt_data(current_general_visit.objective)
+        decrypted_assessment = decrypt_data(current_general_visit.assessment)
+        decrypted_plan = decrypt_data(current_general_visit.plan)
+
+        return jsonify({
+          "subjective": decrypted_subjective,
+          "objective": decrypted_objective, 
+          "assessment": decrypted_assessment,
+          "plan": decrypted_plan,
         }), 200
 
     except Exception as e:

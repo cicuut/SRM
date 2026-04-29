@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
-from app.models import db, Patient, MedicalRecord, PregnancyRecord, ObstetricHistory, FamilyPlanningRecord, GeneralRecord, DeliveryRecord, ImmunizationRecord
-from app.utils import generate_record_number, get_latest_record_count, decrypt_data
+from app.models import db, Patient, MedicalRecord, PregnancyRecord, ObstetricHistory, FamilyPlanningRecord, GeneralRecord, DeliveryRecord, ImmunizationRecord, VisitImunization, VisitMaster, VisitFamilyPlanning, VisitPregnancy, VisitGeneral
+from app.utils import generate_record_number, get_latest_record_count, decrypt_data, clean_float
 from datetime import datetime
 from flask_jwt_extended import jwt_required, get_jwt
 from sqlalchemy import or_
@@ -106,13 +106,13 @@ def add_pregnancy_record():
             expected_due_date=data.get('expected_due_date'),
             diagnosis=data.get('diagnosis'),
             registration_date = datetime.utcnow(),
-            height_cm=data.get('height_cm'),
-            weight_kg=data.get('weight_kg'),
-            muac_cm=data.get('muac_cm'),
+            height_cm=clean_float(data.get('height_cm')),
+            weight_kg=clean_float(data.get('weight_kg')),
+            muac_cm=clean_float(data.get('muac_cm')),
             tt_screening=data.get('tt_screening'),
             lab_results=data.get('lab_results'),
-            pre_preg_weight_kg=data.get('pre_preg_weight_kg'),
-            pre_preg_muac_cm=data.get('pre_preg_muac_cm'),
+            pre_preg_weight_kg=clean_float(data.get('pre_preg_weight_kg')),
+            pre_preg_muac_cm=clean_float(data.get('pre_preg_muac_cm')),
 
         );
         db.session.add(new_pregnancy_record)
@@ -695,6 +695,41 @@ def get_pregnancy_record_data(uuid):
     except Exception as e:
         return jsonify({"msg": "Server error", "error": str(e)}), 500
     
+@medical_record_bp.route('/get-pregnancy-visit-data/<uuid>', methods=['GET'])
+@jwt_required()
+def get_pregnancy_visit_data(uuid):
+    try:
+        results = db.session.query(VisitMaster, VisitPregnancy).\
+            join(VisitPregnancy, VisitMaster.visit_id == VisitPregnancy.visit_id).\
+            filter(VisitMaster.record_id == uuid).\
+            order_by(VisitMaster.visit_date.desc()).all()
+
+        if not results:
+            return jsonify([]), 200
+
+        visit_list = []
+        for master, detail in results:
+            visit_list.append({
+                "visit_id": master.visit_id,
+                "visit_date": master.visit_date.strftime('%d %B %Y'),
+                "visit_time": master.visit_time.strftime('%H:%M'),
+                "weight": detail.weight_kg,
+                "height": detail.height_cm,
+                "blood_pressure": detail.blood_pressure,
+                "body_temperature": detail.body_temperature,
+                "respiratory_rate": detail.respiratory_rate,
+                "heart_rate": detail.heart_rate,
+                "subjective": detail.subjective,
+                "objective": detail.objective,
+                "assessment": detail.assessment,
+                "plan": detail.plan,
+            })
+
+        return jsonify(visit_list), 200
+
+    except Exception as e:
+        return jsonify({"msg": "Server error", "error": str(e)}), 500
+    
 
 @medical_record_bp.route('/get-family-planning-record-data/<uuid>', methods=['GET'])
 @jwt_required()
@@ -720,6 +755,39 @@ def get_family_planning_record_data(uuid):
 
     except Exception as e:
         return jsonify({"msg": "Server error", "error": str(e)}), 500
+    
+
+
+@medical_record_bp.route('/get-family-planning-visit-data/<uuid>', methods=['GET'])
+@jwt_required()
+def get_family_planning_visit_data(uuid):
+    try:
+        results = db.session.query(VisitMaster, VisitFamilyPlanning).\
+            join(VisitFamilyPlanning, VisitMaster.visit_id == VisitFamilyPlanning.visit_id).\
+            filter(VisitMaster.record_id == uuid).\
+            order_by(VisitMaster.visit_date.desc()).all()
+
+        if not results:
+            return jsonify([]), 200
+
+        visit_list = []
+        for master, detail in results:
+            visit_list.append({
+                "visit_id": master.visit_id,
+                "visit_date": master.visit_date.strftime('%d %B %Y'),
+                "visit_time": master.visit_time.strftime('%H:%M'),
+                "weight": detail.weight_kg,
+                "blood_pressure": detail.blood_pressure,
+                "contraceptive_method": detail.kb_method,
+                "follow_up_visit": detail.return_visit_date.strftime('%d %B %Y') if detail.return_visit_date else "-",
+                "complaints": detail.complaint
+            })
+
+        return jsonify(visit_list), 200
+
+    except Exception as e:
+        return jsonify({"msg": "Server error", "error": str(e)}), 500
+
     
 
 @medical_record_bp.route('/get-delivery-record-data/<uuid>', methods=['GET'])
@@ -791,10 +859,76 @@ def get_immunization_record_data(uuid):
             "campak_1": format_date(current_immunization_record.campak_1),
             "campak_2": format_date(current_immunization_record.campak_2),
             "ipv_1": format_date(current_immunization_record.ipv_1),
-            "ipv_2": format_date(current_immunization_record.ipv_2)
+            "ipv_2": format_date(current_immunization_record.ipv_2),
+            "rotavirus_1": format_date(current_immunization_record.rotavirus_1),
+            "rotavirus_2": format_date(current_immunization_record.rotavirus_2),
+            "rotavirus_3": format_date(current_immunization_record.rotavirus_3)
         }
 
         return jsonify(response_data), 200
+
+    except Exception as e:
+        return jsonify({"msg": "Server error", "error": str(e)}), 500
+    
+
+
+@medical_record_bp.route('/get-immunization-visit-data/<uuid>', methods=['GET'])
+@jwt_required()
+def get_immunization_visit_data(uuid):
+    try:
+        results = db.session.query(VisitMaster, VisitImunization).\
+            join(VisitImunization, VisitMaster.visit_id == VisitImunization.visit_id).\
+            filter(VisitMaster.record_id == uuid).\
+            order_by(VisitMaster.visit_date.desc()).all()
+
+        if not results:
+            return jsonify([]), 200
+
+        visit_list = []
+        for master, detail in results:
+            visit_list.append({
+                "visit_id": master.visit_id,
+                "visit_date": master.visit_date.strftime('%d %B %Y'),
+                "visit_time": master.visit_time.strftime('%H:%M'),
+                "height": detail.baby_weight,
+                "weight": detail.baby_weight,
+                "body_temperature": detail.body_temp,
+                "head_circumference": detail.head_circumference,
+                "abdominal_circumference": detail.abdominal_circumference,
+                "vaccine": detail.vaccine_given,
+                "dosage": detail.dosage_given
+            })
+
+        return jsonify(visit_list), 200
+
+    except Exception as e:
+        return jsonify({"msg": "Server error", "error": str(e)}), 500
+
+@medical_record_bp.route('/get-general-visit-data/<uuid>', methods=['GET'])
+@jwt_required()
+def get_general_visit_data(uuid):
+    try:
+        results = db.session.query(VisitMaster, VisitGeneral).\
+            join(VisitGeneral, VisitMaster.visit_id == VisitGeneral.visit_id).\
+            filter(VisitMaster.record_id == uuid).\
+            order_by(VisitMaster.visit_date.desc()).all()
+
+        if not results:
+            return jsonify([]), 200
+
+        visit_list = []
+        for master, detail in results:
+            visit_list.append({
+                "visit_id": master.visit_id,
+                "visit_date": master.visit_date.strftime('%d %B %Y'),
+                "visit_time": master.visit_time.strftime('%H:%M'),
+                "subjective": detail.subjective,
+                "objective": detail.objective,
+                "assessment": detail.assessment,
+                "plan": detail.plan,
+            })
+
+        return jsonify(visit_list), 200
 
     except Exception as e:
         return jsonify({"msg": "Server error", "error": str(e)}), 500

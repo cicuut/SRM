@@ -7,6 +7,8 @@ import FamilyInformation from "../../../../components/records/familyInformationD
 import PastObstecticHistoryDetail from "@/components/records/pastObstetricHistoryDetail";
 import CurrentPregnancyDetail from "@/components/records/currentPregnancyDetail";
 import GeneralExainationDetail from "@/components/records/generalExaminationDetail";
+import VisitPregnancyAccordition from "@/components/records/visitPregnancy";
+
 const PregnancyDetail = () => {
     const [activeTab, setActiveTab] = useState('Identitas Keluarga');
 
@@ -39,6 +41,8 @@ const PregnancyDetail = () => {
                 {activeTab === 'Riwayat Kehamilan Sebelumnya' && <PastObstecticHistoryDetail />}
                 {activeTab === 'Kehamilan Saat Ini' && <CurrentPregnancyDetail />}
                 {activeTab === 'Pemeriksaan Umum' && <GeneralExainationDetail />}
+                {activeTab === 'Pemeriksaan Obstetri' && <VisitPregnancyAccordition />}
+
             </div>
         </div>
     )

@@ -25,7 +25,7 @@ const AddVisitFamilyPlanning = () => {
     const router = useRouter();
     const [visitNumber, setVisitNumber] = useState("Generating Visit Number");
     const [weight, setWeight] = useState("");
-    const [height, setHeight] = useState("");
+    const [bloodPressure, setBloodPressure] = useState("");
     const [contraceptive_method, setContraceptiveMethod] = useState("");
     const [next_visit, setNextVisit] = useState("");
     const [complaint, setComplaint] = useState("");
@@ -102,7 +102,7 @@ const AddVisitFamilyPlanning = () => {
                 return_visit_date: next_visit,
                 complaint: complaint,
                 weight: weight,
-                height: height,
+                blood_pressure: bloodPressure,
                 record_id: uuid,
             };
             const response = await axios.post("http://localhost:5000/api/visit-report/add-visit-family-planning", payload, {
@@ -203,8 +203,8 @@ const AddVisitFamilyPlanning = () => {
                         <input type="text" name="weight" value={weight} onChange={(e) => setWeight(e.target.value)} id="weight" className="w-full p-2 h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                     <div className="flex flex-col flex-1 text-sm gap-2 max-w-[200px]">
-                        <label className="block mb-1 font-bold text-black">Tinggi</label>
-                        <input type="text" name="height" value={height} onChange={(e) => setHeight(e.target.value)} id="height" className="w-full p-2 h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        <label className="block mb-1 font-bold text-black">Tekanan Darah</label>
+                        <input type="text" name="bloodPressure" value={bloodPressure} onChange={(e) => setBloodPressure(e.target.value)} id="blood_pressure" className="w-full p-2 h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
             </div>
             <div className="border-b-2 text-[#D9D9D9] font-bold"> <p className="text-sm border-b-2 w-fit border-[#739072] text-[#739072] font-bold">SOAP</p></div>

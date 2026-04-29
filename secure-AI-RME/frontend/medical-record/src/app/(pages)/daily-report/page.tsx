@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faSearch,
@@ -14,6 +14,9 @@ import { useRouter } from "nextjs-toploader/app";
 import Swal from "sweetalert2";
 import Cookies from "js-cookie";
 import axios from "axios";
+import { DateLabel } from "../dashboard/page";
+import Image from "next/image";
+
 
 interface VisitList {
   visit_id: string;
@@ -144,10 +147,8 @@ const DailyReport = () => {
       <div className="flex-1 flex flex-col  w-full">
         <div className="w-full flex items-center py-6 gap-70  justify-between">
           <div className="relative flex-1  outline-1 outline-gray-300 rounded-lg px-4 py-2 shadow-sm transition-all focus-within:border-[#739072]">
-            <FontAwesomeIcon
-              icon={faSearch}
-              className="text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 w-47"
-            />
+            
+              <Image src="/search-icon.svg" alt="img" width={20} height={20} className="absolute left-4 top-1/2 -translate-y-1/2" />
             <form>
               <input
                 type="text"
@@ -161,35 +162,29 @@ const DailyReport = () => {
               onClick={() => setIsModalVisitOpen(true)}
               className="cursor-pointer flex flex-row items-center gap-x-[4]  rounded-[50px] px-5 py-2 bg-[#86A789] shadow-sm transition-all focus-within:border-[#739072]"
             >
-              <FontAwesomeIcon icon={faPlus} className="text-black-400" />
+              <Image src="/plus-icon.svg" alt="img" width={20} height={20} />
               <span className="font-bold">Tambah Laporan Kunjungan</span>
             </div>
           </div>
         </div>
         <div className="w-full flex felx-row gap-x-5">
           <div className="min-w-37.5 text-center bg-[#D2E3C8] p-2  rounded-[50px] font-bold">
-            Wed, 28 January 2026
+           <DateLabel />
           </div>
-          <div className="min-w-37.5 text-center border p-2 rounded-[50px] border-gray-400 cursor-pointer">
+          <div className="flex items-center justify-center min-w-37.5 text-center border p-2 rounded-[50px] border-gray-400 cursor-pointer">
             Pilih Tanggal
-            <FontAwesomeIcon
-              icon={faCalendarDays}
-              className="text-black-400 ml-2.5"
-            />
+                <Image src="/calendar-icon.svg" alt="img" width={15} height={15} className="ml-2.5" />
+            
           </div>
-          <div className="min-w-37.5 text-center border p-2 rounded-[50px] border-gray-400 cursor-pointer">
+          <div className="flex items-center justify-center min-w-37.5 text-center border p-2 rounded-[50px] border-gray-400 cursor-pointer">
             Filter{" "}
-            <FontAwesomeIcon
-              icon={faFilter}
-              className="text-black-400 ml-2.5"
-            />
+            <Image src="/filter-icon.svg" alt="img" width={15} height={15} className="ml-2.5" />
+            
           </div>
-          <div className="min-w-37.5 text-center border p-2 rounded-[50px] border-gray-400 cursor-pointer">
+          <div className="flex items-center justify-center min-w-37.5 text-center border p-2 rounded-[50px] border-gray-400 cursor-pointer">
             Download{" "}
-            <FontAwesomeIcon
-              icon={faFileArrowDown}
-              className="text-black-400 ml-2.5"
-            />
+                       <Image src="/file-download-icon.svg" alt="img" width={15} height={15} className="ml-2.5" />
+
           </div>
         </div>
         <div className="mt-5">
@@ -273,7 +268,7 @@ const DailyReport = () => {
               <div className="relative w-full">
                 {filteredResults.length > 0 && (
                   <div className="z-50 w-full mt-2 bg-white border border-gray-100 shadow-xl rounded-2xl overflow-hidden overflow-y-auto  animate-in fade-in slide-in-from-top-2 duration-200 max-h-50">
-                    <div className="max-h-75 overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-gray-200">
+                    <div className="max-h-75">
                       {filteredResults.map((patient) => (
                         <div
                           key={patient.rm_id}

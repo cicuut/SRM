@@ -7,6 +7,7 @@ import { Cookie } from 'next/font/google';
 import FamilyPlanningDetail from '@/app/(pages)/medical-record/(medical-record-detail)/familyPlanningDetail'
 import ImmunizationDetail from '@/app/(pages)/medical-record/(medical-record-detail)/immunizationDetail';
 import DeliveryDetail from '@/app/(pages)/medical-record/(medical-record-detail)/deliveryDetail';
+import GeneralDetail from '../(medical-record-detail)/generalDetail';
 
 export default function MedicalRecordDetailPage() {
     const params = useParams();
@@ -50,6 +51,8 @@ export default function MedicalRecordDetailPage() {
                 return <ImmunizationDetail {...record.details} />;
             case 'Persalinan':
                 return <DeliveryDetail {...record.details} />;
+            case 'Umum':
+                return <GeneralDetail {...record.details} />;
             default:
                 return <div className="p-4">Tipe rekam medis tidak dikenali.</div>;
         }

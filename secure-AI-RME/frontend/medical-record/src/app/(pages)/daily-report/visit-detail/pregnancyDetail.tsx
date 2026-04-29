@@ -11,6 +11,12 @@ interface VisitPregnancyDetailProps {
   objective?: string;
   assessment?: string;
   plan?: string;
+  weight?: string;
+  height?: string;
+  blood_pressure?: string;
+  body_temperature?: string;
+  heart_rate?: string;
+  respiratory_rate?: string;
 }
 const VisitPregnancyDetail = () => {
   const [visitPregnancyDetail, setVisitPregnancyDetail] =
@@ -67,6 +73,40 @@ const VisitPregnancyDetail = () => {
         </p>
       </div>
       <div className="flex-1 flex flex-col py-5 gap-6">
+        <table className="w-full">
+          <tbody>
+            <tr>
+              <td className="w-[15%]">Berat</td>
+              <td className="w-[2%]">:</td>
+              <td>{visitPregnancyDetail?.weight}</td>
+            </tr>
+             <tr>
+              <td>Tinggi</td>
+              <td>:</td>
+              <td>{visitPregnancyDetail?.height}</td>
+            </tr>
+             <tr>
+              <td>Tekanan Darah</td>
+              <td>:</td>
+              <td>{visitPregnancyDetail?.blood_pressure}</td>
+            </tr>
+             <tr>
+              <td>Suhu Tubuh</td>
+              <td>:</td>
+              <td>{visitPregnancyDetail?.body_temperature}</td>
+            </tr>
+             <tr>
+              <td>Frekuensi Pernapasan</td>
+              <td>:</td>
+              <td>{visitPregnancyDetail?.respiratory_rate}</td>
+            </tr>
+            <tr>
+              <td>Detak Jantung</td>
+              <td>:</td>
+              <td>{visitPregnancyDetail?.heart_rate}</td>
+            </tr>
+          </tbody>
+        </table>
         <div className="flex flex-col text-sm gap-2">
           <label className="block mb-1 font-bold text-black">Subjective</label>
           <div className="w-full h-30 p-2 overflow-y-auto text-wrap rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">

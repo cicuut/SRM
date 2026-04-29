@@ -23,6 +23,9 @@ interface VaccineList {
     campak_2?: string;
     ipv_1?: string;
     ipv_2?: string;
+    rotavirus_1?: string;
+    rotavirus_2?: string;
+    rotavirus_3?: string;
 }
 
 const VaccineTracking = () => {
@@ -128,6 +131,14 @@ const VaccineTracking = () => {
                     doses={[
                         data?.ipv_1 || "",
                         data?.ipv_2 || ""
+                    ]}
+                />
+                <ImmuneBox
+                    title="ROTAVIRUS"
+                    doses={[
+                        data?.rotavirus_1 || "",
+                        data?.rotavirus_2 || "",
+                        data?.rotavirus_3 || ""
                     ]}
                 />
             </div>

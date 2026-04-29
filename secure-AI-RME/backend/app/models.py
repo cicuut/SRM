@@ -30,7 +30,7 @@ class Clinic(db.Model):
     clinic_address = db.Column(db.Text, nullable=False)
     license_number = db.Column(db.String(100), nullable = False)
     clinic_email = db.Column(db.String(255), nullable=False)
-    clinic_phone = db.Column(db.String(20), nullable=False)    
+    clinic_phone = db.Column(db.String(255), nullable=False)    
     
 class User(db.Model):
     __tablename__ = 'users'
@@ -183,6 +183,10 @@ class ImmunizationRecord(db.Model):
     campak_2 = db.Column(db.Date, nullable=True)
     ipv_1 = db.Column(db.Date, nullable=True)
     ipv_2 = db.Column(db.Date, nullable=True)
+    rotavirus_1 = db.Column(db.Date, nullable=True)
+    rotavirus_2 = db.Column(db.Date, nullable=True)
+    rotavirus_3 = db.Column(db.Date, nullable=True)
+    
     
 class VisitMaster(db.Model):
     __tablename__ = 'visit_master'
@@ -203,7 +207,6 @@ class VisitPregnancy(db.Model):
     blood_pressure = db.Column(db.String(20), nullable=True)
     weight_kg = db.Column(db.String(20), nullable=True)
     height_cm = db.Column(db.String(20), nullable=True)
-    blood_pressure = db.Column(db.String(20), nullable=True)
     body_temperature = db.Column(db.String(20), nullable=True)
     respiratory_rate = db.Column(db.String(20), nullable=True)
     heart_rate = db.Column(db.String(20), nullable=True)
@@ -219,7 +222,7 @@ class VisitFamilyPlanning(db.Model):
     visit_id = db.Column(db.String(36), db.ForeignKey('visit_master.visit_id'), nullable=False)
     kb_id = db.Column(db.String(36), db.ForeignKey('pregnancy_record.pr_id'), nullable=False)
     weight_kg = db.Column(db.String(20), nullable=True)
-    height_cm = db.Column(db.String(20), nullable=True)
+    blood_pressure = db.Column(db.String(20), nullable=True)
     kb_method = db.Column(db.String(50), nullable=True)
     return_visit_date = db.Column(db.Date, nullable=True)
     complaint = db.Column(EncryptedText, nullable=True)
@@ -237,4 +240,14 @@ class VisitImunization(db.Model):
     abdominal_circumference = db.Column(db.String(20), nullable=True)
     dosage_given = db.Column(db.String(50), nullable=True)
     vaccine_given = db.Column(db.String(50), nullable=True)
+
+class VisitGeneral(db.Model):
+    __tablename__ = 'general_visit'
     
+    visit_gen_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    visit_id = db.Column(db.String(36), db.ForeignKey('visit_master.visit_id'), nullable=False)
+    gr_id = db.Column(db.String(36), db.ForeignKey('general_record.gr_id'), nullable=False)
+    subjective= db.Column(EncryptedText, nullable=True)
+    objective = db.Column(EncryptedText, nullable=True)
+    assessment = db.Column(EncryptedText, nullable=True)
+    plan = db.Column(EncryptedText, nullable=True)

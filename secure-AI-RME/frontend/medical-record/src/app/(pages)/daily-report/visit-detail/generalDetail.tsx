@@ -1,48 +1,98 @@
-'use client';
-import React from "react";
+"use client";
+import React, { useEffect } from "react";
 import { useState } from "react";
 import { emit } from "process";
-import PatientInformationDetail from "../../../../components/records/patientInformationDetail";
-import FamilyInformation from "../../../../components/records/familyInformationDetail";
-import PastObstecticHistoryDetail from "@/components/records/pastObstetricHistoryDetail";
-import CurrentPregnancyDetail from "@/components/records/currentPregnancyDetail";
-import GeneralExainationDetail from "@/components/records/generalExaminationDetail";
+import VisitInformation from "@/components/visit/visit-information";
+import { useParams } from "next/dist/client/components/navigation";
+import Cookies from "js-cookie";
 
-const VisitGeneralDetail = () => {
-    const [activeTab, setActiveTab] = useState('Identitas Keluarga');
-
-    const tabs = [
-        'Identitas Keluarga',
-        'Riwayat Kehamilan Sebelumnya',
-        'Kehamilan Saat Ini',
-        'Pemeriksaan Umum',
-        'Pemeriksaan Obstetri'
-    ];
-    return (
-        <div className="min-h-screen mt-10 flex flex-col bg-[#FDFEF9] w-full">
-            <PatientInformationDetail />
-            <div className="flex border-b border-gray-200 gap-6 mt-10">
-                {tabs.map((tab) => (
-                    <button
-                        key={tab}
-                        onClick={() => setActiveTab(tab)}
-                        className={`pb-2 text-sm font-normal transition-all cursor-pointer ${activeTab === tab
-                            ? 'border-b-2 border-[#739072] text-[#739072] font-bold'
-                            : 'text-[#739072]' 
-                            }`}
-                    >
-                        {tab}
-                    </button>
-                ))}
-            </div>
-            <div className="mt-6">
-                {activeTab === 'Identitas Keluarga' && <FamilyInformation />}
-                {activeTab === 'Riwayat Kehamilan Sebelumnya' && <PastObstecticHistoryDetail />}
-                {activeTab === 'Kehamilan Saat Ini' && <CurrentPregnancyDetail />}
-                {activeTab === 'Pemeriksaan Umum' && <GeneralExainationDetail />}
-            </div>
-        </div>
-    )
-
+interface VisitGeneralDetailProps {
+  subjective?: string;
+  objective?: string;
+  assessment?: string;
+  plan?: string;
 }
-export default VisitGeneralDetail;
+const visitGeneralDetail = () => {
+  const [visitGeneralDetail, setVisitGeneralDetail] =
+    useState<VisitGeneralDetailProps | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const params = useParams();
+  const uuid = params.id;
+
+  useEffect(() => {
+    const fetchPatientData = async () => {
+      if (!uuid) return;
+      try {
+        const token = Cookies.get("access_token");
+        const response = await fetch(
+          `http://localhost:5000/api/visit-report/get-visit-general/${uuid}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          },
+        );
+
+        if (!response.ok) throw new Error("Gagal mengambil data pasien");
+
+        const data = await response.json();
+        setVisitGeneralDetail(data);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPatientData();
+  }, [uuid]);
+
+  if (loading)
+    return (
+      <div className="p-8 text-center text-blue-600 animate-pulse">
+        Sedang mengambil data medis...
+      </div>
+    );
+  if (error)
+    return <div className="p-8 text-center text-red-500">Error: {error}</div>;
+  return (
+    <div className="min-h-screen mt-10 flex flex-col bg-[#FDFEF9] w-full">
+      <VisitInformation />
+
+      <div className="flex border-b border-gray-200 gap-6 mt-10">
+        <p className="border-b-2 border-[#739072] text-[#739072] font-bold">
+          Catatan Medis
+        </p>
+      </div>
+      <div className="flex-1 flex flex-col py-5 gap-6">
+        <div className="flex flex-col text-sm gap-2">
+          <label className="block mb-1 font-bold text-black">Subjective</label>
+          <div className="w-full h-30 p-2 overflow-y-auto text-wrap rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
+            {visitGeneralDetail?.subjective}
+          </div>
+        </div>
+        <div className="flex flex-col text-sm gap-2">
+          <label className="block mb-1 font-bold text-black">Objective</label>
+          <div className="w-full h-30 p-2 rounded-md overflow-y-auto text-wrap  bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
+            {visitGeneralDetail?.objective}
+          </div>
+        </div>
+        <div className="flex flex-col text-sm gap-2">
+          <label className="block mb-1 font-bold text-black">Assessment</label>
+          <div className="w-full h-30 p-2 rounded-md  overflow-y-auto text-wrap  bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
+            {visitGeneralDetail?.assessment}
+          </div>
+        </div>
+        <div className="flex flex-col text-sm gap-2">
+          <label className="block mb-1 font-bold text-black">Plan</label>
+          <div className="w-full h-30 p-2 rounded-md  overflow-y-auto text-wrap  bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
+            {visitGeneralDetail?.plan}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+export default visitGeneralDetail;

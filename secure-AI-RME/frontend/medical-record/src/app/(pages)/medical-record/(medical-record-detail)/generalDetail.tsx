@@ -2,20 +2,16 @@
 import React from "react";
 import { useState } from "react";
 import { emit } from "process";
-import Sidebar from "@/components/sidebar";
 import PatientInformationDetail from "../../../../components/records/patientInformationDetail";
 import FamilyInformation from "../../../../components/records/familyInformationDetail";
-import ObstectricAndMedicalRecord from "@/components/records/obstetricAndMedicalHistory";
-import VisitFamilyPlanningAccordition from "@/components/records/visitFamilyPlanning";
-const FamilyPlanningDetail = () => {
-    const [activeTab, setActiveTab] = useState('Informasi Keluarga');
+import VisitGeneralAccordition from "@/components/records/visitGeneral";
+const GeneralDetail = () => {
+    const [activeTab, setActiveTab] = useState('Identitas Keluarga');
 
     const tabs = [
-        'Informasi Keluarga',
-        'Riwayat Kehamilan dan Medis',
-        'Hasil Pemeriksaan Kunjungan'
+        'Identitas Keluarga',
+        'Pemeriksaan Umum'
     ];
-
     return (
         <div className="min-h-screen mt-10 flex flex-col bg-[#FDFEF9] w-full">
             <PatientInformationDetail />
@@ -26,7 +22,7 @@ const FamilyPlanningDetail = () => {
                         onClick={() => setActiveTab(tab)}
                         className={`pb-2 text-sm font-normal transition-all cursor-pointer ${activeTab === tab
                             ? 'border-b-2 border-[#739072] text-[#739072] font-bold'
-                            : 'text-[#739072]'
+                            : 'text-[#739072]' 
                             }`}
                     >
                         {tab}
@@ -34,11 +30,11 @@ const FamilyPlanningDetail = () => {
                 ))}
             </div>
             <div className="mt-6">
-                {activeTab === 'Informasi Keluarga' && <FamilyInformation />}
-                {activeTab === 'Riwayat Kehamilan dan Medis' && <ObstectricAndMedicalRecord />}
-                {activeTab === 'Hasil Pemeriksaan Kunjungan' && <VisitFamilyPlanningAccordition/>}
+                {activeTab === 'Identitas Keluarga' && <FamilyInformation />}
+                {activeTab === 'Pemeriksaan Umum' && <VisitGeneralAccordition />}
             </div>
         </div>
     )
+
 }
-export default FamilyPlanningDetail;
+export default GeneralDetail;
