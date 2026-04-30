@@ -76,54 +76,54 @@ const FamilyInformation = (props: FamilyInformationProps) => {
         </div><div className="flex flex-col mt-4 gap-y-4">
                 <div className="flex flex-row w-full gap-20 justify-between">
                     <div className="flex flex-col flex-1 gap-y-1 ">
-                        Nama Lengkap
-                        <input type="text" name="family_name" id="family_name" value={formData.family_name} onChange={handleInputChange} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                           <p>Nama Lengkap <span className="text-red-500">*</span></p>
+                        <input type="text" name="family_name" id="family_name" value={formData.family_name} onChange={handleInputChange} className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                     <div className="flex flex-col  flex-1">
-                        NIK
-                        <input type="text" name="family_national_id" id="family_national_id" value={formData.family_national_id} onChange={handleInputChange} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                          <p>NIK<span className="text-red-500">*</span></p>
+                        <input type="text" name="family_national_id" required placeholder="Masukan - jika tidak ada" id="family_national_id" value={formData.family_national_id} onChange={handleInputChange} className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                 </div>
                 <div className="flex flex-row w-full gap-20 justify-between">
-                    <div>
-                        Tanggal Lahir
-                        <input type="date" name="family_birth_date" id="family_birth_date" value={formData.family_birth_date} onChange={handleInputChange} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                      <div className="flex flex-col flex-1 gap-y-1 ">
+                        <p>Tanggal Lahir<span className="text-red-500">*</span></p>
+                        <input type="date" name="family_birth_date" id="family_birth_date" value={formData.family_birth_date} onChange={handleInputChange} className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
-                    <div>
+                     <div className="flex flex-col flex-1 gap-y-1 ">
                         Umur
-                        <input type="text" name="family_age" id="family_age" value={formData.family_age} disabled className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        <input type="text" name="family_age" id="family_age" value={formData.family_age} disabled className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
-                    <div>
-                        Jenis Kelamin
-                        <select name="family_gender" id="family_gender" value={formData.family_gender} onChange={handleInputChange} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
+                      <div className="flex flex-col flex-1 gap-y-1 ">
+                        <p>Jenis Kelamin<span className="text-red-500">*</span></p>
+                        <select name="family_gender" id="family_gender" value={formData.family_gender} onChange={handleInputChange} className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
                             <option value="" disabled>Pilih Jenis Kelamin</option>
                             <option value="perempuan">Wanita</option>
                             <option value="laki-laki">Pria</option>
                         </select>
                     </div>
-                    <div>
-                        Hubungan
-                        <input type="text" name="relation" id="relation" value={formData.relation} onChange={handleInputChange} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                     <div className="flex flex-col flex-1 gap-y-1 ">
+                        <p>Hubungan<span className="text-red-500">*</span></p>
+                        <input type="text" name="relation" id="relation" value={formData.relation} onChange={handleInputChange} className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                 </div>
                 <div className="flex flex-row w-full gap-20 justify-start">
                     <div className="flex flex-col flex-1 gap-y-1">
-                        No. Telepon
-                        <input type="text" name="family_number" id="family_number" value={formData.family_number} onChange={handleInputChange} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                       <p> No. Telepon <span className="text-red-500">*</span></p>
+                        <input type="text" name="family_number" id="family_number" required placeholder="Masukan - jika tidak ada" value={formData.family_number} onChange={handleInputChange} className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                     <div className="flex flex-col flex-1 gap-y-1 ">
-                        Alamat
-                        <textarea name="family_address" id="family_address" value={formData.family_address} onChange={handleInputChange} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                       <p> Alamat<span className="text-red-500">*</span></p>
+                        <textarea name="family_address" id="family_address" value={formData.family_address} onChange={handleInputChange} className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                 </div>
                 <div className="flex flex-row w-full gap-20 justify-between">
                     <div className="flex flex-col flex-1 gap-y-1 ">
                         Pendidikan
-                        <input type="text" name="family_education_level" id="education" value={formData.family_education_level} onChange={handleInputChange} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        <input type="text" name="family_education_level" id="education" value={formData.family_education_level} onChange={handleInputChange} className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                     <div className="flex flex-col flex-1 gap-y-1">
                         Pekerjaan
-                        <input type="text" name="family_occupation" id="family_occupation" value={formData.family_occupation} onChange={handleInputChange} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        <input type="text" name="family_occupation" id="family_occupation" value={formData.family_occupation} onChange={handleInputChange} className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                 </div>
             </div></>

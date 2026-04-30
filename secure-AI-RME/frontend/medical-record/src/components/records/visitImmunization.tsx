@@ -4,12 +4,10 @@ import { useState, useEffect } from "react";
 import { emit } from "process";
 import Cookies from 'js-cookie';
 import { useParams } from "next/navigation";
-import { faChevronDown } from "@fortawesome/free-solid-svg-icons";
 import Accordion from '@mui/material/Accordion';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import AccordionSummary from '@mui/material/AccordionSummary';
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-
+import { ChevronDown } from 'lucide-react';
 
 interface VisitImmunizationAccorditionList {
     visit_id?: string;
@@ -74,7 +72,7 @@ const VisitImmunizationAccordition = () => {
                         border: '1px solid #e5e7eb' 
                     }}>
                     <AccordionSummary
-                        expandIcon={<FontAwesomeIcon icon={faChevronDown} className="text-[#739072] text-[15px]" />}
+                        expandIcon={<ChevronDown className="text-[#739072] text-[15px]" />}
                         aria-controls={`panel-${visitImmunization.visit_id}-content`}
                         id={`panel-${visitImmunization.visit_id}-header`}
                         sx={{

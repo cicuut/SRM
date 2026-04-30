@@ -80,64 +80,64 @@ const PatientInformation = (props: PatientInformationProps) => {
         </div><div className="flex flex-col mt-4 gap-y-4">
                 <div className="flex flex-row w-full gap-20 justify-between">
                     <div className="flex flex-col flex-1 gap-y-1 ">
-                        Nama Lengkap
-                        <input type="text" name="patient_name" id="name" value={formData.patient_name} onChange={handleInputChange} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        <p>Nama Lengkap <span className="text-red-500">*</span></p>
+                        <input type="text" name="patient_name" id="name" value={formData.patient_name} onChange={handleInputChange} className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                     <div className="flex flex-col  flex-1">
-                        NIK
-                        <input type="text" name="national_id" id="nik" value={formData.national_id} onChange={handleInputChange} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                       <p>NIK<span className="text-red-500">*</span></p>
+                        <input type="text" name="national_id" id="nik" placeholder="Masukan - jika tidak ada" required value={formData.national_id} onChange={handleInputChange} className="p-2 p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                 </div>
                 <div className="flex flex-row w-full gap-20 justify-between">
-                    <div>
-                     Tanggal Lahir
-                        <input type="date" name="birth_date" id="birth_date" value={formData.birth_date} onChange={handleInputChange} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                    <div className="flex flex-col flex-1 gap-y-1">
+                     <p>Tanggal Lahir<span className="text-red-500">*</span></p>
+                        <input type="date" name="birth_date" id="birth_date" value={formData.birth_date} onChange={handleInputChange} className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
-                    <div>
+                    <div className="flex flex-col flex-1 gap-y-1">
                         Umur
-                        <input type="text" name="age" id="age" value={formData.age} disabled className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        <input type="text" name="age" id="age" value={formData.age} disabled className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
-                    <div>
-                        Jenis Kelamin
-                        <select name="gender" id="gender" value={formData.gender} onChange={handleInputChange} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
+                    <div className="flex flex-col flex-1 gap-y-1">
+                        <p>Jenis Kelamin<span className="text-red-500">*</span></p>
+                        <select name="gender" id="gender" value={formData.gender} onChange={handleInputChange} className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
                             <option value="" disabled>Pilih Jenis Kelamin</option>
                             <option value="perempuan">Wanita</option>
                             <option value="laki-laki">Pria</option>
                         </select>
                     </div>
-                    <div>
+                  <div className="flex flex-col flex-1 gap-y-1">
                         Tipe Rekam Medis
-                        <input type="text" name="record_type" id="type" value={formData.record_type} disabled className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        <input type="text" name="record_type" id="type" value={formData.record_type} disabled className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                 </div>
                 <div className="flex flex-row w-full gap-20 justify-start">
                     <div className="flex flex-col flex-1 gap-y-1">
-                        No. Telepon
-                        <input type="text" name="patient_number" id="phone" value={formData.patient_number} onChange={handleInputChange} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        <p> No. Telepon <span className="text-red-500">*</span></p>
+                        <input type="text" name="patient_number" placeholder="Masukan - jika tidak ada" required id="phone" value={formData.patient_number} onChange={handleInputChange} className="p-2 p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                     <div className="flex flex-col flex-1 gap-y-1 ">
-                        Alamat
-                        <textarea name="address" id="address" value={formData.address} onChange={handleInputChange} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        <p>Alamat<span className="text-red-500">*</span></p>
+                        <textarea name="address" id="address" value={formData.address} onChange={handleInputChange} className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                 </div>
                 <div className="flex flex-row w-full gap-20 justify-between">
                     <div className="flex flex-col flex-1 gap-y-1 ">
                         Pendidikan
-                        <input type="text" name="education_level" id="education" value={formData.education_level} onChange={handleInputChange} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        <input type="text" name="education_level" id="education" value={formData.education_level} onChange={handleInputChange} className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                     <div className="flex flex-col flex-1 gap-y-1">
                         Pekerjaan
-                        <input type="text" name="occupation" id="occupation" value={formData.occupation} onChange={handleInputChange} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        <input type="text" name="occupation" id="occupation" value={formData.occupation} onChange={handleInputChange} className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                 </div>
                 <div className="flex flex-row w-full gap-20 justify-between">
                     <div className="flex flex-col flex-1 gap-y-1">
                        Nomor BPJS
-                        <input type="text" name="insurance_number" id="bpjs" value={formData.insurance_number} onChange={handleInputChange} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        <input type="text" name="insurance_number" id="bpjs" value={formData.insurance_number} onChange={handleInputChange} className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                     <div className="flex flex-col flex-1 gap-y-1">
                        Faskes Tingkat 1
-                        <input type="text" name="primary_health_facility" id="faskes" value={formData.primary_health_facility} onChange={handleInputChange} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        <input type="text" name="primary_health_facility" id="faskes" value={formData.primary_health_facility} onChange={handleInputChange} className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                 </div>
             </div></>

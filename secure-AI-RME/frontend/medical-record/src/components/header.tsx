@@ -2,9 +2,7 @@
 import React from "react"
 import { usePathname } from "next/navigation"
 import Link from "next/link";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faChevronRight } from "@fortawesome/free-solid-svg-icons";
-import Image from "next/image";
+import { ChevronRight } from 'lucide-react';
 
 const Header = () => {
     const pathname = usePathname();
@@ -51,7 +49,7 @@ const Header = () => {
 
                     return (
                         <React.Fragment key={url}>
-                            <Image src="angle-right.svg" alt="img" width={30} height={30} className="mx-1 opacity-50" />
+                            <ChevronRight className="mx-1 opacity-50 size-8" />
                             {isLast ? (
                                 <span className="underline cursor-pointer">{label}</span>
                             ) : (

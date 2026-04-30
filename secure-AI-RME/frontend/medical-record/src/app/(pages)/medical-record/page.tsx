@@ -1,11 +1,9 @@
 'use client';
 import { useState, useEffect } from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faSearch, faFilter, faPlus, faTimes, faAngleDown } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from 'nextjs-toploader/app'
 import Swal from "sweetalert2";
 import Cookies from 'js-cookie';
-import Image from "next/image";
+import { Plus, Search, Funnel, X, ChevronDown   } from 'lucide-react';
 
 interface MedicalRecordList {
     rm_id: string;
@@ -104,7 +102,7 @@ const MedicalRecord = () => {
             <div className="flex-1 flex flex-col  w-full">
                 <div className="w-full flex items-center py-6 gap-70  justify-between">
                     <div className="relative flex-1  outline-1 outline-gray-300 rounded-lg px-4 py-2 shadow-sm transition-all focus-within:border-[#739072]">
-                        <Image src="/search-icon.svg" alt="img"  width={20} height={20}  className="absolute left-4 top-1/2 -translate-y-1/2" />
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 size-5" />
                         <form>
                             <input type="text" placeholder="Search for a record" className="w-full focus:outline-none pl-8 text-gray-700 placeholder-gray-400" />
                         </form>
@@ -112,11 +110,11 @@ const MedicalRecord = () => {
                     <div className=" flex flex-row items-center gap-5 shrink-0">
                         <div className="flex flex-row items-center gap-x-[4]  outline-1 outline-black-200 rounded-[50px] px-9 py-2 bg-white shadow-sm transition-all focus-within:border-[#739072]">
                             <button>RM Type</button>
-                        <Image src="/filter-icon.svg" alt="img" width={20} height={20} />
+                        <Funnel className="size-4" />
                         </div>
 
                         <div onClick={() => setIsModalOpen(true)} className="cursor-pointer flex flex-row items-center gap-x-[4]  rounded-[50px] px-5 py-2 bg-[#86A789] shadow-sm transition-all focus-within:border-[#739072]">
-                        <Image src="/plus-icon.svg" alt="img" width={20} height={20} />
+                        <Plus className="size-4"/>
                             <span className="font-bold">Tambah Rekam Medis</span>
                         </div>
 
@@ -171,7 +169,7 @@ const MedicalRecord = () => {
                                 setIsDropdownOpen(false);
                                 setSelectedType("Select a type");
                             }} className="cursor-pointer hover:scale-110 transition">
-                                <FontAwesomeIcon icon={faTimes} className="w-5" />
+                                <X className="w-5" />
                             </button>
                         </div>
 
@@ -185,7 +183,7 @@ const MedicalRecord = () => {
                                     className="flex flex-row items-center justify-between w-full border border-gray-300 rounded-full px-6 py-3 bg-white shadow-sm hover:bg-gray-50 transition-all text-gray-700 font-medium"
                                 >
                                     <span>{selectedType}</span>
-                                    <FontAwesomeIcon icon={faAngleDown} className={`text-gray-400 w-3 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                                    <ChevronDown className={`text-gray-400 w-3 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                                 </button>
 
                                 {isDropdownOpen && (

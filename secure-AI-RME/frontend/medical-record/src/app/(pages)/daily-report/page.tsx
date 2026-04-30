@@ -1,21 +1,11 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faSearch,
-  faFilter,
-  faPlus,
-  faTimes,
-  faAngleDown,
-  faCalendarDays,
-  faFileArrowDown,
-} from "@fortawesome/free-solid-svg-icons";
+import { Plus, Search, Funnel, X, ChevronDown, FileDown, CalendarDays } from 'lucide-react';
 import { useRouter } from "nextjs-toploader/app";
 import Swal from "sweetalert2";
 import Cookies from "js-cookie";
 import axios from "axios";
 import { DateLabel } from "../dashboard/page";
-import Image from "next/image";
 
 
 interface VisitList {
@@ -147,8 +137,7 @@ const DailyReport = () => {
       <div className="flex-1 flex flex-col  w-full">
         <div className="w-full flex items-center py-6 gap-70  justify-between">
           <div className="relative flex-1  outline-1 outline-gray-300 rounded-lg px-4 py-2 shadow-sm transition-all focus-within:border-[#739072]">
-            
-              <Image src="/search-icon.svg" alt="img" width={20} height={20} className="absolute left-4 top-1/2 -translate-y-1/2" />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-gray-300" />
             <form>
               <input
                 type="text"
@@ -162,28 +151,28 @@ const DailyReport = () => {
               onClick={() => setIsModalVisitOpen(true)}
               className="cursor-pointer flex flex-row items-center gap-x-[4]  rounded-[50px] px-5 py-2 bg-[#86A789] shadow-sm transition-all focus-within:border-[#739072]"
             >
-              <Image src="/plus-icon.svg" alt="img" width={20} height={20} />
+              <Plus className="size-3" />
               <span className="font-bold">Tambah Laporan Kunjungan</span>
             </div>
           </div>
         </div>
         <div className="w-full flex felx-row gap-x-5">
-          <div className="min-w-37.5 text-center bg-[#D2E3C8] p-2  rounded-[50px] font-bold">
+          <div className="flex items-center justify-center min-w-37.5 text-center bg-[#D2E3C8] p-2  rounded-[50px] font-bold">
            <DateLabel />
           </div>
           <div className="flex items-center justify-center min-w-37.5 text-center border p-2 rounded-[50px] border-gray-400 cursor-pointer">
             Pilih Tanggal
-                <Image src="/calendar-icon.svg" alt="img" width={15} height={15} className="ml-2.5" />
+                <CalendarDays className="ml-2.5 size-5" />
             
           </div>
           <div className="flex items-center justify-center min-w-37.5 text-center border p-2 rounded-[50px] border-gray-400 cursor-pointer">
             Filter{" "}
-            <Image src="/filter-icon.svg" alt="img" width={15} height={15} className="ml-2.5" />
+            <Funnel className="ml-2.5 size-5" />
             
           </div>
           <div className="flex items-center justify-center min-w-37.5 text-center border p-2 rounded-[50px] border-gray-400 cursor-pointer">
             Download{" "}
-                       <Image src="/file-download-icon.svg" alt="img" width={15} height={15} className="ml-2.5" />
+                       <FileDown className="ml-2.5 size-5" />
 
           </div>
         </div>
@@ -195,7 +184,7 @@ const DailyReport = () => {
                   Kunjungan ID
                 </th>
                 <th className="px-6 py-4 border-r border-gray-200 w-50">
-                  Tanggal
+                 Waktu
                 </th>
                 <th className="px-6 py-4 border-r border-gray-200 w-50">
                   RM ID
@@ -243,7 +232,7 @@ const DailyReport = () => {
                 }}
                 className="cursor-pointer hover:scale-110"
               >
-                <FontAwesomeIcon icon={faTimes} className="w-5" />
+                <X className="w-5" />
               </button>
             </div>
 
@@ -341,7 +330,7 @@ const DailyReport = () => {
                 }}
                 className="cursor-pointer hover:scale-110 transition"
               >
-                <FontAwesomeIcon icon={faTimes} className="w-5" />
+                <X className="w-5" />
               </button>
             </div>
 
@@ -356,8 +345,7 @@ const DailyReport = () => {
                   className="flex flex-row items-center justify-between w-full border border-gray-300 rounded-full px-6 py-3 bg-white shadow-sm hover:bg-gray-50 transition-all text-gray-700 font-medium"
                 >
                   <span>{selectedType}</span>
-                  <FontAwesomeIcon
-                    icon={faAngleDown}
+                  <ChevronDown
                     className={`text-gray-400 w-3 transition-transform ${isDropdownOpen ? "rotate-180" : ""}`}
                   />
                 </button>

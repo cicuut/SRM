@@ -88,3 +88,8 @@ def clean_float(value):
         return float(value)
     except (ValueError, TypeError):
         return None
+    
+def format_date(date_obj):
+    if date_obj:
+        return date_obj.strftime('%d %B %Y')
+    return "-"

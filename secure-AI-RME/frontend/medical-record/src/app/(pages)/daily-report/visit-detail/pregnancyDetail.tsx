@@ -78,32 +78,32 @@ const VisitPregnancyDetail = () => {
             <tr>
               <td className="w-[15%]">Berat</td>
               <td className="w-[2%]">:</td>
-              <td>{visitPregnancyDetail?.weight}</td>
+              <td>{visitPregnancyDetail?.weight} kg</td>
             </tr>
              <tr>
               <td>Tinggi</td>
               <td>:</td>
-              <td>{visitPregnancyDetail?.height}</td>
+              <td>{visitPregnancyDetail?.height} cm</td>
             </tr>
              <tr>
               <td>Tekanan Darah</td>
               <td>:</td>
-              <td>{visitPregnancyDetail?.blood_pressure}</td>
+              <td>{visitPregnancyDetail?.blood_pressure} mmHg</td>
             </tr>
              <tr>
               <td>Suhu Tubuh</td>
               <td>:</td>
-              <td>{visitPregnancyDetail?.body_temperature}</td>
+              <td>{visitPregnancyDetail?.body_temperature} °C</td>
             </tr>
              <tr>
               <td>Frekuensi Pernapasan</td>
               <td>:</td>
-              <td>{visitPregnancyDetail?.respiratory_rate}</td>
+              <td>{visitPregnancyDetail?.respiratory_rate} / menit</td>
             </tr>
             <tr>
               <td>Detak Jantung</td>
               <td>:</td>
-              <td>{visitPregnancyDetail?.heart_rate}</td>
+              <td>{visitPregnancyDetail?.heart_rate} bpm</td>
             </tr>
           </tbody>
         </table>

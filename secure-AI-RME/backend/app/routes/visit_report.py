@@ -1,10 +1,10 @@
 from flask import Blueprint, request, jsonify
 from app.models import PregnancyRecord, User, db, Patient, MedicalRecord, VisitMaster, VisitPregnancy, VisitFamilyPlanning, ImmunizationRecord, VisitImunization, VisitGeneral
-from app.utils import generate_visit_number, get_latest_visits_count, decrypt_data, get_column_name
+from app.utils import generate_visit_number, get_latest_visits_count, decrypt_data, get_column_name, clean_float, format_date
 from datetime import datetime
 from flask_jwt_extended import get_jwt_identity, jwt_required, get_jwt
 from sqlalchemy import or_
-
+import pytz
 
 visit_report_bp = Blueprint('visit_report', __name__)
 
@@ -14,7 +14,6 @@ visit_report_bp = Blueprint('visit_report', __name__)
 def get_visit_number():
 
     try:
-        
         count = get_latest_visits_count()
         next_visit_number = generate_visit_number(count)
 
@@ -45,9 +44,9 @@ def get_visit_information():
             "patient_name": decrypt_data(patient.patient_name),
             "record_number": record.record_number,
             "record_type": record.record_type,
-            "visit_date": datetime.now().strftime("%Y-%m-%d"),
-            "visit_time": datetime.now().strftime("%H:%M:%S")
-        }
+            "visit_date": format_date(visit.visit_date),
+            "visit_time": visit.visit_time.strftime('%H:%M')        
+            }
         return jsonify(response_data), 200
 
     except Exception as e:
@@ -72,7 +71,7 @@ def get_all_records():
 
             record_list.append({
                 "visit_id": visit.visit_id,
-                "visit_date": visit.visit_date,
+                "visit_date": f"{format_date(visit.visit_date)} {visit.visit_time.strftime('%H:%M')}",
                 "visit_number": visit.visit_number,
                 "record_number": medical_record.record_number,
                 "patient_name": decrypted_name,
@@ -126,8 +125,7 @@ def get_patient_data(uuid):
 
         return jsonify({
             "visit_id": visit.visit_id,
-            "visit_date": visit.visit_date.strftime('%Y-%m-%d') if visit.visit_date else None,
-            "visit_time": visit.visit_time.strftime('%H:%M') if visit.visit_time else None,
+            "visit_date": f"{format_date(visit.visit_date)} {visit.visit_time.strftime('%H:%M')}",
             "visit_number": visit.visit_number,
             "rm_number": medical_record.record_number,
             "patient_name": decrypted_name,
@@ -145,14 +143,17 @@ def add_visit_pregnancy():
     user_id = get_jwt_identity()
     data = request.get_json()
     
+    jakarta_tz = pytz.timezone('Asia/Jakarta')
+    now_jakarta = datetime.now(jakarta_tz)
+
     try:
        #Add visit master
         new_visit = VisitMaster(
             record_id=data.get('record_id'),
             user_id=user_id,
             visit_number=data.get('visit_number'),
-            visit_date=datetime.utcnow(),
-            visit_time=datetime.utcnow()
+            visit_date=now_jakarta.date(),
+            visit_time=now_jakarta.timetz()
         )
         db.session.add(new_visit)
         db.session.flush() 
@@ -161,11 +162,11 @@ def add_visit_pregnancy():
         new_pregnancy_visit = VisitPregnancy(
             visit_id=new_visit.visit_id,
             blood_pressure=data.get('blood_pressure'),
-            weight_kg=data.get('weight_kg'),
-            height_cm=data.get('height_cm'),
-            body_temperature=data.get('body_temperature'),
-            respiratory_rate=data.get('respiratory_rate'),
-            heart_rate=data.get('heart_rate'),
+            weight_kg=clean_float(data.get('weight')),
+            height_cm=clean_float(data.get('height')),
+            body_temperature=clean_float(data.get('temperature')),
+            respiratory_rate=clean_float(data.get('respiratory_rate')),
+            heart_rate=clean_float(data.get('heart_rate')),
             subjective=data.get('subjective'),
             objective=data.get('objective'),
             assessment=data.get('assessment'),
@@ -206,16 +207,16 @@ def get_pregnancy_visit(uuid):
         decrypted_plan = decrypt_data(current_pregnancy_visit.plan)
 
         return jsonify({
-          "subjective": decrypted_subjective,
-          "objective": decrypted_objective, 
-          "assessment": decrypted_assessment,
-          "plan": decrypted_plan,
-          "weight": current_pregnancy_visit.weight_kg,
-          "height": current_pregnancy_visit.height_cm,
-          "body_temperature": current_pregnancy_visit.body_temperature,
-          "respiratory_rate": current_pregnancy_visit.respiratory_rate,
-          "heart_rate": current_pregnancy_visit.heart_rate,
-          "blood_pressure": current_pregnancy_visit.blood_pressure
+          "subjective": decrypted_subjective or "-",
+          "objective": decrypted_objective or "-", 
+          "assessment": decrypted_assessment or "-",
+          "plan": decrypted_plan or "-",
+          "weight": current_pregnancy_visit.weight_kg or "-", 
+          "height": current_pregnancy_visit.height_cm or "-",
+          "body_temperature": current_pregnancy_visit.body_temperature or "-",
+          "respiratory_rate": current_pregnancy_visit.respiratory_rate or "-",
+          "heart_rate": current_pregnancy_visit.heart_rate or "-",
+          "blood_pressure": current_pregnancy_visit.blood_pressure or "-"
         }), 200
 
     except Exception as e:
@@ -301,23 +302,19 @@ def add_visit_immunization():
     visit_date = datetime.utcnow().date()
 
     try:
-        # 1. Cari atau Buat Kartu Imunisasi (ImmunizationRecord)
         imm_record = ImmunizationRecord.query.filter_by(record_id=record_id).first()
         if not imm_record:
             imm_record = ImmunizationRecord(record_id=record_id)
             db.session.add(imm_record)
             db.session.flush()
 
-        # 2. Update tanggal di kolom yang sesuai secara dinamis
         col_name = get_column_name(vaccine_given, dosage_given)
         
-        # Cek apakah kolom tersebut ada di model
         if hasattr(imm_record, col_name):
             setattr(imm_record, col_name, visit_date)
         else:
             return jsonify({"msg": f"Kolom {col_name} tidak ditemukan di database"}), 400
 
-        # 2. Add Visit Family Planning
         new_visit = VisitMaster(
             record_id=record_id,
             user_id=user_id,
@@ -328,7 +325,6 @@ def add_visit_immunization():
         db.session.add(new_visit)
         db.session.flush()
 
-        # 4. Simpan data detail Visit Imunisasi
         new_detail = VisitImunization(
             visit_id=new_visit.visit_id,
             ir_id=imm_record.ir_id,

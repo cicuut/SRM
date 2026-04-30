@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from app.models import db, Patient, MedicalRecord, PregnancyRecord, ObstetricHistory, FamilyPlanningRecord, GeneralRecord, DeliveryRecord, ImmunizationRecord, VisitImunization, VisitMaster, VisitFamilyPlanning, VisitPregnancy, VisitGeneral
-from app.utils import generate_record_number, get_latest_record_count, decrypt_data, clean_float
+from app.utils import generate_record_number, get_latest_record_count, decrypt_data, clean_float, format_date
 from datetime import datetime
 from flask_jwt_extended import jwt_required, get_jwt
 from sqlalchemy import or_
@@ -37,14 +37,12 @@ def add_pregnancy_record():
     
     data = request.get_json()
     
-    # Validasi input
-    patient_name = data.get('patient_name')
-    birth_date = data.get('birth_date')
-    national_id = data.get('national_id')
-    
-    
-    if not patient_name or not birth_date or not national_id:
-        return jsonify({"msg": "Nama, Tanggal Lahir, dan NIK wajib diisi!"}), 400
+    required_fields = ['family_name', 'family_birth_date', 'family_national_id', 'family_gender', 'family_address', 'family_number', 'relation',
+                       'patient_name', 'birth_date', 'national_id', 'gender', 'patient_number', 'address']
+
+    for field in required_fields:
+        if not data.get(field):
+            return jsonify({"msg": "Tanda * wajib untuk diisi!"}), 400
     
     try:
         family_id = None
@@ -102,10 +100,10 @@ def add_pregnancy_record():
             record_id=new_record.record_id,
             contraceptive_history=data.get('contraceptive_history'),
             family_med_history=data.get('family_med_history'),
-            last_menstrual_period=data.get('last_menstrual_period'),
-            expected_due_date=data.get('expected_due_date'),
+            last_menstrual_period=clean_float(data.get('last_menstrual_period')),
+            expected_due_date=clean_float(data.get('expected_due_date')),
             diagnosis=data.get('diagnosis'),
-            registration_date = datetime.utcnow(),
+            registration_date = clean_float(data.get('registration_date')),
             height_cm=clean_float(data.get('height_cm')),
             weight_kg=clean_float(data.get('weight_kg')),
             muac_cm=clean_float(data.get('muac_cm')),
@@ -128,7 +126,8 @@ def add_pregnancy_record():
                 pregnancy_complications=obs.get('pregnancy_complications'),
                 delivery_mode=obs.get('delivery_mode'),
                 delivery_complications=obs.get('delivery_complications'),
-                baby_weight_height=obs.get('birth_weight_height'), 
+                baby_weight=clean_float(obs.get('baby_weight')), 
+                baby_height=clean_float(obs.get('baby_height')), 
                 baby_complications=obs.get('baby_complications'),
                 postpartum_status=obs.get('postpartum_status'),
                 postpartum_complications=obs.get('postpartum_complications')
@@ -589,10 +588,10 @@ def get_patient_data(uuid):
            "age": patient.age,
            "type":record.record_type,
            "address": decrypt_data(patient.address),
-           "education": patient.education_level,
-           "occupation": patient.occupation,
-           "bpjs_number": decrypt_data(patient.insurance_number),
-           "primary_healthcare": patient.primary_health_facility
+           "education": patient.education_level or "-",
+           "occupation": patient.occupation or "-",
+           "bpjs_number": decrypt_data(patient.insurance_number) or "-",
+           "primary_healthcare": patient.primary_health_facility or "-"
         }
         return jsonify(response_data), 200
 
@@ -631,8 +630,8 @@ def get_family_data(uuid):
             "age": family_person.age,
             "relation": family_person.relation, 
             "patient_number": decrypt_data(family_person.patient_number),
-            "occupation": family_person.occupation,
-            "education": family_person.education_level,
+            "occupation": family_person.occupation or "-",
+            "education": family_person.education_level or "-",
             "address": decrypt_data(family_person.address)
         }
 
@@ -660,32 +659,32 @@ def get_pregnancy_record_data(uuid):
         for obs in current_obstectric_history:
             obstectric_history_list.append({
                 "id": obs.history_id,
-                "pregnancy_no": obs.pregnancy_no,
-                "gestational_age": obs.gestational_age,
-                "pregnancy_complications": decrypt_data(obs.pregnancy_complications),
-                "delivery_mode": obs.delivery_mode,
-                "delivery_complications": decrypt_data(obs.delivery_complications),
-                "baby_weight_height": decrypt_data(obs.baby_weight_height),
-                "baby_complications": decrypt_data(obs.baby_complications),
-                "postpartum_status": decrypt_data(obs.postpartum_status),
-                "postpartum_complications": decrypt_data(obs.postpartum_complications)
+                "pregnancy_no": obs.pregnancy_no or "-",
+                "gestational_age": obs.gestational_age or "-",
+                "pregnancy_complications": decrypt_data(obs.pregnancy_complications) or "-",
+                "delivery_mode": obs.delivery_mode or "-",
+                "delivery_complications": decrypt_data(obs.delivery_complications) or "-",
+                "baby_weight_height": decrypt_data(obs.baby_weight_height) or "-",
+                "baby_complications": decrypt_data(obs.baby_complications) or "-",
+                "postpartum_status": decrypt_data(obs.postpartum_status) or "-",
+                "postpartum_complications": decrypt_data(obs.postpartum_complications) or "-"
             })
             
         response_data = {
             "current_pregnancy": {
-                "contraceptive_history": decrypt_data(current_pregnancy_record.contraceptive_history),
-                "family_med_history":  decrypt_data(current_pregnancy_record.family_med_history),
-                "last_menstrual_period": current_pregnancy_record.last_menstrual_period.strftime('%d %B %Y'), 
-                "expected_due_date": current_pregnancy_record.expected_due_date.strftime('%d %B %Y'), 
-                "diagnosis":  decrypt_data(current_pregnancy_record.diagnosis),
-                "height_cm": current_pregnancy_record.height_cm,
-                "weight_kg": current_pregnancy_record.weight_kg,
-                "muac_cm": current_pregnancy_record.muac_cm,
-                "pre_preg_weight_kg": current_pregnancy_record.pre_preg_weight_kg,
-                "pre_preg_muac_cm": current_pregnancy_record.pre_preg_muac_cm,
-                "tt_screening": current_pregnancy_record.tt_screening,
-                "lab_results": decrypt_data(current_pregnancy_record.lab_results),
-                "registration_date": current_pregnancy_record.registration_date.strftime('%d %B %Y')
+                "contraceptive_history": decrypt_data(current_pregnancy_record.contraceptive_history) or "-",
+                "family_med_history":  decrypt_data(current_pregnancy_record.family_med_history) or "-",
+                "last_menstrual_period": format_date(current_pregnancy_record.last_menstrual_period), 
+                "expected_due_date": format_date(current_pregnancy_record.expected_due_date), 
+                "diagnosis":  decrypt_data(current_pregnancy_record.diagnosis) or "-",
+                "height_cm": current_pregnancy_record.height_cm or "-",
+                "weight_kg": current_pregnancy_record.weight_kg or "-",
+                "muac_cm": current_pregnancy_record.muac_cm or "-",
+                "pre_preg_weight_kg": current_pregnancy_record.pre_preg_weight_kg or "-",
+                "pre_preg_muac_cm": current_pregnancy_record.pre_preg_muac_cm or "-",
+                "tt_screening": current_pregnancy_record.tt_screening or "-",
+                "lab_results": decrypt_data(current_pregnancy_record.lab_results) or "-",
+                "registration_date": format_date(current_pregnancy_record.registration_date) 
             },
             "past_obstetric_history": obstectric_history_list
         }
@@ -704,8 +703,10 @@ def get_pregnancy_visit_data(uuid):
             filter(VisitMaster.record_id == uuid).\
             order_by(VisitMaster.visit_date.desc()).all()
 
-        if not results:
-            return jsonify([]), 200
+        return jsonify({
+                "msg": "Belum ada kunjungan", 
+                "data": [] 
+            }), 200
 
         visit_list = []
         for master, detail in results:

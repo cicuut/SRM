@@ -74,7 +74,8 @@ const PregnancyRecord = () => {
             delivery_mode: "",
             pregnancy_complications: "",
             delivery_complications: "",
-            birth_weight_height: "",
+            baby_weight: "",
+            baby_hight:"",
             postpartum_status: "",
             baby_complications: "",
             postpartum_complications: ""
@@ -204,17 +205,17 @@ const PregnancyRecord = () => {
                     <div className="flex flex-row w-full gap-20 justify-between">
                         <div className="flex flex-col flex-1 gap-y-1 ">
                             Berat Sebelum Kehamilan
-                            <input type="text" value={prePregnancyWeight} onChange={(e) => setPrePregnancyWeight(e.target.value)} name="prePregnancyWeight" id="prePregnancyWeight" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                            <input type="number" value={prePregnancyWeight} placeholder="Tanpa satuan" onChange={(e) => setPrePregnancyWeight(e.target.value)} name="prePregnancyWeight" id="prePregnancyWeight" className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                         </div>
                         <div className="flex flex-col  flex-1">
                             Lingkar Lengan Atas Sebelum Kehamilan
-                            <input type="text" value={prePregnancyMUAC} onChange={(e) => setPrePregnancyMUAC(e.target.value)} name="prePregnancyMUAC" id="prePregnancyMUAC" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                            <input type="number" value={prePregnancyMUAC} placeholder="Tanpa satuan" onChange={(e) => setPrePregnancyMUAC(e.target.value)} name="prePregnancyMUAC" id="prePregnancyMUAC" className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                         </div>
                     </div>
                     <div className="flex flex-row w-full gap-20 justify-between">
                         <div className="flex flex-col flex-1" >
                             Riwayat Kontrasepsi
-                            <select value={contraceptiveHistory} onChange={(e) => setContraceptiveHistory(e.target.value)} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
+                            <select value={contraceptiveHistory} onChange={(e) => setContraceptiveHistory(e.target.value)} className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
                                 <option value="" disabled>Pilih</option>
                                 <option value="PIL">PIL</option>
                                 <option value="Suntik 1 Bulan">Suntik 1 Bulan</option>
@@ -225,7 +226,7 @@ const PregnancyRecord = () => {
                         </div>
                         <div className="flex flex-col flex-1" >
                             Penyakit Genetik dalam Keluarga
-                            <textarea value={geneticDiseaseHistory} onChange={(e) => setGeneticDiseaseHistory(e.target.value)} name="geneticDiseaseHistory" id="geneticDiseaseHistory" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                            <textarea value={geneticDiseaseHistory} onChange={(e) => setGeneticDiseaseHistory(e.target.value)} name="geneticDiseaseHistory" id="geneticDiseaseHistory" className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                         </div>
                     </div>
                     <div className="flex flex-row w-full gap-20 justify-start">
@@ -259,11 +260,11 @@ const PregnancyRecord = () => {
                                         <div className="flex flex-row w-full gap-20 justify-between">
                                             <div className="flex flex-col flex-1 gap-1 text-sm">
                                                 Usia Kehamilan
-                                                <input type="text" value={item.gestational_age} onChange={(e) => updateHistoryItem(index, 'gestational_age', e.target.value)} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                                                <input type="text" value={item.gestational_age} onChange={(e) => updateHistoryItem(index, 'gestational_age', e.target.value)} className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                                             </div>
                                             <div className="flex flex-col flex-1 gap-1 text-sm">
                                                 Cara Persalinan
-                                                <select value={item.delivery_mode} onChange={(e) => updateHistoryItem(index, 'delivery_mode', e.target.value)} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
+                                                <select value={item.delivery_mode} onChange={(e) => updateHistoryItem(index, 'delivery_mode', e.target.value)} className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
                                                     <option value="" disabled>Pilih</option>
                                                     <option value="spontan">Spontan</option>
                                                     <option value="normal">Normal</option>
@@ -275,21 +276,24 @@ const PregnancyRecord = () => {
                                         <div className="flex flex-row w-full gap-20 justify-between">
                                             <div className="flex flex-col flex-1 gap-1 text-sm">
                                                 Komplikasi Kehamilan
-                                                <textarea value={item.pregnancy_complications} onChange={(e) => updateHistoryItem(index, 'pregnancy_complications', e.target.value)} className="w-full h-50 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                                                <textarea value={item.pregnancy_complications} onChange={(e) => updateHistoryItem(index, 'pregnancy_complications', e.target.value)} className="w-full h-50 rounded-md bg-white drop-shadow-lg border border-gray-300 p-2 focus:outline-none focus:ring-2" />
                                             </div>
                                             <div className="flex flex-col flex-1 gap-1 text-sm">
                                                 Komplikasi Persalinan
-                                                <textarea value={item.delivery_complications} onChange={(e) => updateHistoryItem(index, 'delivery_complications', e.target.value)} className="w-full h-50 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                                                <textarea value={item.delivery_complications} onChange={(e) => updateHistoryItem(index, 'delivery_complications', e.target.value)} className="w-full h-50 rounded-md bg-white drop-shadow-lg border border-gray-300 p-2 focus:outline-none focus:ring-2" />
                                             </div>
                                         </div>
                                         <div className="flex flex-row w-full gap-20 justify-between">
-                                            <div className="flex flex-col flex-1 gap-1 text-sm">
-                                                Berat dan Panjang Badan Bayi
-                                                <input type="text" value={item.birth_weight_height} onChange={(e) => updateHistoryItem(index, 'birth_weight_height', e.target.value)} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                                            <div className="flex flex-row flex-1 gap-3 text-sm">
+                                                <div className="flex flex-col flex-1">    Berat Badan Bayi
+                                                <input type="number" value={item.baby_weight} onChange={(e) => updateHistoryItem(index, 'birth_weight', e.target.value)} className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" /></div>
+                                                     <div className="flex flex-col flex-1">    Panjang Badan Bayi
+                                                <input type="number" value={item.baby_hight} onChange={(e) => updateHistoryItem(index, 'birth_hight', e.target.value)} className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" /></div>
+                                            
                                             </div>
                                             <div className="flex flex-col flex-1 gap-1 text-sm">
                                                 Masa Nifas
-                                                <select value={item.postpartum_status} onChange={(e) => updateHistoryItem(index, 'postpartum_status', e.target.value)} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
+                                                <select value={item.postpartum_status} onChange={(e) => updateHistoryItem(index, 'postpartum_status', e.target.value)} className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
                                                     <option value="" disabled>Pilih</option>
                                                     <option value="normal">Normal</option>
                                                     <option value="komplikasi">Komplikasi</option>
@@ -299,11 +303,11 @@ const PregnancyRecord = () => {
                                         <div className="flex flex-row w-full gap-20 justify-between">
                                             <div className="flex flex-col flex-1 gap-1 text-sm">
                                                 Komplikasi Bayi
-                                                <textarea value={item.baby_complications} onChange={(e) => updateHistoryItem(index, 'baby_complications', e.target.value)} className="w-full h-50 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                                                <textarea value={item.baby_complications} onChange={(e) => updateHistoryItem(index, 'baby_complications', e.target.value)} className="w-full h-50 rounded-md bg-white drop-shadow-lg border border-gray-300 p-2 focus:outline-none focus:ring-2" />
                                             </div>
                                             <div className="flex flex-col flex-1 gap-1 text-sm">
                                                 Komplikasi Nifas
-                                                <textarea value={item.postpartum_complications} onChange={(e) => updateHistoryItem(index, 'postpartum_complications', e.target.value)} className="w-full h-50 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                                                <textarea value={item.postpartum_complications} onChange={(e) => updateHistoryItem(index, 'postpartum_complications', e.target.value)} className="w-full h-50 rounded-md bg-white drop-shadow-lg border border-gray-300 p-2 focus:outline-none focus:ring-2" />
                                             </div>
                                         </div>
                                     </div>
@@ -319,17 +323,17 @@ const PregnancyRecord = () => {
                         <div className="flex flex-row w-full gap-20 justify-between">
                             <div className="flex flex-col flex-1 gap-y-1 ">
                                 Hari Pertama Haid Terakhir
-                                <input type="date" value={lastMenstrualPeriod} onChange={(e) => setLastMenstrualPeriod(e.target.value)} name="lastMenstrualPeriod" id="lastMenstrualPeriod" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                                <input type="date" value={lastMenstrualPeriod} onChange={(e) => setLastMenstrualPeriod(e.target.value)} name="lastMenstrualPeriod" id="lastMenstrualPeriod" className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                             </div>
                             <div className="flex flex-col  flex-1">
                                 Tanggal Estimasi Persalinan
-                                <input value={estimatedDate} readOnly placeholder="*automated by system" onChange={(e) => setEstimatedDate(e.target.value)} name="estimatedDateOfDelivery" id="estimatedDateOfDelivery" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                                <input value={estimatedDate} readOnly placeholder="*automated by system" onChange={(e) => setEstimatedDate(e.target.value)} name="estimatedDateOfDelivery" id="estimatedDateOfDelivery" className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                             </div>
                         </div>
                         <div className="flex flex-row w-full gap-20 justify-between">
                             <div className="flex flex-col flex-1" >
                                 Diagnosis
-                                <textarea value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} name="diagnosis" id="diagnosis" className="w-full h-50 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                                <textarea value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} name="diagnosis" id="diagnosis" className="w-full h-50 rounded-md bg-white drop-shadow-lg border border-gray-300 p-2 focus:outline-none focus:ring-2" />
                             </div>
                         </div>
                     </div>
@@ -340,22 +344,22 @@ const PregnancyRecord = () => {
                     <div className="flex flex-col mt-4 gap-y-4">
                         <div className="flex flex-row w-full gap-20 justify-between">
                             <div className="flex flex-col flex-1 gap-y-1 ">
-                                Hari
-                                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} name="registration_date" id="date" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                            Tanggal dan Hari Registrasi
+                                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} name="registration_date" id="date" className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                             </div>
                             <div className="flex flex-col  flex-1">
-                                Tinggi Badan
-                                <input type="number" value={height} onChange={(e) => setHeight(e.target.value)} name="height" id="height" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                                Tinggi Badan (cm)
+                                <input type="number" value={height} placeholder="Tanpa satuan" onChange={(e) => setHeight(e.target.value)} name="height" id="height" className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                             </div>
                         </div>
                         <div className="flex flex-row w-full gap-20 justify-between">
                             <div className="flex flex-col flex-1 gap-y-1 ">
-                                Berat Badan
-                                <input type="number" value={weight} onChange={(e) => setWeight(e.target.value)} name="weight" id="weight" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                                Berat Badan (kg)
+                                <input type="number" value={weight} placeholder="Tanpa satuan" onChange={(e) => setWeight(e.target.value)} name="weight" id="weight" className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                             </div>
                             <div className="flex flex-col  flex-1">
                                 TT Screening
-                                <select value={ttScreening} onChange={(e) => setTtScreening(e.target.value)} name="ttScreening" id="ttScreening" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" >
+                                <select value={ttScreening} onChange={(e) => setTtScreening(e.target.value)} name="ttScreening" id="ttScreening" className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" >
                                     <option value="" disabled> Pilih</option>
                                     <option value="TT 0"> TT 0</option>
                                     <option value="TT 1"> TT 1</option>
@@ -370,11 +374,11 @@ const PregnancyRecord = () => {
                         <div className="flex flex-row w-full gap-20 justify-between">
                             <div className="flex flex-col flex-1 gap-y-1 ">
                                 Hasil Lab
-                                <textarea value={labResult} onChange={(e) => setLabResult(e.target.value)} name="laboratoryResults" id="laboratoryResults" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                                <textarea value={labResult} onChange={(e) => setLabResult(e.target.value)} name="laboratoryResults" id="laboratoryResults" className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                             </div>
                             <div className="flex flex-col  flex-1">
-                             Lingkar Lengan Atas
-                                <input type="text" value={muac} onChange={(e) => setMuac(e.target.value)} name="muac" id="muac" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                             Lingkar Lengan Atas (cm)
+                                <input type="number" value={muac} placeholder="Tanpa satuan" onChange={(e) => setMuac(e.target.value)} name="muac" id="muac" className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                             </div>
                         </div>
                     </div>

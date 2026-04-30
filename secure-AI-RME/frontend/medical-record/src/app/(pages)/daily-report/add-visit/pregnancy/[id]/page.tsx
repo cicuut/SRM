@@ -112,6 +112,7 @@ const AddVisitPregnancy = () => {
                 respiratory_rate: respiratoryRate,
                 temperature: temperature,
                 record_id: uuid,
+                blood_pressure: bloodPressure,
             };
             const response = await axios.post("http://localhost:5000/api/visit-report/add-visit-pregnancy", payload, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -209,31 +210,31 @@ const AddVisitPregnancy = () => {
                 <div className="flex flex-row gap-10 w-full ">
                     <div className="flex flex-col flex-1 text-sm gap-2">
                         <label className="block mb-1 font-bold text-black">Berat</label>
-                        <input type="text" name="weight" value={weight} onChange={(e) => setWeight(e.target.value)} id="weight" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        <input type="number" name="weight" value={weight} placeholder="tanpa satuan" onChange={(e) => setWeight(e.target.value)} id="weight" className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                     <div className="flex flex-col flex-1 text-sm gap-2">
                         <label className="block mb-1 font-bold text-black">Tinggi</label>
-                        <input type="text" name="height" value={height} onChange={(e) => setHeight(e.target.value)} id="height" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        <input type="number" name="height" value={height} placeholder="tanpa satuan" onChange={(e) => setHeight(e.target.value)} id="height" className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
 
                     <div className="flex flex-col flex-1 text-sm gap-2">
                         <label className="block mb-1 font-bold text-black">Tekanan Darah</label>
-                        <input type="text" name="blood_pressure" value={bloodPressure} onChange={(e) => setBloodPressure(e.target.value)} id="blood_pressure" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        <input type="text" name="blood_pressure" placeholder="tanpa satuan" value={bloodPressure} onChange={(e) => setBloodPressure(e.target.value)} id="blood_pressure" className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                     <div className="flex flex-col flex-1 text-sm gap-2">
                         <label className="block mb-1 font-bold text-black">Suhu Badan</label>
-                        <input type="text" name="temperature" value={temperature} onChange={(e) => setTemperature(e.target.value)} id="temperature" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        <input type="number" name="temperature" value={temperature} placeholder="tanpa satuan" onChange={(e) => setTemperature(e.target.value)} id="temperature" className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
 
                 </div>
                 <div className="flex flex-row gap-10">
                     <div className="flex flex-col text-sm gap-2">
                         <label className="block mb-1 font-bold text-black">Frekuensi Pernapasan</label>
-                        <input type="text" name="respiratory_rate" value={respiratoryRate} onChange={(e) => setRespiratoryRate(e.target.value)} id="respiratory_rate" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        <input type="number" name="respiratory_rate" value={respiratoryRate} placeholder="tanpa satuan" onChange={(e) => setRespiratoryRate(e.target.value)} id="respiratory_rate" className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                     <div className="flex flex-col text-sm gap-2">
                         <label className="block mb-1 font-bold text-black">Detak Jantung</label>
-                        <input type="text" name="heart_rate" value={heartRate} onChange={(e) => setHeartRate(e.target.value)} id="heart_rate" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        <input type="number" name="heart_rate" value={heartRate} placeholder="tanpa satuan" onChange={(e) => setHeartRate(e.target.value)} id="heart_rate" className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                 </div>
             </div>
@@ -241,19 +242,19 @@ const AddVisitPregnancy = () => {
             <div className="flex-1 flex flex-col py-5 gap-6">
                 <div className="flex flex-col text-sm gap-2">
                     <label className="block mb-1 font-bold text-black">Subjective</label>
-                    <textarea name="subjective" value={subjective} onChange={(e) => setSubjective(e.target.value)} id="subjective" className="w-full h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                    <textarea name="subjective" value={subjective} onChange={(e) => setSubjective(e.target.value)} id="subjective" className="p-2 w-full h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                 </div>
                 <div className="flex flex-col text-sm gap-2">
                     <label className="block mb-1 font-bold text-black">Objective</label>
-                    <textarea name="objective" value={objective} onChange={(e) => setObjective(e.target.value)} id="objective" className="w-full h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                    <textarea name="objective" value={objective} onChange={(e) => setObjective(e.target.value)} id="objective" className="p-2 w-full h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                 </div>
                 <div className="flex flex-col text-sm gap-2">
                     <label className="block mb-1 font-bold text-black">Assessment</label>
-                    <textarea name="assessment" value={assessment} onChange={(e) => setAssessment(e.target.value)} id="assessment" className="w-full h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                    <textarea name="assessment" value={assessment} onChange={(e) => setAssessment(e.target.value)} id="assessment" className="p-2 w-full h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                 </div>
                 <div className="flex flex-col text-sm gap-2">
                     <label className="block mb-1 font-bold text-black">Plan</label>
-                    <textarea name="plan" value={plan} onChange={(e) => setPlan(e.target.value)} id="plan" className="w-full h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                    <textarea name="plan" value={plan} onChange={(e) => setPlan(e.target.value)} id="plan" className="p-2 w-full h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                 </div>
             </div>
 

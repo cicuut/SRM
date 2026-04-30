@@ -4,17 +4,18 @@
     import Image from "next/image";
     import Link from "next/link";
     import { usePathname } from "next/navigation";
+    import { House, UsersRound, HeartPulse, Wallet, UserCog, Settings, History    } from 'lucide-react';
 
     const Sidebar = () => {
         const pathname = usePathname();
         const navItems = [
-            { label: "Dashboard", href: '/dashboard', icon: 'dashboard-icon.svg' },
-            { label: "Laporan Harian", href: '/daily-report', icon: 'visit-icon.svg' },
-            { label: "Rekam Medis", href: '/medical-record', icon: 'record-icon.svg' },
-            { label: "Laporan Keuangan", href: '/financial', icon: 'financial-icon.svg' },
-            { label: "Pengaturan Manajemen", href: '/management-setting', icon: 'management-icon.svg' },
-            { label: "Pengaturan Akun", href: '/account-setting', icon: 'setting-icon.svg' },
-            { label: "Riwayat Aktivitas", href: '/activity-history', icon: 'activity-icon.svg' },
+            { label: "Dashboard", href: '/dashboard', icon: House },
+            { label: "Laporan Harian", href: '/daily-report', icon: UsersRound },
+            { label: "Rekam Medis", href: '/medical-record', icon: HeartPulse },
+            { label: "Laporan Keuangan", href: '/financial', icon: Wallet },
+            { label: "Pengaturan Manajemen", href: '/management-setting', icon: UserCog },
+            { label: "Pengaturan Akun", href: '/account-setting', icon: Settings },
+            { label: "Riwayat Aktivitas", href: '/activity-history', icon: History },
         ];
         const isActive = (href: string) => {
             if (href === "/daily-report") {
@@ -23,8 +24,8 @@
             if (href === "/medical-record") {
                 return pathname === "/medical-record";
             }
-            if (href === "/financial-report") {
-                return pathname === "/financial-report";
+            if (href === "/financial") {
+                return pathname === "/financial";
             }
             if (href === "/management-setting") {
                 return pathname === "/management-setting";
@@ -58,28 +59,16 @@
                                     key={item.label}
                                     href={item.href}
                                     className={`
-                    w-full flex items-center gap-4 px-5 py-4 rounded-4xl 
-                    ${active
+                                        w-full flex items-center gap-4 px-5 py-4 rounded-4xl group
+                                        ${active
                                             ? "bg-[#739072] text-white"
                                             : "text-black"
-                                        }
-                `}
+                                        }`}
                                 >
-                                    <div className="relative z-10">
-                                        <Image
-                                            src={item.icon}
-                                            alt={item.label}
-                                            width={20}
-                                            height={20}
-                                            className={`w-5 h-5 transition-all ${active
-                                                ? "brightness-0 invert"
-                                                : "opacity-70"
-                                                }`}
-                                        />
-                                    </div>
-                                    <span className="text-[14px] font-medium relative z-10">{item.label}</span>
-
-
+                                      <item.icon 
+                                        size={20} 
+                                        className={`${active ? "text-white" : "text-black"} transition-colors`}/>
+                                       <span className="text-[14px] font-medium relative z-10">{item.label}</span>
                                 </Link>
                             );
                         })}
