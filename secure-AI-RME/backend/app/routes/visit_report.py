@@ -38,15 +38,16 @@ def get_visit_information():
             return jsonify({"msg": "Record tidak ditemukan"}), 404
 
         patient = Patient.query.get(record.patient_id)
-
+        tz_jakarta = pytz.timezone('Asia/Jakarta')
+        now_jakarta = datetime.now(tz_jakarta)
 
         response_data = {
             "patient_name": decrypt_data(patient.patient_name),
             "record_number": record.record_number,
             "record_type": record.record_type,
-            "visit_date": format_date(visit.visit_date),
-            "visit_time": visit.visit_time.strftime('%H:%M')        
-            }
+            "visit_date": format_date(now_jakarta.date()),
+            "visit_time": now_jakarta.strftime('%H:%M')         
+        }
         return jsonify(response_data), 200
 
     except Exception as e:
@@ -152,8 +153,8 @@ def add_visit_pregnancy():
             record_id=data.get('record_id'),
             user_id=user_id,
             visit_number=data.get('visit_number'),
-            visit_date=now_jakarta.date(),
-            visit_time=now_jakarta.timetz()
+            visit_date= now_jakarta,
+            visit_time= now_jakarta
         )
         db.session.add(new_visit)
         db.session.flush() 
@@ -228,14 +229,17 @@ def add_visit_familyplanning():
     user_id = get_jwt_identity()
     data = request.get_json()
     
+    jakarta_tz = pytz.timezone('Asia/Jakarta')
+    now_jakarta = datetime.now(jakarta_tz)
+
     try:
        #Add visit master
         new_visit = VisitMaster(
             record_id=data.get('record_id'),
             user_id=user_id,
             visit_number=data.get('visit_number'),
-            visit_date=datetime.utcnow(),
-            visit_time=datetime.utcnow()
+            visit_date= now_jakarta,
+            visit_time= now_jakarta
         )
         db.session.add(new_visit)
         db.session.flush() 
@@ -244,7 +248,7 @@ def add_visit_familyplanning():
         new_familyplanning_visit = VisitFamilyPlanning(
             visit_id=new_visit.visit_id,
             weight_kg=data.get('weight'),
-            blood_pressure=data.get('blood_pressure'),
+            height_cm=data.get('height'),
             kb_method=data.get('contraceptive_method'),
             return_visit_date=data.get('return_visit_date'),
             complaint=data.get('complaint')
@@ -282,8 +286,8 @@ def get_familyplanning_visit(uuid):
 
         return jsonify({
             "complaint": decrypted_complaint,
-            "weight_kg": current_familyplanning_visit.weight_kg,
-            "blood_pressure": current_familyplanning_visit.blood_pressure,
+            "weight_kg": clean_float(current_familyplanning_visit.weight_kg),
+            "height_cm": clean_float(current_familyplanning_visit.height_cm),
             "contraceptive_method": current_familyplanning_visit.kb_method,
             "return_visit_date": current_familyplanning_visit.return_visit_date.strftime('%Y-%m-%d') if current_familyplanning_visit.return_visit_date else None
         }), 200

@@ -57,7 +57,7 @@ const VisitPregnancyDetail = () => {
 
   if (loading)
     return (
-      <div className="p-8 text-center text-blue-600 animate-pulse">
+      <div className="p-8 text-center text-[#739072] animate-pulse">
         Sedang mengambil data medis...
       </div>
     );

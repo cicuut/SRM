@@ -488,8 +488,8 @@ def add_delivery_record():
             delivery_type = data.get('delivery_type'),
             deliver_complications = data.get('deliver_complications'),
             baby_gender = data.get('baby_gender'),
-            baby_weight = data.get('baby_weight'),
-            baby_length = data.get('baby_length'),
+            baby_weight = clean_float(data.get('baby_weight')),
+            baby_length = clean_float(data.get('baby_length')),
             apgar_score = data.get('apgar_score'),
             baby_complications = data.get('baby_complications'),
             vit_k_given = data.get('vit_k_given'),
@@ -664,7 +664,8 @@ def get_pregnancy_record_data(uuid):
                 "pregnancy_complications": decrypt_data(obs.pregnancy_complications) or "-",
                 "delivery_mode": obs.delivery_mode or "-",
                 "delivery_complications": decrypt_data(obs.delivery_complications) or "-",
-                "baby_weight_height": decrypt_data(obs.baby_weight_height) or "-",
+                "baby_weight": obs.baby_weight or "-",
+                "baby_height": obs.baby_height or "-",
                 "baby_complications": decrypt_data(obs.baby_complications) or "-",
                 "postpartum_status": decrypt_data(obs.postpartum_status) or "-",
                 "postpartum_complications": decrypt_data(obs.postpartum_complications) or "-"
@@ -703,10 +704,8 @@ def get_pregnancy_visit_data(uuid):
             filter(VisitMaster.record_id == uuid).\
             order_by(VisitMaster.visit_date.desc()).all()
 
-        return jsonify({
-                "msg": "Belum ada kunjungan", 
-                "data": [] 
-            }), 200
+        if not results:
+            return jsonify([]), 200
 
         visit_list = []
         for master, detail in results:
@@ -807,17 +806,17 @@ def get_delivery_record_data(uuid):
 
         response_data = {
             "delivery_date": current_delivery_record.delivery_date.strftime('%d %B %Y'),
-            "delivery_type": current_delivery_record.delivery_type,
-            "deliver_complications": decrypt_data(current_delivery_record.deliver_complications),
-            "baby_gender": current_delivery_record.baby_gender,
-            "apgar_score": current_delivery_record.apgar_score,
-            "baby_complications": decrypt_data(current_delivery_record.baby_complications),
-            "vit_k_given":current_delivery_record.vit_k_given,
-            "hbo_given": current_delivery_record.hbo_given,
-            "eye_ointment": current_delivery_record.eye_ointment,
-            "imd": current_delivery_record.imd,
-            "baby_length": current_delivery_record.baby_length,
-            "baby_weight": current_delivery_record.baby_weight
+            "delivery_type": current_delivery_record.delivery_type or "-",
+            "deliver_complications": decrypt_data(current_delivery_record.deliver_complications) or "-",
+            "baby_gender": current_delivery_record.baby_gender or "-",
+            "apgar_score": current_delivery_record.apgar_score or "-",
+            "baby_complications": decrypt_data(current_delivery_record.baby_complications) or "-",
+            "vit_k_given":current_delivery_record.vit_k_given or "-",
+            "hbo_given": current_delivery_record.hbo_given or "-",
+            "eye_ointment": current_delivery_record.eye_ointment or "-",
+            "imd": current_delivery_record.imd or "-",
+            "baby_length": current_delivery_record.baby_length or "-",
+            "baby_weight": current_delivery_record.baby_weight or "-"
         }
 
         return jsonify(response_data), 200
