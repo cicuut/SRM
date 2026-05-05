@@ -77,7 +77,7 @@ const AddInvoice = () => {
             const token = Cookies.get('access_token');
 
             const response = await fetch(
-                `${API_BASE_URL}/financial-report/transaction-number?date=${date}`,
+                `${API_BASE_URL}/financial/transaction-number?date=${date}`,
                 {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -170,7 +170,7 @@ const AddInvoice = () => {
 
             const token = Cookies.get('access_token');
 
-            const response = await fetch(`${API_BASE_URL}/financial-report/add`, {
+            const response = await fetch(`${API_BASE_URL}/financial/add`, {
                 method: 'POST',
                 headers: {
                     Authorization: `Bearer ${token}`,
