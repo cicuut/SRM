@@ -16,6 +16,8 @@ import {
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
+const FINANCIAL_ALLOWED_ROLES = ['admin', 'midwife'];
+
 type FinancialTransaction = {
     transaction_id: string;
     visit_id: string;
@@ -34,6 +36,21 @@ type FinancialTransaction = {
     record_type: string;
     patient_name: string;
     user_name: string;
+};
+
+type MeResponse = {
+    msg?: string;
+    user?: {
+        id: string;
+        fullname: string;
+        email: string;
+        role: string;
+        clinic_id?: string | null;
+    };
+    clinic?: {
+        id: string;
+        clinic_name: string;
+    } | null;
 };
 
 type TableKey =
@@ -234,6 +251,9 @@ const FinancialReport = () => {
     const [transactions, setTransactions] = useState<FinancialTransaction[]>(
         [],
     );
+
+    const [hasAccess, setHasAccess] = useState(false);
+    const [isCheckingAccess, setIsCheckingAccess] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
 
@@ -245,9 +265,78 @@ const FinancialReport = () => {
         return Cookies.get('access_token');
     };
 
-    const handleUnauthorized = () => {
+    const clearSession = () => {
         Cookies.remove('access_token');
+
+        localStorage.removeItem('user_id');
+        localStorage.removeItem('fullname');
+        localStorage.removeItem('user_email');
+        localStorage.removeItem('user_role');
+        localStorage.removeItem('clinic_id');
+    };
+
+    const handleUnauthorized = () => {
+        clearSession();
         router.push('/login');
+    };
+
+    const handleForbidden = () => {
+        router.replace('/dashboard');
+    };
+
+    const checkFinancialAccess = async () => {
+        try {
+            setIsCheckingAccess(true);
+            setErrorMessage('');
+
+            const token = getToken();
+
+            if (!token) {
+                handleUnauthorized();
+                return;
+            }
+
+            const response = await fetch(`${API_BASE_URL}/auth/me`, {
+                method: 'GET',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            const data = (await readJson(response)) as MeResponse;
+
+            if (response.status === 401 || response.status === 422) {
+                handleUnauthorized();
+                return;
+            }
+
+            if (!response.ok || !data.user) {
+                throw new Error(data?.msg || 'Gagal mengecek akses user');
+            }
+
+            if (!FINANCIAL_ALLOWED_ROLES.includes(data.user.role)) {
+                handleForbidden();
+                return;
+            }
+
+            localStorage.setItem('user_id', data.user.id || '');
+            localStorage.setItem('fullname', data.user.fullname || '');
+            localStorage.setItem('user_email', data.user.email || '');
+            localStorage.setItem('user_role', data.user.role || '');
+            localStorage.setItem('clinic_id', data.user.clinic_id || '');
+
+            setHasAccess(true);
+        } catch (error) {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : 'Terjadi kesalahan saat mengecek akses';
+
+            setErrorMessage(message);
+        } finally {
+            setIsCheckingAccess(false);
+        }
     };
 
     const openDatePicker = () => {
@@ -306,6 +395,11 @@ const FinancialReport = () => {
                 return;
             }
 
+            if (response.status === 403) {
+                handleForbidden();
+                return;
+            }
+
             if (!response.ok) {
                 throw new Error(data?.msg || 'Gagal mengambil data financial');
             }
@@ -325,9 +419,16 @@ const FinancialReport = () => {
     };
 
     useEffect(() => {
+        checkFinancialAccess();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useEffect(() => {
+        if (!hasAccess) return;
+
         fetchFinancialTransactions(selectedDate);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedDate]);
+    }, [hasAccess, selectedDate]);
 
     const filterOptions = useMemo<FilterOptions>(() => {
         return {
@@ -566,6 +667,22 @@ const FinancialReport = () => {
 
         return transaction[key] || '-';
     };
+
+    if (isCheckingAccess) {
+        return (
+            <div className="min-h-dvh w-full max-w-full overflow-x-hidden bg-[#FDFEF9]">
+                <div className="flex min-h-dvh w-full max-w-full overflow-x-hidden">
+                    <Sidebar />
+
+                    <main className="box-border flex min-w-0 flex-1 items-center justify-center overflow-x-hidden bg-[#FDFEF9] pb-[40px] pl-4 pr-0 pt-[26px] sm:pl-[28px] sm:pr-0">
+                        <p className="text-[14px] font-bold text-[#5F785F]">
+                            Checking financial access...
+                        </p>
+                    </main>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-dvh w-full max-w-full overflow-x-hidden bg-[#FDFEF9]">

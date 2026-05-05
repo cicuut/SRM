@@ -4,10 +4,26 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
 import Sidebar from '@/components/sidebar';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+
+const FINANCIAL_ALLOWED_ROLES = ['admin', 'midwife'];
+
+type MeResponse = {
+    msg?: string;
+    user?: {
+        id: string;
+        fullname: string;
+        email: string;
+        role: string;
+        clinic_id?: string | null;
+    };
+    clinic?: {
+        id: string;
+        clinic_name: string;
+    } | null;
+};
 
 type MedicalRecordOption = {
     rm_id: string;
@@ -38,6 +54,14 @@ const getTodayInputValue = () => {
     return date.toISOString().split('T')[0];
 };
 
+const readJson = async (response: Response) => {
+    try {
+        return await response.json();
+    } catch {
+        return {};
+    }
+};
+
 const inputClassName =
     'mt-[8px] h-[34px] w-full rounded-[4px] border border-transparent bg-white px-3 text-[13px] text-black shadow-md outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072]';
 
@@ -62,6 +86,8 @@ const AddInvoice = () => {
         description: '',
     });
 
+    const [hasAccess, setHasAccess] = useState(false);
+    const [isCheckingAccess, setIsCheckingAccess] = useState(true);
     const [isLoadingRecords, setIsLoadingRecords] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
@@ -72,13 +98,97 @@ const AddInvoice = () => {
         );
     }, [medicalRecords, formData.visit_id]);
 
+    const getToken = () => {
+        return Cookies.get('access_token');
+    };
+
+    const clearSession = () => {
+        Cookies.remove('access_token');
+
+        localStorage.removeItem('user_id');
+        localStorage.removeItem('fullname');
+        localStorage.removeItem('user_email');
+        localStorage.removeItem('user_role');
+        localStorage.removeItem('clinic_id');
+    };
+
+    const handleUnauthorized = () => {
+        clearSession();
+        router.push('/login');
+    };
+
+    const handleForbidden = () => {
+        router.replace('/dashboard');
+    };
+
+    const checkFinancialAccess = async () => {
+        try {
+            setIsCheckingAccess(true);
+            setErrorMessage('');
+
+            const token = getToken();
+
+            if (!token) {
+                handleUnauthorized();
+                return;
+            }
+
+            const response = await fetch(`${API_BASE_URL}/auth/me`, {
+                method: 'GET',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            const data = (await readJson(response)) as MeResponse;
+
+            if (response.status === 401 || response.status === 422) {
+                handleUnauthorized();
+                return;
+            }
+
+            if (!response.ok || !data.user) {
+                throw new Error(data?.msg || 'Gagal mengecek akses user');
+            }
+
+            if (!FINANCIAL_ALLOWED_ROLES.includes(data.user.role)) {
+                handleForbidden();
+                return;
+            }
+
+            localStorage.setItem('user_id', data.user.id || '');
+            localStorage.setItem('fullname', data.user.fullname || '');
+            localStorage.setItem('user_email', data.user.email || '');
+            localStorage.setItem('user_role', data.user.role || '');
+            localStorage.setItem('clinic_id', data.user.clinic_id || '');
+
+            setHasAccess(true);
+        } catch (error) {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : 'Terjadi kesalahan saat mengecek akses';
+
+            setErrorMessage(message);
+        } finally {
+            setIsCheckingAccess(false);
+        }
+    };
+
     const fetchTransactionNumber = async (date: string) => {
         try {
-            const token = Cookies.get('access_token');
+            const token = getToken();
+
+            if (!token) {
+                handleUnauthorized();
+                return;
+            }
 
             const response = await fetch(
                 `${API_BASE_URL}/financial/transaction-number?date=${date}`,
                 {
+                    method: 'GET',
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',
@@ -86,7 +196,17 @@ const AddInvoice = () => {
                 },
             );
 
-            const data = await response.json();
+            const data = await readJson(response);
+
+            if (response.status === 401 || response.status === 422) {
+                handleUnauthorized();
+                return;
+            }
+
+            if (response.status === 403) {
+                handleForbidden();
+                return;
+            }
 
             if (!response.ok) {
                 throw new Error(
@@ -95,7 +215,7 @@ const AddInvoice = () => {
             }
 
             setTransactionNumber(data.transaction_number);
-        } catch (error) {
+        } catch {
             const year = date.split('-')[0];
             setTransactionNumber(`INV-${year}----`);
         }
@@ -106,11 +226,17 @@ const AddInvoice = () => {
             setIsLoadingRecords(true);
             setErrorMessage('');
 
-            const token = Cookies.get('access_token');
+            const token = getToken();
+
+            if (!token) {
+                handleUnauthorized();
+                return;
+            }
 
             const response = await fetch(
                 `${API_BASE_URL}/medical-record/get-all-records`,
                 {
+                    method: 'GET',
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',
@@ -118,7 +244,12 @@ const AddInvoice = () => {
                 },
             );
 
-            const data = await response.json();
+            const data = await readJson(response);
+
+            if (response.status === 401 || response.status === 422) {
+                handleUnauthorized();
+                return;
+            }
 
             if (!response.ok) {
                 throw new Error(
@@ -126,7 +257,7 @@ const AddInvoice = () => {
                 );
             }
 
-            setMedicalRecords(data);
+            setMedicalRecords(Array.isArray(data) ? data : []);
         } catch (error) {
             const message =
                 error instanceof Error
@@ -140,12 +271,23 @@ const AddInvoice = () => {
     };
 
     useEffect(() => {
-        fetchMedicalRecords();
+        checkFinancialAccess();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {
+        if (!hasAccess) return;
+
+        fetchMedicalRecords();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [hasAccess]);
+
+    useEffect(() => {
+        if (!hasAccess) return;
+
         fetchTransactionNumber(formData.payment_date);
-    }, [formData.payment_date]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [hasAccess, formData.payment_date]);
 
     const handleChange = (
         event:
@@ -161,6 +303,34 @@ const AddInvoice = () => {
         }));
     };
 
+    const validateForm = () => {
+        if (!formData.payment_date) {
+            return 'Date wajib diisi';
+        }
+
+        if (!formData.visit_id) {
+            return 'Recorder wajib dipilih';
+        }
+
+        if (!formData.trans_type) {
+            return 'Transaction type wajib dipilih';
+        }
+
+        if (!formData.amount || Number(formData.amount) <= 0) {
+            return 'Total amount harus lebih dari 0';
+        }
+
+        if (!formData.payment_method) {
+            return 'Payment method wajib dipilih';
+        }
+
+        if (!formData.status) {
+            return 'Status wajib dipilih';
+        }
+
+        return '';
+    };
+
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
@@ -168,7 +338,19 @@ const AddInvoice = () => {
             setIsSubmitting(true);
             setErrorMessage('');
 
-            const token = Cookies.get('access_token');
+            const validationMessage = validateForm();
+
+            if (validationMessage) {
+                setErrorMessage(validationMessage);
+                return;
+            }
+
+            const token = getToken();
+
+            if (!token) {
+                handleUnauthorized();
+                return;
+            }
 
             const response = await fetch(`${API_BASE_URL}/financial/add`, {
                 method: 'POST',
@@ -187,7 +369,17 @@ const AddInvoice = () => {
                 }),
             });
 
-            const data = await response.json();
+            const data = await readJson(response);
+
+            if (response.status === 401 || response.status === 422) {
+                handleUnauthorized();
+                return;
+            }
+
+            if (response.status === 403) {
+                handleForbidden();
+                return;
+            }
 
             if (!response.ok) {
                 throw new Error(data?.msg || 'Gagal menambahkan invoice');
@@ -206,18 +398,31 @@ const AddInvoice = () => {
         }
     };
 
+    if (isCheckingAccess) {
+        return (
+            <div className="flex min-h-screen w-full overflow-x-auto bg-[#FDFEF9]">
+                <Sidebar />
+
+                <main className="flex min-h-screen min-w-0 flex-1 items-center justify-center bg-[#FDFEF9] pb-[40px] pl-[28px] pr-[28px] pt-[26px]">
+                    <p className="text-[14px] font-bold text-[#5F785F]">
+                        Checking financial access...
+                    </p>
+                </main>
+            </div>
+        );
+    }
+
     return (
-        <div className="min-h-screen w-full flex bg-[#FDFEF9] overflow-x-auto">
+        <div className="flex min-h-screen w-full overflow-x-auto bg-[#FDFEF9]">
             <Sidebar />
 
-            <main className="flex-1 flex flex-col min-h-screen min-w-0 bg-[#FDFEF9] pt-[26px] pb-[40px] pl-[28px] pr-[28px]">
+            <main className="flex min-h-screen min-w-0 flex-1 flex-col bg-[#FDFEF9] pb-[40px] pl-[28px] pr-[28px] pt-[26px]">
                 <div className="w-full">
-                    
                     <form
                         onSubmit={handleSubmit}
                         className="mt-[54px] w-full max-w-[980px]"
                     >
-                        <h1 className="text-[26px] leading-none font-bold text-[#5F785F]">
+                        <h1 className="text-[26px] font-bold leading-none text-[#5F785F]">
                             {transactionNumber || 'INV----- ---'}
                         </h1>
 
@@ -227,7 +432,7 @@ const AddInvoice = () => {
                             </p>
                         )}
 
-                        <div className="mt-[26px] grid grid-cols-1 md:grid-cols-3 gap-x-[48px] gap-y-[20px]">
+                        <div className="mt-[26px] grid grid-cols-1 gap-x-[48px] gap-y-[20px] md:grid-cols-3">
                             <label className="block">
                                 <span className="text-[14px] font-bold text-black">
                                     Date
@@ -375,13 +580,24 @@ const AddInvoice = () => {
                             </label>
                         </div>
 
-                        <button
-                            type="submit"
-                            disabled={isSubmitting}
-                            className="mt-[42px] min-w-[120px] rounded-[50px] bg-[#86A789] px-6 py-2 text-[12px] font-semibold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                            {isSubmitting ? 'Saving...' : 'Add Record'}
-                        </button>
+                        <div className="mt-[42px] flex flex-wrap items-center gap-[12px]">
+                            <button
+                                type="submit"
+                                disabled={isSubmitting}
+                                className="min-w-[120px] rounded-[50px] bg-[#86A789] px-6 py-2 text-[12px] font-semibold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                {isSubmitting ? 'Saving...' : 'Add Record'}
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => router.push('/financial-report')}
+                                disabled={isSubmitting}
+                                className="min-w-[100px] rounded-[50px] border border-[#BFC7BB] bg-white px-6 py-2 text-[12px] font-semibold text-[#4B4B4B] shadow-sm transition-all hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                Cancel
+                            </button>
+                        </div>
                     </form>
                 </div>
             </main>

@@ -5,15 +5,28 @@ from datetime import datetime
 
 auth_bp = Blueprint("auth", __name__)
 
+ALLOWED_ROLES = ["admin", "midwife", "asisten"]
+ADMIN_ROLE = "admin"
 
-ALLOWED_ROLES = ["owner", "admin", "midwife", "staff"]
+
+def to_str(value):
+    if value is None:
+        return None
+
+    return str(value)
 
 
 def normalize_role(role):
-    if role is None:
-        return "staff"
+    normalized = str(role or "asisten").strip().lower()
 
-    normalized = str(role).strip().lower()
+    if normalized == "assistant":
+        normalized = "asisten"
+
+    if normalized == "staff":
+        normalized = "asisten"
+
+    if normalized == "owner":
+        normalized = "admin"
 
     if normalized not in ALLOWED_ROLES:
         raise ValueError(
@@ -23,12 +36,22 @@ def normalize_role(role):
     return normalized
 
 
+def create_token_for_user(user):
+    return create_access_token(
+        identity=str(user.user_id),
+        additional_claims={
+            "clinic_id": to_str(user.clinic_id),
+            "role": user.user_role,
+        },
+    )
+
+
 def serialize_clinic(clinic):
     if not clinic:
         return None
 
     return {
-        "id": clinic.clinic_id,
+        "id": to_str(clinic.clinic_id),
         "clinic_name": clinic.clinic_name,
         "clinic_address": clinic.clinic_address,
         "license_number": clinic.license_number,
@@ -42,30 +65,18 @@ def serialize_user(user, current_user_id=None):
         return None
 
     return {
-        "id": user.user_id,
+        "id": to_str(user.user_id),
         "fullname": user.fullname,
         "email": user.email,
         "role": user.user_role,
         "strnumber": user.strnumber,
-        "clinic_id": user.clinic_id,
+        "clinic_id": to_str(user.clinic_id),
         "is_active": bool(user.is_active),
         "created_at": user.created_at.isoformat() if user.created_at else None,
         "last_login": user.last_login.isoformat() if user.last_login else None,
         "is_current_user": str(user.user_id) == str(current_user_id)
         if current_user_id
         else False,
-    }
-
-
-def serialize_account(user):
-    clinic = None
-
-    if user and user.clinic_id:
-        clinic = db.session.get(Clinic, user.clinic_id)
-
-    return {
-        "user": serialize_user(user, user.user_id),
-        "clinic": serialize_clinic(clinic),
     }
 
 
@@ -78,53 +89,105 @@ def get_current_user():
     return db.session.get(User, user_id)
 
 
-def require_management_access():
-    current_user = get_current_user()
+def serialize_account(user):
+    clinic = None
 
-    if not current_user:
+    if user and user.clinic_id:
+        clinic = db.session.get(Clinic, user.clinic_id)
+
+    return {
+        "user": serialize_user(user, user.user_id if user else None),
+        "clinic": serialize_clinic(clinic),
+    }
+
+
+def require_login():
+    user = get_current_user()
+
+    if not user:
         return None, (jsonify({"msg": "User not found"}), 404)
 
-    if not current_user.clinic_id:
+    if not user.is_active:
+        return None, (jsonify({"msg": "Your account is inactive"}), 403)
+
+    return user, None
+
+
+def require_admin(require_clinic=True):
+    user, error_response = require_login()
+
+    if error_response:
+        return None, error_response
+
+    if user.user_role != ADMIN_ROLE:
+        return None, (jsonify({"msg": "Only admin can access this feature"}), 403)
+
+    if require_clinic and not user.clinic_id:
         return None, (
-            jsonify({"msg": "Your account is not linked to a clinic"}),
+            jsonify(
+                {
+                    "msg": "Admin account is not linked to a clinic",
+                    "requires_clinic_setup": True,
+                    "redirect_path": "/register-clinic",
+                }
+            ),
             400,
         )
 
-    if current_user.user_role not in ["owner", "admin"]:
-        return None, (
-            jsonify({"msg": "Only owner or admin can access management setting"}),
-            403,
-        )
-
-    return current_user, None
+    return user, None
 
 
-def has_other_active_owner(clinic_id, exclude_user_id):
-    other_owner = User.query.filter(
+def has_other_active_admin(clinic_id, exclude_user_id):
+    other_admin = User.query.filter(
         User.clinic_id == clinic_id,
         User.user_id != exclude_user_id,
-        User.user_role == "owner",
+        User.user_role == ADMIN_ROLE,
         User.is_active.is_(True),
     ).first()
 
-    return other_owner is not None
+    return other_admin is not None
+
+
+def get_user_by_email(email):
+    return User.query.filter_by(email=email.strip().lower()).first()
+
+
+@auth_bp.route("/roles", methods=["GET"])
+def get_roles():
+    return jsonify({"roles": ALLOWED_ROLES}), 200
 
 
 @auth_bp.route("/register", methods=["POST"])
 def register():
+    """
+    Register publik hanya untuk membuat admin pertama saat database users masih kosong.
+    Setelah ada user pertama, akun baru harus dibuat oleh admin dari Management Setting.
+    """
+
+    existing_user = User.query.first()
+
+    if existing_user:
+        return (
+            jsonify(
+                {
+                    "msg": "Public registration is disabled. Please ask admin to create your account from Management Setting."
+                }
+            ),
+            403,
+        )
+
     data = request.get_json() or {}
 
-    fullname = data.get("fullname")
-    email = data.get("email")
+    fullname = (data.get("fullname") or "").strip()
+    email = (data.get("email") or "").strip().lower()
     password = data.get("password")
-    strnumber = data.get("strnumber")
+    strnumber = (data.get("strnumber") or "").strip()
 
     if not fullname or not email or not password or not strnumber:
-        return jsonify({"msg": "All data must be filled"}), 400
+        return jsonify({"msg": "Full name, email, password, and STR number are required"}), 400
 
-    email = email.strip().lower()
-    fullname = fullname.strip()
-    strnumber = strnumber.strip()
+    if len(password) < 8:
+        return jsonify({"msg": "Password must be at least 8 characters"}), 400
 
     if User.query.filter_by(email=email).first():
         return jsonify({"msg": "Email is taken"}), 409
@@ -137,7 +200,7 @@ def register():
             fullname=fullname,
             email=email,
             strnumber=strnumber,
-            user_role="owner",
+            user_role=ADMIN_ROLE,
             is_active=True,
             clinic_id=None,
         )
@@ -147,18 +210,13 @@ def register():
         db.session.commit()
         db.session.refresh(new_user)
 
-        additional_claims = {"clinic_id": new_user.clinic_id}
-        access_token = create_access_token(
-            identity=str(new_user.user_id),
-            additional_claims=additional_claims,
-        )
-
         return (
             jsonify(
                 {
-                    "msg": "Registration Successful",
-                    "access_token": access_token,
-                    "user_id": str(new_user.user_id),
+                    "msg": "First admin account created successfully. Please set up clinic information.",
+                    "access_token": create_token_for_user(new_user),
+                    "requires_clinic_setup": True,
+                    "redirect_path": "/register-clinic",
                     "user": serialize_user(new_user, new_user.user_id),
                 }
             ),
@@ -167,95 +225,105 @@ def register():
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": "Failed to save", "error": str(e)}), 500
+        return jsonify({"msg": "Failed to create first admin", "error": str(e)}), 500
 
 
 @auth_bp.route("/register-clinic", methods=["POST"])
-def createClinic():
+@jwt_required()
+def create_or_update_clinic():
+    admin, error_response = require_admin(require_clinic=False)
+
+    if error_response:
+        return error_response
+
     data = request.get_json() or {}
 
-    clinic_name = data.get("clinic_name")
-    clinic_address = data.get("clinic_address")
-    license_number = data.get("license_number")
-    clinic_email = data.get("clinic_email")
-    clinic_phone = data.get("clinic_phone")
-    user_id = data.get("user_id")
+    clinic_name = (data.get("clinic_name") or "").strip()
+    clinic_address = (data.get("clinic_address") or "").strip()
+    license_number = (data.get("license_number") or "").strip()
+    clinic_email = (data.get("clinic_email") or "").strip().lower()
+    clinic_phone = (data.get("clinic_phone") or "").strip()
 
-    if not all(
-        [clinic_name, clinic_address, license_number, clinic_email, clinic_phone]
-    ):
-        return jsonify({"msg": "All data must be filled"}), 400
-
-    if not user_id:
-        return jsonify({"msg": "User ID is required to link the clinic!"}), 400
-
-    user = db.session.get(User, user_id)
-
-    if not user:
-        return jsonify({"msg": "User not found in database"}), 404
-
-    clinic_email = clinic_email.strip().lower()
-    license_number = license_number.strip()
-
-    if Clinic.query.filter_by(clinic_email=clinic_email).first():
-        return jsonify({"msg": "Email is taken"}), 409
-
-    if Clinic.query.filter_by(license_number=license_number).first():
-        return jsonify({"msg": "SIPB number is taken"}), 409
+    if not all([clinic_name, clinic_address, license_number, clinic_email, clinic_phone]):
+        return jsonify({"msg": "All clinic data must be filled"}), 400
 
     try:
-        new_clinic = Clinic(
-            clinic_name=clinic_name.strip(),
-            clinic_address=clinic_address.strip(),
-            license_number=license_number,
-            clinic_email=clinic_email,
-            clinic_phone=clinic_phone.strip(),
-        )
+        existing_clinic_email = Clinic.query.filter(
+            Clinic.clinic_email == clinic_email,
+            Clinic.clinic_id != admin.clinic_id,
+        ).first()
 
-        db.session.add(new_clinic)
-        db.session.flush()
+        if existing_clinic_email:
+            return jsonify({"msg": "Clinic email is taken"}), 409
 
-        user.clinic_id = new_clinic.clinic_id
-        user.user_role = "owner"
-        user.is_active = True
+        existing_license = Clinic.query.filter(
+            Clinic.license_number == license_number,
+            Clinic.clinic_id != admin.clinic_id,
+        ).first()
+
+        if existing_license:
+            return jsonify({"msg": "SIPB number is taken"}), 409
+
+        if admin.clinic_id:
+            clinic = db.session.get(Clinic, admin.clinic_id)
+
+            if not clinic:
+                return jsonify({"msg": "Clinic not found"}), 404
+
+            clinic.clinic_name = clinic_name
+            clinic.clinic_address = clinic_address
+            clinic.license_number = license_number
+            clinic.clinic_email = clinic_email
+            clinic.clinic_phone = clinic_phone
+
+        else:
+            clinic = Clinic(
+                clinic_name=clinic_name,
+                clinic_address=clinic_address,
+                license_number=license_number,
+                clinic_email=clinic_email,
+                clinic_phone=clinic_phone,
+            )
+
+            db.session.add(clinic)
+            db.session.flush()
+
+            admin.clinic_id = clinic.clinic_id
+            admin.user_role = ADMIN_ROLE
+            admin.is_active = True
 
         db.session.commit()
-        db.session.refresh(user)
-
-        additional_claims = {"clinic_id": user.clinic_id}
-        access_token = create_access_token(
-            identity=str(user.user_id),
-            additional_claims=additional_claims,
-        )
+        db.session.refresh(admin)
 
         return (
             jsonify(
                 {
-                    "msg": "Clinic data successfully saved and linked to user",
-                    "access_token": access_token,
-                    "clinic_id": user.clinic_id,
-                    **serialize_account(user),
+                    "msg": "Clinic information saved successfully",
+                    "access_token": create_token_for_user(admin),
+                    "requires_clinic_setup": False,
+                    "redirect_path": "/dashboard",
+                    **serialize_account(admin),
                 }
             ),
-            201,
+            200,
         )
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": "Failed to save", "error": str(e)}), 500
+        return jsonify({"msg": "Failed to save clinic", "error": str(e)}), 500
 
 
 @auth_bp.route("/login", methods=["POST"])
 def login():
     data = request.get_json() or {}
 
-    email = data.get("email")
+    email = (data.get("email") or "").strip().lower()
     password = data.get("password")
 
     if not email or not password:
-        return jsonify({"msg": "email and password are required"}), 400
+        return jsonify({"msg": "Email and password are required"}), 400
 
-    user = User.query.filter_by(email=email.strip().lower()).first()
+    user = User.query.filter_by(email=email).first()
 
     if not user or not user.check_password(password):
         return jsonify({"msg": "Invalid email or password"}), 401
@@ -269,17 +337,17 @@ def login():
     except Exception:
         db.session.rollback()
 
-    additional_claims = {"clinic_id": user.clinic_id}
-    access_token = create_access_token(
-        identity=str(user.user_id),
-        additional_claims=additional_claims,
-    )
+    requires_clinic_setup = user.user_role == ADMIN_ROLE and not user.clinic_id
 
     return (
         jsonify(
             {
                 "msg": "Login successful",
-                "access_token": access_token,
+                "access_token": create_token_for_user(user),
+                "requires_clinic_setup": requires_clinic_setup,
+                "redirect_path": "/register-clinic"
+                if requires_clinic_setup
+                else "/dashboard",
                 "user": serialize_user(user, user.user_id),
             }
         ),
@@ -290,10 +358,10 @@ def login():
 @auth_bp.route("/me", methods=["GET"])
 @jwt_required()
 def get_current_user_data():
-    user = get_current_user()
+    user, error_response = require_login()
 
-    if not user:
-        return jsonify({"msg": "User not found"}), 404
+    if error_response:
+        return error_response
 
     return jsonify(serialize_account(user)), 200
 
@@ -301,10 +369,10 @@ def get_current_user_data():
 @auth_bp.route("/me", methods=["PATCH"])
 @jwt_required()
 def update_current_user():
-    user = get_current_user()
+    user, error_response = require_login()
 
-    if not user:
-        return jsonify({"msg": "User not found"}), 404
+    if error_response:
+        return error_response
 
     data = request.get_json() or {}
 
@@ -374,10 +442,10 @@ def update_current_user():
 @auth_bp.route("/change-password", methods=["PATCH"])
 @jwt_required()
 def change_password():
-    user = get_current_user()
+    user, error_response = require_login()
 
-    if not user:
-        return jsonify({"msg": "User not found"}), 404
+    if error_response:
+        return error_response
 
     data = request.get_json() or {}
 
@@ -393,6 +461,9 @@ def change_password():
 
     if len(new_password) < 8:
         return jsonify({"msg": "New password must be at least 8 characters"}), 400
+
+    if current_password == new_password:
+        return jsonify({"msg": "New password cannot be the same as current password"}), 400
 
     if not user.check_password(current_password):
         return jsonify({"msg": "Current password is incorrect"}), 401
@@ -411,17 +482,17 @@ def change_password():
 @auth_bp.route("/management/overview", methods=["GET"])
 @jwt_required()
 def get_management_overview():
-    manager, error_response = require_management_access()
+    admin, error_response = require_admin(require_clinic=True)
 
     if error_response:
         return error_response
 
-    clinic = db.session.get(Clinic, manager.clinic_id)
+    clinic = db.session.get(Clinic, admin.clinic_id)
 
     if not clinic:
         return jsonify({"msg": "Clinic not found"}), 404
 
-    employees = User.query.filter_by(clinic_id=manager.clinic_id).order_by(
+    employees = User.query.filter_by(clinic_id=admin.clinic_id).order_by(
         User.created_at.desc()
     ).all()
 
@@ -431,29 +502,26 @@ def get_management_overview():
     return (
         jsonify(
             {
-                "user": serialize_user(manager, manager.user_id),
+                "user": serialize_user(admin, admin.user_id),
                 "clinic": serialize_clinic(clinic),
                 "employees": [
-                    serialize_user(employee, manager.user_id)
-                    for employee in employees
+                    serialize_user(employee, admin.user_id) for employee in employees
                 ],
                 "stats": {
                     "total_employees": len(employees),
                     "active_employees": active_count,
                     "inactive_employees": inactive_count,
-                    "owners": sum(
-                        1 for employee in employees if employee.user_role == "owner"
-                    ),
                     "admins": sum(
                         1 for employee in employees if employee.user_role == "admin"
                     ),
                     "midwives": sum(
                         1 for employee in employees if employee.user_role == "midwife"
                     ),
-                    "staff": sum(
-                        1 for employee in employees if employee.user_role == "staff"
+                    "asistens": sum(
+                        1 for employee in employees if employee.user_role == "asisten"
                     ),
                 },
+                "roles": ALLOWED_ROLES,
             }
         ),
         200,
@@ -463,15 +531,12 @@ def get_management_overview():
 @auth_bp.route("/management/clinic", methods=["PATCH"])
 @jwt_required()
 def update_management_clinic():
-    manager, error_response = require_management_access()
+    admin, error_response = require_admin(require_clinic=True)
 
     if error_response:
         return error_response
 
-    if manager.user_role != "owner":
-        return jsonify({"msg": "Only owner can update clinic information"}), 403
-
-    clinic = db.session.get(Clinic, manager.clinic_id)
+    clinic = db.session.get(Clinic, admin.clinic_id)
 
     if not clinic:
         return jsonify({"msg": "Clinic not found"}), 404
@@ -541,6 +606,17 @@ def update_management_clinic():
 
             clinic.clinic_phone = clinic_phone
 
+        if not all(
+            [
+                clinic.clinic_name,
+                clinic.clinic_address,
+                clinic.license_number,
+                clinic.clinic_email,
+                clinic.clinic_phone,
+            ]
+        ):
+            return jsonify({"msg": "All clinic data must be filled"}), 400
+
         db.session.commit()
         db.session.refresh(clinic)
 
@@ -559,15 +635,78 @@ def update_management_clinic():
         return jsonify({"msg": "Failed to update clinic", "error": str(e)}), 500
 
 
-@auth_bp.route("/management/employees", methods=["GET"])
+@auth_bp.route("/management/users", methods=["POST"])
 @jwt_required()
-def get_management_employees():
-    manager, error_response = require_management_access()
+def create_management_user():
+    admin, error_response = require_admin(require_clinic=True)
 
     if error_response:
         return error_response
 
-    employees = User.query.filter_by(clinic_id=manager.clinic_id).order_by(
+    data = request.get_json() or {}
+
+    fullname = (data.get("fullname") or "").strip()
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password")
+    strnumber = (data.get("strnumber") or "").strip()
+    is_active = bool(data.get("is_active", True))
+
+    try:
+        role = normalize_role(data.get("role", "asisten"))
+    except ValueError as e:
+        return jsonify({"msg": str(e)}), 400
+
+    if not fullname or not email or not password or not strnumber:
+        return jsonify({"msg": "Full name, email, password, and STR number are required"}), 400
+
+    if len(password) < 8:
+        return jsonify({"msg": "Password must be at least 8 characters"}), 400
+
+    if User.query.filter_by(email=email).first():
+        return jsonify({"msg": "Email is taken"}), 409
+
+    if User.query.filter_by(strnumber=strnumber).first():
+        return jsonify({"msg": "STR number is taken"}), 409
+
+    try:
+        new_user = User(
+            clinic_id=admin.clinic_id,
+            fullname=fullname,
+            email=email,
+            strnumber=strnumber,
+            user_role=role,
+            is_active=is_active,
+        )
+        new_user.set_password(password)
+
+        db.session.add(new_user)
+        db.session.commit()
+        db.session.refresh(new_user)
+
+        return (
+            jsonify(
+                {
+                    "msg": "User account created successfully",
+                    "employee": serialize_user(new_user, admin.user_id),
+                }
+            ),
+            201,
+        )
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": "Failed to create user account", "error": str(e)}), 500
+
+
+@auth_bp.route("/management/employees", methods=["GET"])
+@jwt_required()
+def get_management_employees():
+    admin, error_response = require_admin(require_clinic=True)
+
+    if error_response:
+        return error_response
+
+    employees = User.query.filter_by(clinic_id=admin.clinic_id).order_by(
         User.created_at.desc()
     ).all()
 
@@ -575,8 +714,7 @@ def get_management_employees():
         jsonify(
             {
                 "employees": [
-                    serialize_user(employee, manager.user_id)
-                    for employee in employees
+                    serialize_user(employee, admin.user_id) for employee in employees
                 ]
             }
         ),
@@ -584,88 +722,17 @@ def get_management_employees():
     )
 
 
-@auth_bp.route("/management/employees/link", methods=["POST"])
-@jwt_required()
-def link_existing_employee():
-    manager, error_response = require_management_access()
-
-    if error_response:
-        return error_response
-
-    if manager.user_role != "owner":
-        return jsonify({"msg": "Only owner can link employee accounts"}), 403
-
-    data = request.get_json() or {}
-
-    email = data.get("email")
-    role = data.get("role", "staff")
-
-    if not email:
-        return jsonify({"msg": "Employee email is required"}), 400
-
-    try:
-        role = normalize_role(role)
-    except ValueError as e:
-        return jsonify({"msg": str(e)}), 400
-
-    employee = User.query.filter_by(email=email.strip().lower()).first()
-
-    if not employee:
-        return (
-            jsonify(
-                {
-                    "msg": "Account not found. Employee must register first before being linked."
-                }
-            ),
-            404,
-        )
-
-    if str(employee.user_id) == str(manager.user_id):
-        return jsonify({"msg": "You are already linked to this clinic"}), 400
-
-    if employee.clinic_id and str(employee.clinic_id) != str(manager.clinic_id):
-        return (
-            jsonify({"msg": "This account is already linked to another clinic"}),
-            409,
-        )
-
-    try:
-        employee.clinic_id = manager.clinic_id
-        employee.user_role = role
-        employee.is_active = True
-
-        db.session.commit()
-        db.session.refresh(employee)
-
-        return (
-            jsonify(
-                {
-                    "msg": "Employee linked successfully",
-                    "employee": serialize_user(employee, manager.user_id),
-                }
-            ),
-            200,
-        )
-
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"msg": "Failed to link employee", "error": str(e)}), 500
-
-
 @auth_bp.route("/management/employees/<employee_id>", methods=["PATCH"])
 @jwt_required()
 def update_management_employee(employee_id):
-    manager, error_response = require_management_access()
+    admin, error_response = require_admin(require_clinic=True)
 
     if error_response:
         return error_response
 
-    if manager.user_role != "owner":
-        return jsonify({"msg": "Only owner can update employee access"}), 403
-
     employee = User.query.filter_by(
         user_id=str(employee_id),
-        clinic_id=manager.clinic_id,
+        clinic_id=admin.clinic_id,
     ).first()
 
     if not employee:
@@ -688,23 +755,24 @@ def update_management_employee(employee_id):
     if active_was_changed:
         new_is_active = bool(data.get("is_active"))
 
-    if str(employee.user_id) == str(manager.user_id):
+    if str(employee.user_id) == str(admin.user_id):
         if role_was_changed and new_role != employee.user_role:
             return jsonify({"msg": "You cannot change your own role"}), 400
 
         if active_was_changed and new_is_active != employee.is_active:
             return jsonify({"msg": "You cannot deactivate your own account"}), 400
 
-    would_remove_active_owner = (
-        employee.user_role == "owner"
+    would_remove_active_admin = (
+        employee.user_role == ADMIN_ROLE
         and employee.is_active
-        and (new_role != "owner" or new_is_active is False)
+        and (new_role != ADMIN_ROLE or new_is_active is False)
     )
 
-    if would_remove_active_owner and not has_other_active_owner(
-        manager.clinic_id, employee.user_id
+    if would_remove_active_admin and not has_other_active_admin(
+        admin.clinic_id,
+        employee.user_id,
     ):
-        return jsonify({"msg": "At least one active owner is required"}), 400
+        return jsonify({"msg": "At least one active admin is required"}), 400
 
     try:
         employee.user_role = new_role
@@ -717,7 +785,7 @@ def update_management_employee(employee_id):
             jsonify(
                 {
                     "msg": "Employee updated successfully",
-                    "employee": serialize_user(employee, manager.user_id),
+                    "employee": serialize_user(employee, admin.user_id),
                 }
             ),
             200,
@@ -731,37 +799,36 @@ def update_management_employee(employee_id):
 @auth_bp.route("/management/employees/<employee_id>", methods=["DELETE"])
 @jwt_required()
 def unlink_management_employee(employee_id):
-    manager, error_response = require_management_access()
+    admin, error_response = require_admin(require_clinic=True)
 
     if error_response:
         return error_response
 
-    if manager.user_role != "owner":
-        return jsonify({"msg": "Only owner can remove employee access"}), 403
-
     employee = User.query.filter_by(
         user_id=str(employee_id),
-        clinic_id=manager.clinic_id,
+        clinic_id=admin.clinic_id,
     ).first()
 
     if not employee:
         return jsonify({"msg": "Employee not found in this clinic"}), 404
 
-    if str(employee.user_id) == str(manager.user_id):
+    if str(employee.user_id) == str(admin.user_id):
         return jsonify({"msg": "You cannot remove yourself from the clinic"}), 400
 
-    would_remove_active_owner = (
-        employee.user_role == "owner" and employee.is_active
+    would_remove_active_admin = (
+        employee.user_role == ADMIN_ROLE and employee.is_active
     )
 
-    if would_remove_active_owner and not has_other_active_owner(
-        manager.clinic_id, employee.user_id
+    if would_remove_active_admin and not has_other_active_admin(
+        admin.clinic_id,
+        employee.user_id,
     ):
-        return jsonify({"msg": "At least one active owner is required"}), 400
+        return jsonify({"msg": "At least one active admin is required"}), 400
 
     try:
         employee.clinic_id = None
-        employee.user_role = "staff"
+        employee.user_role = "asisten"
+        employee.is_active = False
 
         db.session.commit()
 

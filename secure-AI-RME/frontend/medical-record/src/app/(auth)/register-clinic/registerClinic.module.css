@@ -1,22 +1,28 @@
-.regist-input-wrapper{
-    display: flex;
-    flex-direction: column;
-    gap: 30px;
-    width: 50%;
+.regist-input-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  width: 50%;
   justify-content: center;
   align-items: center;
 }
 
-
-.regist-input-wrapper input{
-    background-color: rgb(255, 255, 255);
-    border: 1px solid #7D7A7A;
-    box-shadow: 0px 2px 4px #7D7A7A;
-    border-radius: 4px;
-    height: 35px;
-    padding: 2px;
-    width: 100%;
+.regist-input-wrapper input {
+  background-color: rgb(255, 255, 255);
+  border: 1px solid #7D7A7A;
+  box-shadow: 0px 2px 4px #7D7A7A;
+  border-radius: 4px;
+  height: 35px;
+  padding: 2px 10px;
+  width: 100%;
 }
-.regist-input-wrapper input:focus{
-    outline: none;
+
+.regist-input-wrapper input:focus {
+  outline: none;
+  border-color: #739072;
+}
+
+.regist-input-wrapper input:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
 }
