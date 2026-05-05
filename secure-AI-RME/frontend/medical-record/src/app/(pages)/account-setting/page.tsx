@@ -43,7 +43,7 @@ type ClinicData = {
 
 type AccountApiResponse = {
     msg?: string;
-    user: UserData;
+    user?: UserData;
     clinic?: ClinicData | null;
 };
 
@@ -146,6 +146,8 @@ const readJson = async (response: Response) => {
 const formatRole = (role: string) => {
     if (!role) return '-';
 
+    if (role === 'asisten') return 'Asisten';
+
     return role
         .replace(/_/g, ' ')
         .split(' ')
@@ -227,6 +229,10 @@ const SectionCard = ({
             <div className="mt-[22px] grid w-full min-w-0 grid-cols-1 gap-x-[52px] gap-y-[14px] md:grid-cols-2">
                 {fields.map((field) => {
                     const isReadOnly = Boolean(field.readOnly);
+                    const fieldValue =
+                        field.name === 'role'
+                            ? formatRole(formData.role)
+                            : formData[field.name];
 
                     return (
                         <label
@@ -242,7 +248,7 @@ const SectionCard = ({
                             <input
                                 name={field.name}
                                 type={field.type || 'text'}
-                                value={formData[field.name]}
+                                value={fieldValue}
                                 onChange={onChange}
                                 readOnly={isReadOnly}
                                 disabled={disabled}
@@ -327,9 +333,8 @@ const AccountSetting = () => {
     const displayName = formData.fullname || 'User';
     const displayRole = formatRole(formData.role);
     const initials = getInitials(displayName);
-    const canOpenManagement = ['owner', 'admin'].includes(
-        formData.role.toLowerCase(),
-    );
+
+    const canOpenManagement = formData.role.toLowerCase() === 'admin';
 
     const getToken = () => {
         return Cookies.get('access_token');
@@ -337,7 +342,26 @@ const AccountSetting = () => {
 
     const handleUnauthorized = () => {
         Cookies.remove('access_token');
+
+        localStorage.removeItem('user_id');
+        localStorage.removeItem('fullname');
+        localStorage.removeItem('user_email');
+        localStorage.removeItem('user_role');
+        localStorage.removeItem('clinic_id');
+
         router.push('/login');
+    };
+
+    const syncLocalStorage = (data: AccountApiResponse) => {
+        if (!data.user) return;
+
+        const role = data.user.role || data.user.user_role || '';
+
+        localStorage.setItem('user_id', data.user.id || '');
+        localStorage.setItem('fullname', data.user.fullname || '');
+        localStorage.setItem('user_email', data.user.email || '');
+        localStorage.setItem('user_role', role || '');
+        localStorage.setItem('clinic_id', data.user.clinic_id || '');
     };
 
     const fetchAccountData = async () => {
@@ -368,12 +392,13 @@ const AccountSetting = () => {
                 return;
             }
 
-            if (!response.ok) {
+            if (!response.ok || !data.user) {
                 throw new Error(data?.msg || 'Gagal mengambil data akun');
             }
 
             setFormData(mapApiDataToForm(data));
             setClinic(data.clinic || null);
+            syncLocalStorage(data);
         } catch (error) {
             const message =
                 error instanceof Error
@@ -388,11 +413,36 @@ const AccountSetting = () => {
 
     useEffect(() => {
         fetchAccountData();
+
+        const handleAutoRefresh = () => {
+            fetchAccountData();
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                fetchAccountData();
+            }
+        };
+
+        window.addEventListener('focus', handleAutoRefresh);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            window.removeEventListener('focus', handleAutoRefresh);
+            document.removeEventListener(
+                'visibilitychange',
+                handleVisibilityChange,
+            );
+        };
+
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
         const fieldName = event.target.name as keyof AccountFormData;
+
+        if (fieldName === 'role') return;
+
         const { value } = event.target;
 
         setFormData((prevData) => ({
@@ -464,7 +514,7 @@ const AccountSetting = () => {
             return null;
         }
 
-        if (!response.ok) {
+        if (!response.ok || !data.user) {
             throw new Error(data?.msg || 'Gagal memperbarui data akun');
         }
 
@@ -523,6 +573,8 @@ const AccountSetting = () => {
                 return;
             }
 
+            const isChangingPassword = wantsPasswordChange(formData);
+
             const updatedAccount = await updateProfile(token);
 
             if (!updatedAccount) {
@@ -533,9 +585,10 @@ const AccountSetting = () => {
 
             setFormData(mapApiDataToForm(updatedAccount));
             setClinic(updatedAccount.clinic || null);
+            syncLocalStorage(updatedAccount);
 
             setSuccessMessage(
-                wantsPasswordChange(formData)
+                isChangingPassword
                     ? 'Account setting dan password berhasil diperbarui'
                     : 'Account setting berhasil diperbarui',
             );
@@ -594,15 +647,6 @@ const AccountSetting = () => {
                                         Management Setting
                                     </button>
                                 )}
-
-                                <button
-                                    type="button"
-                                    onClick={fetchAccountData}
-                                    disabled={isLoading || isSubmitting}
-                                    className="h-[32px] shrink-0 rounded-[50px] bg-white px-[18px] text-[12px] font-bold text-black shadow-sm transition-all hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-70"
-                                >
-                                    Refresh Data
-                                </button>
                             </div>
                         </div>
 
