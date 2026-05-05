@@ -6,6 +6,7 @@ import axios from "axios";
 import { useEffect } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import Swal from "sweetalert2";
+import api from "@/utils/app";
 
 interface AddVisitPregnancyProps {
     record_id?: string;
@@ -38,17 +39,9 @@ const AddVisitPregnancy = () => {
 
     const fetchVisitNumber = async () => {
         try {
-            const token = Cookies.get('access_token');
-
-            if (!token) {
-                setVisitNumber("Unauthorized");
-                return;
-            }
-            const response = await axios.get(
-                `http://localhost:5000/api/visit-report/visit-number`,
-                { headers: { Authorization: `Bearer ${token}` }, params: { record_id: id } }
+            const response = await api.get(
+                `/visit-report/visit-number`,
             );
-
             setVisitNumber(response.data.visit_number);
         } catch (error) {
             console.error("Error fetching Visit number:", error);
@@ -64,17 +57,8 @@ const AddVisitPregnancy = () => {
         const fetchPatientData = async () => {
             if (!uuid) return;
             try {
-                const token = Cookies.get('access_token');
-                const response = await fetch(`http://localhost:5000/api/visit-report/get-visit-information?uuid=${uuid}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                if (!response.ok) throw new Error('Gagal mengambil data pasien');
-
-                const data = await response.json();
+                const response = await api.get(`/visit-report/get-visit-information?uuid=${uuid}`);
+                const data = response.data();
                 setData(data);
             } catch (err: any) {
                 setError(err.message);
@@ -82,7 +66,6 @@ const AddVisitPregnancy = () => {
                 setLoading(false);
             }
         };
-
         fetchPatientData();
     }, [uuid]);
 
@@ -93,11 +76,6 @@ const AddVisitPregnancy = () => {
         setLoading(true);
 
         try {
-            const token = Cookies.get('access_token');
-            if (!token) {
-                alert("Unauthorized. Please log in.");
-                return;
-            }
             const payload = {
                 visit_number: visitNumber,
                 date: data?.visit_date,
@@ -114,20 +92,16 @@ const AddVisitPregnancy = () => {
                 record_id: uuid,
                 blood_pressure: bloodPressure,
             };
-            const response = await axios.post("http://localhost:5000/api/visit-report/add-visit-pregnancy", payload, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-
+            const response = await api.post("/visit-report/add-visit-pregnancy", payload );
             if (response.status === 201) {
                 Swal.fire({
                     title: "Success",
-                    text: "Data KB NADI berhasil disimpan!",
+                    text: "Rekam medis persalinan berhasil disimpan!",
                     icon: "success",
-                    timer: 2000,
-                    confirmButtonColor: "#739072"
+                      showConfirmButton: false,
+                timer: 2000
                 });
                 fetchVisitNumber();
-
             } router.push('/daily-report');
         } catch (err: any) {
             console.error(err);
@@ -137,7 +111,8 @@ const AddVisitPregnancy = () => {
                 title: "Gagal Menyimpan!",
                 text: errorMessage,
                 icon: "error",
-                confirmButtonColor: "#739072",
+                 showConfirmButton: false,
+                timer: 2000
             });
             setError(errorMessage);
         }

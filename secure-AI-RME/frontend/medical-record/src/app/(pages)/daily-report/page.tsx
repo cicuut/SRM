@@ -6,7 +6,7 @@ import Swal from "sweetalert2";
 import Cookies from "js-cookie";
 import axios from "axios";
 import { DateLabel } from "../dashboard/page";
-
+import api from "@/utils/app"
 
 interface VisitList {
   visit_id: string;
@@ -23,7 +23,7 @@ interface VisitList {
 const DailyReport = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
-  const [medicalRecordList, setMedicalRecordList] = useState<VisitList[]>([]);
+  const [visitReportList, setVisitReportList] = useState<VisitList[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isModalVisitOpen, setIsModalVisitOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -33,31 +33,19 @@ const DailyReport = () => {
   const [filteredResults, setFilteredResults] = useState<VisitList[]>([]);
 
   useEffect(() => {
-    const fetchMedicalRecord = async () => {
+    const fetchDailyReport = async () => {
       try {
-        const token = Cookies.get("access_token");
-        const response = await fetch(
-          "http://localhost:5000/api/visit-report/get-all-visit",
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          },
-        );
-
-        if (!response.ok) throw new Error("Gagal mengambil data pasien");
-
-        const data = await response.json();
-        setMedicalRecordList(data);
+        const response = await api.get("/visit-report/get-all-visit");
+        const data = response.data;
+        setVisitReportList(data);
       } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
+            const msg = err.response?.data?.msg || err.message || "Terjadi kesalahan";
+            setError(msg);
+        } finally {
+            setLoading(false);
+        }
     };
-
-    fetchMedicalRecord();
+    fetchDailyReport();
   }, []);
 
   if (loading) {
@@ -117,14 +105,11 @@ const DailyReport = () => {
   const handleSearch = async (query: string) => {
     if (query.length < 3) return; 
     try {
-      const token = Cookies.get("access_token");
-      const response = await axios.get(
-        `http://localhost:5000/api/medical-record/search-patients?query=${query}`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
+      const response = await api.get(`/medical-record/search-patients?query=${query}`);
       setFilteredResults(response.data);
-    } catch (err) {
-      console.error("Gagal mencari pasien");
+    } catch (err: any) {
+            const msg = err.response?.data?.msg || err.message || "Gagal mencari pasien";
+            setError(msg);
     }
   };
 
@@ -201,7 +186,7 @@ const DailyReport = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {medicalRecordList.map((item, index) => (
+              {visitReportList.map((item, index) => (
                 <tr
                   key={index}
                   className="hover:bg-gray-50 transition-colors text-gray-600 cursor-pointer"

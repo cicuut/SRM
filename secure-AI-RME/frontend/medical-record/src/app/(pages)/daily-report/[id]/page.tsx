@@ -6,30 +6,26 @@ import VisitPregnancyDetail from '../visit-detail/pregnancyDetail';
 import VisitFamilyPlanningDetail from '../visit-detail/familyPlanningDetail';
 import VisitImmunizationDetail from '../visit-detail/immunizationDetail';
 import VisitGeneralDetail from '../visit-detail/generalDetail';
+import api from "@/utils/app"
 
 export default function VisitDetailPage() {
     const params = useParams();
     const id = params.id;
-
     const [visit, setVisit] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
 
     useEffect(() => {
         const fetchDetail = async () => {
             try {
-                const token = Cookies.get('access_token');
-                const res = await fetch(`http://localhost:5000/api/visit-report/get-visit-report/${id}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-
-                if (res.ok) {
-                    const data = await res.json();
+                const response = await api.get(`/visit-report/get-visit-report/${id}`);
+                if (response.status === 200) {
+                    const data = response.data();
                     setVisit(data);
                 }
-            } catch (err) {
-                console.error("Gagal ambil detail:", err);
+            } catch (err: any) {
+            const msg = err.response?.data?.msg || err.message || "Terjadi kesalahan";
+            setError(msg);
             } finally {
                 setLoading(false);
             }

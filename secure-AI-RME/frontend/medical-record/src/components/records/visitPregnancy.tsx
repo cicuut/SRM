@@ -8,7 +8,7 @@ import { ChevronRight } from 'lucide-react';
 import Accordion from '@mui/material/Accordion';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import AccordionSummary from '@mui/material/AccordionSummary';
-
+import api from '@/utils/app'
 
 interface VisitPregnancyAccorditionList {
     visit_id?: string;
@@ -37,17 +37,8 @@ const VisitPregnancyAccordition = () => {
         const visitDate = async () => {
             if (!uuid) return;
             try {
-                const token = Cookies.get('access_token');
-                const response = await fetch(`http://localhost:5000/api/medical-record/get-pregnancy-visit-data/${uuid}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                if (!response.ok) throw new Error('Gagal mengambil data pasien');
-
-                const data = await response.json();
+                const response = await api.get(`/medical-record/get-pregnancy-visit-data/${uuid}`);
+                const data = response.data();
                 if (response.status === 200) {
                     if (data.data.length === 0) {
                         setError(data.msg); 

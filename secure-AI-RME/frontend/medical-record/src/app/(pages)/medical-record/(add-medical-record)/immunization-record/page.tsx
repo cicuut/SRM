@@ -9,6 +9,7 @@ import Cookies from 'js-cookie';
 import PatientInformation from "@/components/add-records/patientInformation";
 import FamilyInformation from "@/components/add-records/familyInformation";
 import Swal from "sweetalert2";
+import api from "@/utils/app";
 
 const ImmunizationRecord = () => {
     const [error, setError] = useState("");
@@ -18,26 +19,17 @@ const ImmunizationRecord = () => {
     const router = useRouter();
     const [vaccineType, setVaccineType] = useState("");
     const [doseNumber, setDoseNumber] = useState("");
-
     const recordType = searchParams.get("type");
     const [patientData, setPatientData] = useState({});
     const [familyData, setFamilyData] = useState({});
-
     const handlePatientUpdate = (data: any) => setPatientData(data);
     const handleFamilyUpdate = (data: any) => setFamilyData(data);
+
     const fetchRmNumber = async () => {
         try {
-            const token = Cookies.get('access_token');
-
-            if (!token || !recordType) {
-                setRmNumber("Unauthorized");
-                return;
-            }
-            const response = await axios.get(
-                `http://localhost:5000/api/medical-record/rm-number?type=${recordType}`,
-                { headers: { Authorization: `Bearer ${token}` } }
+            const response = await api.get(
+                `/medical-record/rm-number?type=${recordType}`,
             );
-
             setRmNumber(response.data.next_rm_number);
         } catch (err: any) {
             console.error(err);
@@ -47,7 +39,8 @@ const ImmunizationRecord = () => {
                 title: "Gagal Menyimpan!",
                 text: errorMessage,
                 icon: "error",
-                confirmButtonColor: "#739072",
+                showConfirmButton: false,
+                timer: 2000
             });
             setError(errorMessage);
         }
@@ -59,34 +52,23 @@ const ImmunizationRecord = () => {
 
     const handleSubmit = async () => {
         try {
-            const token = Cookies.get('access_token');
-            if (!token) {
-                alert("Unauthorized. Please log in.");
-                return;
-            }
             const payload = {
                 ...patientData,
                 ...familyData,
                 record_number: rmNumber,
                 record_type: recordType,
-                
-
             };
-            const response = await axios.post("http://localhost:5000/api/medical-record/add-immunization", payload, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await api.post("/medical-record/add-immunization", payload );
             if (response.status === 201) {
                 Swal.fire({
                     title: "Success",
-                    text: "Data KB NADI berhasil disimpan!",
+                    text: "Rekam medis imunisasi berhasil disimpan!",
                     icon: "success",
-                    timer: 2000,
-                    confirmButtonColor: "#739072"
+                    showConfirmButton: false,
+                    timer: 2000
                 });
                 fetchRmNumber();
-
             } router.push('/medical-record');
-
         } catch (err) {
             console.error(err);
             alert("Gagal konek ke server!");

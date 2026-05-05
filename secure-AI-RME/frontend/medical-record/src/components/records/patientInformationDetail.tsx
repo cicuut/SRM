@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { emit } from "process";
 import Cookies from 'js-cookie';
 import { useParams } from "next/navigation";
+import api from "@/utils/app";
 
 interface PatientInformationDetailList {
     patient_name?: string;
@@ -32,25 +33,17 @@ const PatientInformationDetail = () => {
         const fetchPatientData = async () => {
             if (!uuid) return;
             try {
-                const token = Cookies.get('access_token');
-                const response = await fetch(`http://localhost:5000/api/medical-record/get-patient-data/${uuid}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
+                const response = await api.get(`/medical-record/get-patient-data/${uuid}`);
 
-                if (!response.ok) throw new Error('Gagal mengambil data pasien');
-
-                const data = await response.json();
+                const data = response.data();
                 setPatientData(data);
             } catch (err: any) {
-                setError(err.message);
-            } finally {
-                setLoading(false);
-            }
-        };
-
+            const msg = err.response?.data?.msg || err.message || "Terjadi kesalahan";
+            setError(msg);
+        } finally {
+            setLoading(false);
+        }
+    };
         fetchPatientData();
     }, [uuid]);
 

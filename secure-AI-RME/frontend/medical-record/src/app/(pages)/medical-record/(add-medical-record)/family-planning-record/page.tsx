@@ -10,6 +10,7 @@ import Swal from 'sweetalert2';
 import Cookies from 'js-cookie';
 import PatientInformation from "@/components/add-records/patientInformation";
 import FamilyInformation from "@/components/add-records/familyInformation";
+import api from "@/utils/app";
 
 const FamilyPlanningRecord = () => {
     const [error, setError] = useState("");
@@ -30,12 +31,8 @@ const FamilyPlanningRecord = () => {
     const handleFamilyUpdate = (data: any) => setFamilyData(data);
     const fetchRmNumber = async () => {
         try {
-            const token = Cookies.get('access_token');
-            if (!token || !recordType) return;
-
-            const response = await axios.get(
-                `http://localhost:5000/api/medical-record/rm-number?type=${recordType}`,
-                { headers: { Authorization: `Bearer ${token}` } }
+            const response = await api.get(
+                `/medical-record/rm-number?type=${recordType}`
             );
             setRmNumber(response.data.next_rm_number);
         } catch (error) {
@@ -53,11 +50,6 @@ const FamilyPlanningRecord = () => {
         setLoading(true);
 
         try {
-            const token = Cookies.get('access_token');
-            if (!token) {
-                alert("Unauthorized. Please log in.");
-                return;
-            }
             const payload = {
                 ...patientData,
                 ...familyData,
@@ -67,19 +59,16 @@ const FamilyPlanningRecord = () => {
                 youngest_child_age: youngestChild,
                 family_med_history: geneticDiseaseHistory
             };
-            const response = await axios.post("http://localhost:5000/api/medical-record/add-family-planning", payload, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await api.post("/medical-record/add-family-planning", payload );
             if (response.status === 201) {
                 Swal.fire({
                     title: "Success",
-                    text: "Data KB NADI berhasil disimpan!",
+                    text: "Rekam medis KB berhasil disimpan!",
                     icon: "success",
-                    timer: 2000,
-                    confirmButtonColor: "#739072"
+                 showConfirmButton: false,
+                timer: 2000
                 });
                 fetchRmNumber();
-              
             }  router.push('/medical-record');
         } catch (err: any) {
             console.error(err);
@@ -89,8 +78,9 @@ const FamilyPlanningRecord = () => {
                 title: "Gagal Menyimpan!",
                 text: errorMessage,
                 icon: "error",
-                confirmButtonColor: "#739072",
-            });
+showConfirmButton: false,
+                timer: 2000
+                        });
             setError(errorMessage);
         }
     };

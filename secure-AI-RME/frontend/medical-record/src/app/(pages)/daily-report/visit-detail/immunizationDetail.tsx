@@ -5,7 +5,7 @@ import { emit } from "process";
 import { useParams } from "next/dist/client/components/navigation";
 import VisitInformation from "@/components/visit/visit-information";
 import Cookies from "js-cookie";
-
+import api from "@/utils/app";
 
 interface VisitImmunizationDetailProps {
     weight_kg?: string;
@@ -29,20 +29,10 @@ const VisitImmunizationDetail = () => {
         const fetchVisitImmunizationData = async () => {
             if (!uuid) return;
             try {
-                const token = Cookies.get("access_token");
-                const response = await fetch(
-                    `http://localhost:5000/api/visit-report/get-visit-immunization/${uuid}`,
-                    {
-                        headers: {
-                            Authorization: `Bearer ${token}`,
-                            "Content-Type": "application/json",
-                        },
-                    },
+                const response = await api.get(
+                    `/visit-report/get-visit-immunization/${uuid}`
                 );
-
-                if (!response.ok) throw new Error("Gagal mengambil data pasien");
-
-                const data = await response.json();
+                const data =response.data();
                 setVisitImmunizationDetail(data);
             } catch (err: any) {
                 setError(err.message);

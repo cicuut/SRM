@@ -8,30 +8,25 @@ import FamilyPlanningDetail from '@/app/(pages)/medical-record/(medical-record-d
 import ImmunizationDetail from '@/app/(pages)/medical-record/(medical-record-detail)/immunizationDetail';
 import DeliveryDetail from '@/app/(pages)/medical-record/(medical-record-detail)/deliveryDetail';
 import GeneralDetail from '../(medical-record-detail)/generalDetail';
+import api from "@/utils/app";
 
 export default function MedicalRecordDetailPage() {
     const params = useParams();
     const id = params.id;
-
     const [record, setRecord] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-
+    const [error, setError] = useState("");
+    
     useEffect(() => {
         const fetchDetail = async () => {
             try {
-                const token = Cookies.get('access_token');
-                const res = await fetch(`http://localhost:5000/api/medical-record/get-record/${id}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-
-                if (res.ok) {
-                    const data = await res.json();
+                const respons = await api.get(`/medical-record/get-record/${id}`);
+                if (respons.status === 2000) {
+                    const data = respons.data();
                     setRecord(data);
                 }
-            } catch (err) {
-                console.error("Gagal ambil detail:", err);
+            } catch (err: any) {
+                setError(err.message);
             } finally {
                 setLoading(false);
             }

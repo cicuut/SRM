@@ -7,6 +7,7 @@ import styles from './registerClinic.module.css';
 import Link from "next/link";
 import Swal from 'sweetalert2';
 import Cookies from 'js-cookie';
+import api from "@/utils/app";
 
 const CreateClinic = () => {
     const [email, setEmail] = useState("")
@@ -14,9 +15,7 @@ const CreateClinic = () => {
     const [sipbNumber, setSipbNumber] = useState("");
     const [phone, setPhone] = useState("");
     const [address, setAddress] = useState("");
-
     const router = useRouter();
-
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
 
@@ -27,42 +26,41 @@ const CreateClinic = () => {
 
         try {
             const tempUserId = localStorage.getItem('temp_user_id');
-            const response = await fetch('http://localhost:5000/api/auth/register-clinic', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
+            const response = await api.post('/auth/register-clinic', {
                     user_id: tempUserId,
                     clinic_name: clinicName,
                     clinic_email: email,
                     license_number: sipbNumber,
                     clinic_address: address,
                     clinic_phone: phone
-                }),
+    
             });
 
-            const data = await response.json();
+            const data =  response.data;
 
-            if (response.ok) {
-                Swal.fire({
-                    title: "Pendaftaran Berhasil",
-                    icon: "success"
-                });
-                localStorage.setItem('temp_user_id', data.user_id);
+            if (response.status === 201) {
+                const userData = data.user_id;
+                if (userData) {
+                        localStorage.setItem('temp_user_id', userData);
+                    }   await Swal.fire({
+                        title: "Pendaftaran Berhasil",
+                        text: "Klinik berhasil didaftarkan",
+                        icon: "success",
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
                 router.push('/dashboard');
-            } else {
-                setLoading(false);
+            } 
+        }  catch (err: any) {
+            const errorMsg = err.response?.data?.msg || "Something went wrong";
+             setError(errorMsg);
                 Swal.fire({
                     title: "Pendaftaran Gagal",
-                    text: data.msg || "Something went wrong",
-                    icon: "error"
+                    text:errorMsg,
+                    icon: "error",
+                    timer: 2000,
+                    showConfirmButton: false
                 });
-                setError(data.msg); 
-            }
-        } catch (err) {
-            setError("Cannot connect to server. Is Flask running?");
-            console.error(err);
         } finally {
             setLoading(false);
         }

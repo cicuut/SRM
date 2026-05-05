@@ -6,7 +6,7 @@ import Accordion from '@mui/material/Accordion';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import AccordionSummary from '@mui/material/AccordionSummary';
 import { ChevronDown } from 'lucide-react';
-
+import api from "@/utils/app";
 
 interface VisitFamilyPlanningAccorditionList {
     visit_id?: string;
@@ -30,17 +30,9 @@ const VisitFamilyPlanningAccordition = () => {
         const visitDate = async () => {
             if (!uuid) return;
             try {
-                const token = Cookies.get('access_token');
-                const response = await fetch(`http://localhost:5000/api/medical-record/get-family-planning-visit-data/${uuid}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
+                const response = await api.get(`/medical-record/get-family-planning-visit-data/${uuid}`);
 
-                if (!response.ok) throw new Error('Gagal mengambil data pasien');
-
-                const data = await response.json();
+                const data = response.data();
                 setVisitFamilyPlanning(data);
             } catch (err: any) {
                 setError(err.message);
@@ -48,7 +40,6 @@ const VisitFamilyPlanningAccordition = () => {
                 setLoading(false);
             }
         };
-
         visitDate();
     }, [uuid]);
 

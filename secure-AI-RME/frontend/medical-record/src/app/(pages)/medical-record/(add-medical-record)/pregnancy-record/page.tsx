@@ -9,7 +9,7 @@ import Cookies from 'js-cookie';
 import Swal from "sweetalert2";
 import PatientInformation from "@/components/add-records/patientInformation";
 import FamilyInformation from "@/components/add-records/familyInformation";
-
+import api from "@/utils/app";
 
 const PregnancyRecord = () => {
     const [error, setError] = useState("");
@@ -42,17 +42,9 @@ const PregnancyRecord = () => {
 
     const fetchRmNumber = async () => {
         try {
-            const token = Cookies.get('access_token');
-
-            if (!token || !recordType) {
-                setRmNumber("Unauthorized");
-                return;
-            }
-            const response = await axios.get(
-                `http://localhost:5000/api/medical-record/rm-number?type=${recordType}`,
-                { headers: { Authorization: `Bearer ${token}` } }
+           const response = await api.get(
+                `/medical-record/rm-number?type=${recordType}`
             );
-
             setRmNumber(response.data.next_rm_number);
         } catch (error) {
             console.error("Error fetching RM number:", error);
@@ -63,10 +55,10 @@ const PregnancyRecord = () => {
     useEffect(() => {
         fetchRmNumber();
     }, [recordType]);
+
     const handlePregnancyCountChange = (count: string) => {
         const num = parseInt(count) || 0;
         setPreviousPregnancy(count);
-
 
         const newHistory = Array.from({ length: num }, (_, i) => ({
             pregnancy_no: i + 1,
@@ -84,6 +76,7 @@ const PregnancyRecord = () => {
         setObstetricHistory(newHistory);
         if (num > 0) setIsModalOpen(true);
     };
+
     const updateHistoryItem = (index: number, field: string, value: string) => {
         const updated = [...obstetricHistory];
         updated[index][field] = value;
@@ -122,11 +115,6 @@ const PregnancyRecord = () => {
         setError("");
         setLoading(true);
         try {
-            const token = Cookies.get('access_token');
-            if (!token) {
-                alert("Unauthorized. Please log in.");
-                return;
-            }
             const payload = {
                 ...patientData,
                 ...familyData,
@@ -148,21 +136,17 @@ const PregnancyRecord = () => {
                 muac_cm: muac,
                 obstetric_list: obstetricHistory
             };
-            const response = await axios.post("http://localhost:5000/api/medical-record/add-pregnancy", payload, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await api.post("/medical-record/add-pregnancy", payload );
             if (response.status === 201) {
                 Swal.fire({
                     title: "Success",
-                    text: "Data KB NADI berhasil disimpan!",
+                    text: "Rekam medis kehamilan berhasil disimpan",
                     icon: "success",
-                    timer: 2000,
-                    confirmButtonColor: "#739072"
+                     showConfirmButton: false,
+                timer: 2000
                 });
                 fetchRmNumber();
-
             } router.push('/medical-record');
-
         } catch (err: any) {
             console.error(err);
             setLoading(false);
@@ -171,7 +155,8 @@ const PregnancyRecord = () => {
                 title: "Gagal Menyimpan!",
                 text: errorMessage,
                 icon: "error",
-                confirmButtonColor: "#739072",
+                showConfirmButton: false,
+                timer: 2000
             });
             setError(errorMessage);
         }

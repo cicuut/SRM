@@ -10,6 +10,7 @@ import Cookies from 'js-cookie';
 import Swal from 'sweetalert2';
 import PatientInformation from "@/components/add-records/patientInformation";
 import FamilyInformation from "@/components/add-records/familyInformation";
+import api from "@/utils/app"
 
 const DeliveryRecord = () => {
     const [error, setError] = useState("");
@@ -17,7 +18,6 @@ const DeliveryRecord = () => {
     const router = useRouter();
     const [rmNumber, setRmNumber] = useState("Generating RM Number");
     const searchParams = useSearchParams();
-
     const recordType = searchParams.get("type");
     const [patientData, setPatientData] = useState([]);
     const [familyData, setFamilyData] = useState([]);
@@ -33,43 +33,29 @@ const DeliveryRecord = () => {
     const [newbornComplication, setNewbornComplication] = useState("");
     const [eyeOintment,setEyeOintment]= useState(false);
     const [imd,setImd]= useState(false);
-    
-
     const handlePatientUpdate = (data: any) => setPatientData(data);
     const handleFamilyUpdate = (data: any) => setFamilyData(data);
 
 
     const fetchRmNumber = async () => {
         try {
-            const token = Cookies.get('access_token');
-
-            if (!token) {
-                setRmNumber("Unauthorized");
-                return;
-            }
-
-            const response = await axios.get(
-                `http://localhost:5000/api/medical-record/rm-number?type=${recordType}`,
-                { headers: { Authorization: `Bearer ${token}` } }
+            const response = await api.get(
+               `/medical-record/rm-number?type=${recordType}`
             );
-
             setRmNumber(response.data.next_rm_number);
         } catch (error) {
             console.error("Error fetching RM number:", error);
-            setRmNumber("Failed to generate RM Number");
+            setRmNumber("Gagal generate nomor RM");
         }
     };
     useEffect(() => {
         fetchRmNumber();
     }, [recordType]);
+
     const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
         try {
-            const token = Cookies.get('access_token');
-            if (!token) {
-                
-                alert("Silakan login terlebih dahulu.");
-                return;
-            }
             const payload = {
                 ...patientData,
                 ...familyData,
@@ -80,7 +66,7 @@ const DeliveryRecord = () => {
                 delivery_type: deliveryMethod,
                 baby_gender: newbornGender,
                 baby_weight: birthWeight,
-                baby_length: birthLenght,
+                baby_lenght: birthLenght,
                 apgar_score: apgarScore,
                 baby_complications: newbornComplication,
                 vit_k_given: vitKAdministration,
@@ -88,19 +74,16 @@ const DeliveryRecord = () => {
                 eye_ointment: eyeOintment,
                 imd:imd
             };
-            const response = await axios.post("http://localhost:5000/api/medical-record/add-delivery", payload, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await api.post("/medical-record/add-delivery", payload );
             if (response.status === 201) {
-                Swal.fire({
+                await Swal.fire({
                     title: "Success",
-                    text: "Data KB NADI berhasil disimpan!",
+                    text: "Rekam medis persalinan berhasil disimpan!",
                     icon: "success",
-                    timer: 2000,
-                    confirmButtonColor: "#739072"
+                    showConfirmButton: false,
+                timer: 2000
                 });
                 fetchRmNumber();
-
             } router.push('/medical-record');
         } catch (err: any) {
             console.error(err);
@@ -110,10 +93,13 @@ const DeliveryRecord = () => {
                 title: "Gagal Menyimpan!",
                 text: errorMessage,
                 icon: "error",
-                confirmButtonColor: "#739072",
+                showConfirmButton: false,
+                timer: 2000
             });
             setError(errorMessage);
-        }
+        } finally {
+        setLoading(false); 
+    }
     };
     return (
         <div className="min-h-screen flex bg-[#FDFEF9]">

@@ -8,6 +8,7 @@ import Accordion from '@mui/material/Accordion';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import AccordionSummary from '@mui/material/AccordionSummary';
 import { ChevronDown } from 'lucide-react';
+import api from "@/utils/app"
 
 interface VisitImmunizationAccorditionList {
     visit_id?: string;
@@ -33,25 +34,16 @@ const VisitImmunizationAccordition = () => {
         const visitDate = async () => {
             if (!uuid) return;
             try {
-                const token = Cookies.get('access_token');
-                const response = await fetch(`http://localhost:5000/api/medical-record/get-immunization-visit-data/${uuid}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                if (!response.ok) throw new Error('Gagal mengambil data pasien');
-
-                const data = await response.json();
+                const response = await api.get(`/medical-record/get-immunization-visit-data/${uuid}`);
+                const data = response.data();
                 setVisitImmunization(data);
             } catch (err: any) {
-                setError(err.message);
-            } finally {
-                setLoading(false);
-            }
-        };
-
+            const msg = err.response?.data?.msg || err.message || "Terjadi kesalahan";
+            setError(msg);
+        } finally {
+            setLoading(false);
+        }
+    };
         visitDate();
     }, [uuid]);
 

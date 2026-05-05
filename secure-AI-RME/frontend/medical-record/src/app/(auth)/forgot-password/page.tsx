@@ -9,7 +9,7 @@ import Swal from 'sweetalert2';
 import Cookies from 'js-cookie';
 import api from "@/utils/app";
 
-const Signin = () => {
+const ForgetPassword = () => {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPasword] = useState("");
@@ -40,19 +40,25 @@ const Signin = () => {
         }
 
         try {
-            const response = await api.post('/auth/register', {
+            const response = await fetch('http://localhost:5000/api/auth/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
                     fullname: fullName,
                     email: email,
                     password: password,
                     strnumber: strNumber
+                }),
             });
 
-            const data = response.data;
+            const data = await response.json();
 
-            if (response.status === 201) {
+            if (response.ok) {
                 Swal.fire({
                     title: "Pendaftaran Sukses",
-                    text: "Berhasil menambahkan pengguna",
+                    text: "Pengguna telah masuk ke database!",
                     icon: "success",
                     timer: 2000,
                     confirmButtonColor: "#739072" 
@@ -63,21 +69,24 @@ const Signin = () => {
                     localStorage.setItem('temp_user_id', data.user_id);
                     router.push('/register-clinic');
                 }
-            } 
-        }  catch (err: any) {
-                    const errorMsg = err.response?.data?.msg || "Something went wrong";
-                     setError(errorMsg);
-                        Swal.fire({
-                            title: "Pendaftaran Gagal",
-                            text:errorMsg,
-                            icon: "error",
-                            timer: 2000,
-                            showConfirmButton: false
-                        });
-                } finally {
-                    setLoading(false);
-                }
+            } else {
+                setLoading(false);
+                Swal.fire({
+                    title: "Pendaftaran Gagal",
+                    text: data.msg || "Something went wrong",
+                    icon: "error",
+                    confirmButtonColor: "#739072" ,
+                    timer: 2000
+                });
+                setError(data.msg);
             }
+        } catch (err) {
+            setError("Cannot connect to server. Is Flask running?");
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    }
 
     return (
         <div className="container bg-[#D2E3C8]">
@@ -88,47 +97,31 @@ const Signin = () => {
                     <p className="text-[#739072] text-4xl" >The Digital Heartbeat of Your Clinic.</p>
                 </div>
             </div>
+        
             <div className="flex flex-col items-center justify-center w-1/2 gap-4 bg-[#FFF] rounded-tl-[10%] rounded-bl-[10%]">
+                {/** 
                 <div className={styles['regist-input-wrapper']}>
-                    <h1 className="regist-input-wrapper text-center text-[#4F6F52] text-2xl font-bold">Hello There</h1>
+                    <h1 className="regist-input-wrapper text-center text-[#4F6F52] text-2xl font-bold">Setel Kata Sandi Ulang</h1>
                     <div className="w-full">
-                        <h3>Full Name <span className="text-red-500">*</span></h3>
-                        <input
-                            type="text"
-                            value={fullName}
-                            required
-                            onChange={(e) => setFullName(e.target.value)}
-                        /></div>
-                    <div className="w-full">
-                        <h3>Email <span className="text-red-500">*</span></h3>
+                        <h3>Email</h3>
                         <input
                             type="email"
                             value={email}
-                            required
                             onChange={(e) => setEmail(e.target.value)}
                         /></div>
                     <div className="w-full">
-                        <h3>Password <span className="text-red-500">*</span></h3>
+                        <h3>New Password</h3>
                         <input
                             type="password"
                             value={password}
-                            required
                             onChange={(e) => setPassword(e.target.value)}
                         /></div>
-                    <div className="w-full"><h3>Confirm Password <span className="text-red-500">*</span></h3>
+                    <div className="w-full"><h3>Confirm New Password</h3>
                         <input
                             type="password"
                             value={confirmPassword}
-                            required
                             onChange={(e) => setConfirmPasword(e.target.value)}
                         /></div>
-                    <div className="w-full"> <h3>STR Number</h3>
-                        <input
-                            type="text"
-                            value={strNumber}
-                            onChange={(e) => setStrNumber(e.target.value)}
-                        /></div>
-                    <p className="text-[#766E6E]">Sudah punya akun?<Link href="/login"><u>Pergi ke Sini</u></Link></p>
                     <button onClick={handleRegister} className="bg-[#739072] text-[#FFF] font-poppins font-bold py-2 px-4 w-35 rounded-[30px] cursor-pointer">{loading ? "Registering..." : "Sign Up"}</button>
                     <div className="flex  w-full justify-center items-center gap-3">
                         <div className="w-30 h-0.5 bg-black "></div>
@@ -140,9 +133,10 @@ const Signin = () => {
                         <p>Google</p>
                     </button>
                 </div>
+                 */}
             </div>
         </div>
     )
 
 }
-export default Signin;
+export default ForgetPassword;

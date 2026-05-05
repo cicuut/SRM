@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from app.models import db, User, Clinic
 from datetime import datetime
+from app.utils import decrypt_data
 
 auth_bp = Blueprint ('auth', __name__)
 
@@ -14,8 +15,8 @@ def register():
     strnumber = data.get('strnumber')
 
     #input validation
-    if not fullname or not email or not password or not strnumber:
-        return jsonify ({"msg" : "All data must be filled"}), 400
+    if not fullname or not email or not password:
+        return jsonify ({"msg" : "Tanda * wajib untuk diisi!"}), 400
 
     #Email checking
     if User.query.filter_by(email=email).first():
@@ -41,7 +42,7 @@ def register():
         db.session.commit()
         db.session.refresh(new_user)
         
-        additional_claims = {"clinic_id": user.clinic_id}
+        additional_claims = {"clinic_id": new_user.clinic_id}
         access_token = create_access_token(identity=str(new_user.user_id), additional_claims=additional_claims)
        
         return jsonify({
@@ -58,39 +59,51 @@ def register():
 def createClinic():
     data = request.get_json()
     clinic_name = data.get('clinic_name')
-    clinic_address = data.get('clinic_address')
-    license_number = data.get('license_number')
+    input_address = data.get('clinic_address', '').strip()
+    input_license = data.get('license_number', '').strip()
     clinic_email = data.get('clinic_email')
-    clinic_phone = data.get('clinic_phone')
+    input_phone = data.get('clinic_phone', '').strip()
     user_id = data.get('user_id')
     
-    if not all([clinic_name, clinic_address, license_number, clinic_email, clinic_phone]):
-        return jsonify({"msg": "All data must be filled"}), 400
+    if not all([clinic_name, input_license, input_address, clinic_email, input_phone]):
+        return jsonify({"msg": "Semua data harus diisi"}), 400
     
-    #User checking
-    if not user_id:
-        return jsonify({"msg": "User ID is required to link the clinic!"}), 400
-    
-    user = db.session.get(User, user_id)
-    
-    if not user:
-        return jsonify({"msg": "User not found in database"}), 404
-    
-    #Email checking
+     #Email checking
     if Clinic.query.filter_by(clinic_email=clinic_email).first():
-        return jsonify({"msg" : "Email is taken"}), 409
-
-    #SIPB checking
-    if Clinic.query.filter_by( license_number=license_number).first():
-        return jsonify({"msg" : "SIPB number is taken"}), 409
+        return jsonify({"msg" : "Alamat email sudah digunakan"}), 409
+    
+   
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"msg": "User tidak ditemukan"}), 404
+ 
+    clinics = Clinic.query.all()
+    
+    for clinic in clinics:
+        try:
+            stored_license = decrypt_data(clinic.license_number).strip()
+            stored_phone = decrypt_data(clinic.clinic_phone).strip()
+            stored_address = decrypt_data(clinic.clinic_address).strip()
+            
+            if stored_license == input_license:
+                return jsonify({"msg": "Nomor SIPB sudah digunakan"}), 409
+            
+            if stored_phone == input_phone:
+                return jsonify({"msg": "Nomor ponsel sudah digunakan"}), 409
+            
+            if stores_address == input_address:
+                return jsonify({"msg": "Alamat sudah digunakan"}), 409
+        
+        except Exception:
+            continue    
     
     try:
         new_clinic = Clinic(
             clinic_name=clinic_name,
-            clinic_address=clinic_address,
-            license_number=license_number,
+            clinic_address=input_address,
+            license_number=input_license,
             clinic_email=clinic_email,
-            clinic_phone=clinic_phone
+            clinic_phone=input_phone
         )
         
         db.session.add(new_clinic)
@@ -100,12 +113,12 @@ def createClinic():
         if user:
             user.clinic_id = new_clinic.clinic_id 
             db.session.commit()
-            return jsonify({"msg": "Clinic data successfully saved and linked to user"}), 201
+            return jsonify({"msg": "Data klinik sudah tersimpan"}), 201
         
         return jsonify({"msg": "User not found"}), 404
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg" : "Failed to save", "error" : str(e)}), 500
+        return jsonify({"msg" : "Gagal untuk menyimpan", "error" : str(e)}), 500
 
 @auth_bp.route('/login', methods=['POST'])
 def login():

@@ -8,6 +8,7 @@ import styles from './login.module.css';
 import Link from "next/link";
 import Swal from "sweetalert2";
 import Cookies from "js-cookie";
+import api from "@/utils/app";
 
 const Login = () => {
     const [email, setEmail] = useState("");
@@ -22,20 +23,14 @@ const Login = () => {
         setLoading(true);
 
         try {
-            const response = await fetch('http://localhost:5000/api/auth/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
+            const response = await api.post('/auth/login', {
                     email: email,
                     password: password
-                }),
             });
 
-            const data = await response.json();
+            const data = response.data();
 
-            if (response.ok) {
+            if (response.status === 200) {
                 const userData = data.user 
 
                 if (userData) {
@@ -54,20 +49,19 @@ const Login = () => {
                 }
                     router.push('/dashboard');
                 
-            } else {
-                setLoading(false);
+            } 
+        } catch (err: any) {
+            const errorMsg = err.response?.data?.msg || "Something went wrong";
+        
+        setError(errorMsg);
+            setLoading(false);
                 Swal.fire({
                     title: "Login Failed",
-                    text: data.msg || "Something went wrong",
+                    text: errorMsg,
                     icon: "error",
                     confirmButtonColor: "#739072",
                     timer: 2000
                 });
-                setError(data.msg);
-            }
-        } catch (err) {
-            setError("Cannot connect to server. Is Flask running?");
-            console.error(err);
         } finally {
             setLoading(false);
         }
@@ -100,17 +94,13 @@ const Login = () => {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                         /></div>
-                    <p className="text-[#766E6E]">Belum punya akun? <Link href="/register"><u>Pergi ke Sini</u></Link></p>
+                    <p className="text-[#766E6E]">Lupa Password? <Link href="/forgot-password"><u>Pergi ke Sini</u></Link></p>
                     <button onClick={handleLogin} className="bg-[#739072] text-[#FFF] font-poppins font-bold py-2 px-4 w-30 rounded-[30px] cursor-pointer">{loading ? "Logging..." : "Log In"}</button>
                     <div className="flex  w-full justify-center items-center gap-3">
                         <div className="w-30 h-0.5 bg-black "></div>
                         <p className="text-[#766E6E]">atau masuk dengan</p>
                         <div className="w-30 h-0.5 bg-black"></div>
                     </div>
-                    <button className="mt-10 flex gap-2 w-40 items-center justify-center border-[2] py-2 px-2 rounded-[30px]">
-                        <Image src="/google-icon.svg" alt="Google" width={25} height={25} />
-                        <p>Google</p>
-                    </button>
                 </div>
             </div>
         </div>

@@ -5,6 +5,7 @@ import { emit } from "process";
 import VisitInformation from "@/components/visit/visit-information";
 import { useParams } from "next/dist/client/components/navigation";
 import Cookies from "js-cookie";
+import api from "@/utils/app";
 
 interface VisitGeneralDetailProps {
   subjective?: string;
@@ -24,20 +25,10 @@ const visitGeneralDetail = () => {
     const fetchPatientData = async () => {
       if (!uuid) return;
       try {
-        const token = Cookies.get("access_token");
-        const response = await fetch(
-          `http://localhost:5000/api/visit-report/get-visit-general/${uuid}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          },
+        const response = await api.get(
+          `/visit-report/get-visit-general/${uuid}`,
         );
-
-        if (!response.ok) throw new Error("Gagal mengambil data pasien");
-
-        const data = await response.json();
+        const data = response.data();
         setVisitGeneralDetail(data);
       } catch (err: any) {
         setError(err.message);
@@ -45,7 +36,6 @@ const visitGeneralDetail = () => {
         setLoading(false);
       }
     };
-
     fetchPatientData();
   }, [uuid]);
 

@@ -10,6 +10,7 @@ import Cookies from 'js-cookie';
 import Swal from 'sweetalert2';
 import PatientInformation from "@/components/add-records/patientInformation";
 import FamilyInformation from "@/components/add-records/familyInformation";
+import api from "@/utils/app";
 
 const GeneralRecord = () => {
     const [error, setError] = useState("");
@@ -25,18 +26,8 @@ const GeneralRecord = () => {
 
     const fetchRmNumber = async () => {
         try {
-            const token = Cookies.get('access_token');
-
-            if (!token) {
-                setRmNumber("Unauthorized");
-                return;
-            }
-
-            const response = await axios.get(
-                `http://localhost:5000/api/medical-record/rm-number?type=${recordType}`,
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
-
+        const response = await api.get(
+                `i/medical-record/rm-number?type=${recordType}`);
             setRmNumber(response.data.next_rm_number);
         } catch (error) {
             console.error("Error fetching RM number:", error);
@@ -53,11 +44,6 @@ const GeneralRecord = () => {
         setError("");
         setLoading(true);
         try {
-            const token = Cookies.get('access_token');
-            if (!token) {
-                alert("Unauthorized. Please log in.");
-                return;
-            }
             const payload = {
                 ...patientData,
                 ...familyData,
@@ -65,16 +51,14 @@ const GeneralRecord = () => {
                 record_type: recordType,
 
             };
-            const response = await axios.post("http://localhost:5000/api/medical-record/add-general", payload, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await api.post("/medical-record/add-general", payload);
             if (response.status === 201) {
                 Swal.fire({
                     title: "Success",
-                    text: "Data KB NADI berhasil disimpan!",
+                    text: "Rekam Medis Poli Umu berhasil disimpan!",
                     icon: "success",
-                    timer: 2000,
-                    confirmButtonColor: "#739072"
+                    showConfirmButton: false,
+                    timer: 2000
                 });
                 fetchRmNumber();
 
@@ -87,7 +71,8 @@ const GeneralRecord = () => {
                 title: "Gagal Menyimpan!",
                 text: errorMessage,
                 icon: "error",
-                confirmButtonColor: "#739072",
+                showConfirmButton: false,
+                timer: 2000
             });
             setError(errorMessage);
         }

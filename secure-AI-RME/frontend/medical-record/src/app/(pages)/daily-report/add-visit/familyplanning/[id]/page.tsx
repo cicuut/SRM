@@ -6,7 +6,7 @@ import axios from "axios";
 import { useEffect } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import Swal from "sweetalert2";
-import { set } from "nprogress";
+import api from "@/utils/app";
 
 interface AddVisitFamilyPlanningProps {
     record_id?: string;
@@ -34,21 +34,13 @@ const AddVisitFamilyPlanning = () => {
 
     const fetchVisitNumber = async () => {
         try {
-            const token = Cookies.get('access_token');
-
-            if (!token) {
-                setVisitNumber("Unauthorized");
-                return;
-            }
-            const response = await axios.get(
-                `http://localhost:5000/api/visit-report/visit-number`,
-                { headers: { Authorization: `Bearer ${token}` }, params: { record_id: id } }
+            const response = await api.get(
+                `/visit-report/visit-number`
             );
-
             setVisitNumber(response.data.visit_number);
         } catch (error) {
             console.error("Error fetching Visit number:", error);
-            setVisitNumber("Failed to generate Visit Number");
+            setVisitNumber("Gagal generate Visit Number");
         }
     };
 
@@ -60,17 +52,8 @@ const AddVisitFamilyPlanning = () => {
         const fetchPatientData = async () => {
             if (!uuid) return;
             try {
-                const token = Cookies.get('access_token');
-                const response = await fetch(`http://localhost:5000/api/visit-report/get-visit-information?uuid=${uuid}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                if (!response.ok) throw new Error('Gagal mengambil data pasien');
-
-                const data = await response.json();
+                const response = await api.get(`/get-visit-information?uuid=${uuid}`);
+                const data = response.data();
                 setData(data);
             } catch (err: any) {
                 setError(err.message);
@@ -78,7 +61,6 @@ const AddVisitFamilyPlanning = () => {
                 setLoading(false);
             }
         };
-
         fetchPatientData();
     }, [uuid]);
 
@@ -89,11 +71,6 @@ const AddVisitFamilyPlanning = () => {
         setLoading(true);
 
         try {
-            const token = Cookies.get('access_token');
-            if (!token) {
-                alert("Unauthorized. Please log in.");
-                return;
-            }
             const payload = {
                 visit_number: visitNumber,
                 date: data?.visit_date,
@@ -105,20 +82,16 @@ const AddVisitFamilyPlanning = () => {
                 blood_pressure: bloodPressure,
                 record_id: uuid,
             };
-            const response = await axios.post("http://localhost:5000/api/visit-report/add-visit-family-planning", payload, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-
+            const response = await api.post("/visit-report/add-visit-family-planning", payload );
             if (response.status === 201) {
                 Swal.fire({
                     title: "Success",
-                    text: "Data KB berhasil disimpan!",
+                    text: "Data Kunjungan KB berhasil disimpan!",
                     icon: "success",
-                    timer: 2000,
-                    confirmButtonColor: "#739072"
+                    showConfirmButton: false,
+                timer: 2000
                 });
                 fetchVisitNumber();
-
             } router.push('/daily-report');
         } catch (err: any) {
             console.error(err);
@@ -128,7 +101,9 @@ const AddVisitFamilyPlanning = () => {
                 title: "Gagal Menyimpan!",
                 text: errorMessage,
                 icon: "error",
-                confirmButtonColor: "#739072",
+                showConfirmButton: false,
+                timer: 2000
+
             });
             setError(errorMessage);
         }

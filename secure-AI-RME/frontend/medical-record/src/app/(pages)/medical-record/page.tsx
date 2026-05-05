@@ -4,6 +4,7 @@ import { useRouter } from 'nextjs-toploader/app'
 import Swal from "sweetalert2";
 import Cookies from 'js-cookie';
 import { Plus, Search, Funnel, X, ChevronDown   } from 'lucide-react';
+import api from "@/utils/app";
 
 interface MedicalRecordList {
     rm_id: string;
@@ -31,25 +32,16 @@ const MedicalRecord = () => {
     useEffect(() => {
         const fetchMedicalRecord = async () => {
             try {
-                const token = Cookies.get('access_token');
-                const response = await fetch('http://localhost:5000/api/medical-record/get-all-records', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                if (!response.ok) throw new Error('Gagal mengambil data pasien');
-
-                const data = await response.json();
+                const response = await api.get('/medical-record/get-all-records');
+                const data = response.data;
                 setMedicalRecordList(data);
             } catch (err: any) {
-                setError(err.message);
-            } finally {
-                setLoading(false);
-            }
-        };
-
+            const msg = err.response?.data?.msg || err.message || "Terjadi kesalahan";
+            setError(msg);
+        } finally {
+            setLoading(false);
+        }
+    };
         fetchMedicalRecord();
     }, []);
 
