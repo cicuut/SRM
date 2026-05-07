@@ -422,15 +422,17 @@ const AddInvoice = () => {
                         onSubmit={handleSubmit}
                         className="mt-[54px] w-full max-w-[980px]"
                     >
-                        <h1 className="text-[26px] font-bold leading-none text-[#5F785F]">
-                            {transactionNumber || 'INV----- ---'}
-                        </h1>
+                        <div>
+                            <h1 className="text-[26px] font-bold leading-none text-[#5F785F]">
+                                {transactionNumber || 'INV----- ---'}
+                            </h1>
 
-                        {errorMessage && (
-                            <p className="mt-5 text-[12px] font-medium text-red-600">
-                                {errorMessage}
-                            </p>
-                        )}
+                            {errorMessage && (
+                                <p className="mt-5 text-[12px] font-medium text-red-600">
+                                    {errorMessage}
+                                </p>
+                            )}
+                        </div>
 
                         <div className="mt-[26px] grid grid-cols-1 gap-x-[48px] gap-y-[20px] md:grid-cols-3">
                             <label className="block">

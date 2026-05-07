@@ -1,7 +1,9 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from app.models import db, User, Clinic
+from app.utils import write_audit_log
 from datetime import datetime
+
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -34,6 +36,25 @@ def normalize_role(role):
         )
 
     return normalized
+
+
+def parse_bool(value, default=True):
+    if value is None:
+        return default
+
+    if isinstance(value, bool):
+        return value
+
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+
+        if normalized in ["true", "1", "yes", "active"]:
+            return True
+
+        if normalized in ["false", "0", "no", "inactive"]:
+            return False
+
+    return bool(value)
 
 
 def create_token_for_user(user):
@@ -148,8 +169,72 @@ def has_other_active_admin(clinic_id, exclude_user_id):
     return other_admin is not None
 
 
-def get_user_by_email(email):
-    return User.query.filter_by(email=email.strip().lower()).first()
+def clinic_old_values(clinic):
+    if not clinic:
+        return {}
+
+    return {
+        "module": "Clinic",
+        "clinic_id": to_str(clinic.clinic_id),
+        "clinic_name": clinic.clinic_name,
+        "clinic_address": clinic.clinic_address,
+        "license_number": clinic.license_number,
+        "clinic_email": clinic.clinic_email,
+        "clinic_phone": clinic.clinic_phone,
+    }
+
+
+def user_old_values(user, module="User Access"):
+    if not user:
+        return {}
+
+    return {
+        "module": module,
+        "user_id": to_str(user.user_id),
+        "clinic_id": to_str(user.clinic_id),
+        "fullname": user.fullname,
+        "email": user.email,
+        "role": user.user_role,
+        "strnumber": user.strnumber,
+        "is_active": bool(user.is_active),
+    }
+
+
+def get_management_payload(admin):
+    clinic = db.session.get(Clinic, admin.clinic_id)
+
+    if not clinic:
+        return None
+
+    employees = User.query.filter(
+        User.clinic_id == admin.clinic_id
+    ).order_by(User.created_at.desc()).all()
+
+    active_count = sum(1 for employee in employees if employee.is_active)
+    inactive_count = len(employees) - active_count
+
+    return {
+        "user": serialize_user(admin, admin.user_id),
+        "clinic": serialize_clinic(clinic),
+        "employees": [
+            serialize_user(employee, admin.user_id) for employee in employees
+        ],
+        "stats": {
+            "total_employees": len(employees),
+            "active_employees": active_count,
+            "inactive_employees": inactive_count,
+            "admins": sum(
+                1 for employee in employees if employee.user_role == "admin"
+            ),
+            "midwives": sum(
+                1 for employee in employees if employee.user_role == "midwife"
+            ),
+            "asistens": sum(
+                1 for employee in employees if employee.user_role == "asisten"
+            ),
+        },
+        "roles": ALLOWED_ROLES,
+    }
 
 
 @auth_bp.route("/roles", methods=["GET"])
@@ -159,11 +244,6 @@ def get_roles():
 
 @auth_bp.route("/register", methods=["POST"])
 def register():
-    """
-    Register publik hanya untuk membuat admin pertama saat database users masih kosong.
-    Setelah ada user pertama, akun baru harus dibuat oleh admin dari Management Setting.
-    """
-
     existing_user = User.query.first()
 
     if existing_user:
@@ -207,6 +287,23 @@ def register():
         new_user.set_password(password)
 
         db.session.add(new_user)
+        db.session.flush()
+
+        write_audit_log(
+            user_id=new_user.user_id,
+            action="REGISTER_FIRST_ADMIN",
+            old_values={},
+            new_values={
+                "module": "Authentication",
+                "user_id": to_str(new_user.user_id),
+                "fullname": new_user.fullname,
+                "email": new_user.email,
+                "role": new_user.user_role,
+                "strnumber": new_user.strnumber,
+                "is_active": bool(new_user.is_active),
+            },
+        )
+
         db.session.commit()
         db.session.refresh(new_user)
 
@@ -225,7 +322,7 @@ def register():
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": "Failed to create first admin", "error": str(e)}), 500
+        return jsonify({"msg": f"Failed to create first admin: {str(e)}"}), 500
 
 
 @auth_bp.route("/register-clinic", methods=["POST"])
@@ -270,6 +367,9 @@ def create_or_update_clinic():
             if not clinic:
                 return jsonify({"msg": "Clinic not found"}), 404
 
+            old_values = clinic_old_values(clinic)
+            action_name = "UPDATE_CLINIC"
+
             clinic.clinic_name = clinic_name
             clinic.clinic_address = clinic_address
             clinic.license_number = license_number
@@ -277,6 +377,9 @@ def create_or_update_clinic():
             clinic.clinic_phone = clinic_phone
 
         else:
+            old_values = {}
+            action_name = "CREATE_CLINIC"
+
             clinic = Clinic(
                 clinic_name=clinic_name,
                 clinic_address=clinic_address,
@@ -291,6 +394,13 @@ def create_or_update_clinic():
             admin.clinic_id = clinic.clinic_id
             admin.user_role = ADMIN_ROLE
             admin.is_active = True
+
+        write_audit_log(
+            user_id=admin.user_id,
+            action=action_name,
+            old_values=old_values,
+            new_values=clinic_old_values(clinic),
+        )
 
         db.session.commit()
         db.session.refresh(admin)
@@ -310,7 +420,7 @@ def create_or_update_clinic():
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": "Failed to save clinic", "error": str(e)}), 500
+        return jsonify({"msg": f"Failed to save clinic: {str(e)}"}), 500
 
 
 @auth_bp.route("/login", methods=["POST"])
@@ -332,7 +442,28 @@ def login():
         return jsonify({"msg": "Your account is inactive"}), 403
 
     try:
+        old_values = {
+            "module": "Authentication",
+            "user_id": to_str(user.user_id),
+            "last_login": user.last_login.isoformat() if user.last_login else None,
+        }
+
         user.last_login = datetime.utcnow()
+
+        write_audit_log(
+            user_id=user.user_id,
+            action="LOGIN",
+            old_values=old_values,
+            new_values={
+                "module": "Authentication",
+                "user_id": to_str(user.user_id),
+                "fullname": user.fullname,
+                "email": user.email,
+                "role": user.user_role,
+                "last_login": user.last_login.isoformat(),
+            },
+        )
+
         db.session.commit()
     except Exception:
         db.session.rollback()
@@ -381,6 +512,8 @@ def update_current_user():
     strnumber = data.get("strnumber")
 
     try:
+        old_values = user_old_values(user, module="Account Setting")
+
         if fullname is not None:
             fullname = fullname.strip()
 
@@ -421,6 +554,13 @@ def update_current_user():
 
             user.strnumber = strnumber
 
+        write_audit_log(
+            user_id=user.user_id,
+            action="UPDATE_ACCOUNT_PROFILE",
+            old_values=old_values,
+            new_values=user_old_values(user, module="Account Setting"),
+        )
+
         db.session.commit()
         db.session.refresh(user)
 
@@ -436,7 +576,7 @@ def update_current_user():
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": "Failed to update account", "error": str(e)}), 500
+        return jsonify({"msg": f"Failed to update account: {str(e)}"}), 500
 
 
 @auth_bp.route("/change-password", methods=["PATCH"])
@@ -470,13 +610,29 @@ def change_password():
 
     try:
         user.set_password(new_password)
+
+        write_audit_log(
+            user_id=user.user_id,
+            action="CHANGE_PASSWORD",
+            old_values={
+                "module": "Account Setting",
+                "user_id": to_str(user.user_id),
+                "password_changed": False,
+            },
+            new_values={
+                "module": "Account Setting",
+                "user_id": to_str(user.user_id),
+                "password_changed": True,
+            },
+        )
+
         db.session.commit()
 
         return jsonify({"msg": "Password changed successfully"}), 200
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": "Failed to change password", "error": str(e)}), 500
+        return jsonify({"msg": f"Failed to change password: {str(e)}"}), 500
 
 
 @auth_bp.route("/management/overview", methods=["GET"])
@@ -487,45 +643,12 @@ def get_management_overview():
     if error_response:
         return error_response
 
-    clinic = db.session.get(Clinic, admin.clinic_id)
+    payload = get_management_payload(admin)
 
-    if not clinic:
+    if not payload:
         return jsonify({"msg": "Clinic not found"}), 404
 
-    employees = User.query.filter_by(clinic_id=admin.clinic_id).order_by(
-        User.created_at.desc()
-    ).all()
-
-    active_count = sum(1 for employee in employees if employee.is_active)
-    inactive_count = len(employees) - active_count
-
-    return (
-        jsonify(
-            {
-                "user": serialize_user(admin, admin.user_id),
-                "clinic": serialize_clinic(clinic),
-                "employees": [
-                    serialize_user(employee, admin.user_id) for employee in employees
-                ],
-                "stats": {
-                    "total_employees": len(employees),
-                    "active_employees": active_count,
-                    "inactive_employees": inactive_count,
-                    "admins": sum(
-                        1 for employee in employees if employee.user_role == "admin"
-                    ),
-                    "midwives": sum(
-                        1 for employee in employees if employee.user_role == "midwife"
-                    ),
-                    "asistens": sum(
-                        1 for employee in employees if employee.user_role == "asisten"
-                    ),
-                },
-                "roles": ALLOWED_ROLES,
-            }
-        ),
-        200,
-    )
+    return jsonify(payload), 200
 
 
 @auth_bp.route("/management/clinic", methods=["PATCH"])
@@ -550,6 +673,8 @@ def update_management_clinic():
     clinic_phone = data.get("clinic_phone")
 
     try:
+        old_values = clinic_old_values(clinic)
+
         if clinic_name is not None:
             clinic_name = clinic_name.strip()
 
@@ -617,6 +742,13 @@ def update_management_clinic():
         ):
             return jsonify({"msg": "All clinic data must be filled"}), 400
 
+        write_audit_log(
+            user_id=admin.user_id,
+            action="UPDATE_CLINIC",
+            old_values=old_values,
+            new_values=clinic_old_values(clinic),
+        )
+
         db.session.commit()
         db.session.refresh(clinic)
 
@@ -632,7 +764,7 @@ def update_management_clinic():
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": "Failed to update clinic", "error": str(e)}), 500
+        return jsonify({"msg": f"Failed to update clinic: {str(e)}"}), 500
 
 
 @auth_bp.route("/management/users", methods=["POST"])
@@ -649,7 +781,7 @@ def create_management_user():
     email = (data.get("email") or "").strip().lower()
     password = data.get("password")
     strnumber = (data.get("strnumber") or "").strip()
-    is_active = bool(data.get("is_active", True))
+    is_active = parse_bool(data.get("is_active", True), default=True)
 
     try:
         role = normalize_role(data.get("role", "asisten"))
@@ -662,13 +794,57 @@ def create_management_user():
     if len(password) < 8:
         return jsonify({"msg": "Password must be at least 8 characters"}), 400
 
-    if User.query.filter_by(email=email).first():
-        return jsonify({"msg": "Email is taken"}), 409
+    existing_user_by_email = User.query.filter_by(email=email).first()
+    existing_user_by_strnumber = User.query.filter_by(strnumber=strnumber).first()
 
-    if User.query.filter_by(strnumber=strnumber).first():
-        return jsonify({"msg": "STR number is taken"}), 409
+    if existing_user_by_strnumber and (
+        not existing_user_by_email
+        or str(existing_user_by_strnumber.user_id) != str(existing_user_by_email.user_id)
+    ):
+        return jsonify({"msg": "STR number is already used by another account"}), 409
 
     try:
+        if existing_user_by_email:
+            old_values = user_old_values(existing_user_by_email, module="User Access")
+
+            if existing_user_by_email.clinic_id == admin.clinic_id and existing_user_by_email.is_active:
+                return jsonify({"msg": "Email is already active in this clinic"}), 409
+
+            if existing_user_by_email.clinic_id and existing_user_by_email.clinic_id != admin.clinic_id:
+                return jsonify({"msg": "Email is already used by another clinic"}), 409
+
+            existing_user_by_email.fullname = fullname
+            existing_user_by_email.strnumber = strnumber
+            existing_user_by_email.user_role = role
+            existing_user_by_email.clinic_id = admin.clinic_id
+            existing_user_by_email.is_active = is_active
+            existing_user_by_email.set_password(password)
+
+            db.session.flush()
+
+            write_audit_log(
+                user_id=admin.user_id,
+                action="REACTIVATE_ACCOUNT",
+                old_values=old_values,
+                new_values={
+                    **user_old_values(existing_user_by_email, module="User Access"),
+                    "reactivated": True,
+                },
+            )
+
+            db.session.commit()
+            db.session.refresh(existing_user_by_email)
+
+            return (
+                jsonify(
+                    {
+                        "msg": "User account reactivated successfully",
+                        "employee": serialize_user(existing_user_by_email, admin.user_id),
+                    }
+                ),
+                200,
+            )
+
         new_user = User(
             clinic_id=admin.clinic_id,
             fullname=fullname,
@@ -680,6 +856,15 @@ def create_management_user():
         new_user.set_password(password)
 
         db.session.add(new_user)
+        db.session.flush()
+
+        write_audit_log(
+            user_id=admin.user_id,
+            action="ADD_ACCOUNT",
+            old_values={},
+            new_values=user_old_values(new_user, module="User Access"),
+        )
+
         db.session.commit()
         db.session.refresh(new_user)
 
@@ -695,7 +880,7 @@ def create_management_user():
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": "Failed to create user account", "error": str(e)}), 500
+        return jsonify({"msg": f"Failed to create user account: {str(e)}"}), 500
 
 
 @auth_bp.route("/management/employees", methods=["GET"])
@@ -706,9 +891,9 @@ def get_management_employees():
     if error_response:
         return error_response
 
-    employees = User.query.filter_by(clinic_id=admin.clinic_id).order_by(
-        User.created_at.desc()
-    ).all()
+    employees = User.query.filter(
+        User.clinic_id == admin.clinic_id
+    ).order_by(User.created_at.desc()).all()
 
     return (
         jsonify(
@@ -730,9 +915,9 @@ def update_management_employee(employee_id):
     if error_response:
         return error_response
 
-    employee = User.query.filter_by(
-        user_id=str(employee_id),
-        clinic_id=admin.clinic_id,
+    employee = User.query.filter(
+        User.user_id == str(employee_id),
+        User.clinic_id == admin.clinic_id,
     ).first()
 
     if not employee:
@@ -753,7 +938,7 @@ def update_management_employee(employee_id):
             return jsonify({"msg": str(e)}), 400
 
     if active_was_changed:
-        new_is_active = bool(data.get("is_active"))
+        new_is_active = parse_bool(data.get("is_active"), default=employee.is_active)
 
     if str(employee.user_id) == str(admin.user_id):
         if role_was_changed and new_role != employee.user_role:
@@ -775,8 +960,17 @@ def update_management_employee(employee_id):
         return jsonify({"msg": "At least one active admin is required"}), 400
 
     try:
+        old_values = user_old_values(employee, module="User Access")
+
         employee.user_role = new_role
         employee.is_active = new_is_active
+
+        write_audit_log(
+            user_id=admin.user_id,
+            action="UPDATE_USER_ACCESS",
+            old_values=old_values,
+            new_values=user_old_values(employee, module="User Access"),
+        )
 
         db.session.commit()
         db.session.refresh(employee)
@@ -793,7 +987,7 @@ def update_management_employee(employee_id):
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": "Failed to update employee", "error": str(e)}), 500
+        return jsonify({"msg": f"Failed to update employee: {str(e)}"}), 500
 
 
 @auth_bp.route("/management/employees/<employee_id>", methods=["DELETE"])
@@ -804,9 +998,9 @@ def unlink_management_employee(employee_id):
     if error_response:
         return error_response
 
-    employee = User.query.filter_by(
-        user_id=str(employee_id),
-        clinic_id=admin.clinic_id,
+    employee = User.query.filter(
+        User.user_id == str(employee_id),
+        User.clinic_id == admin.clinic_id,
     ).first()
 
     if not employee:
@@ -826,14 +1020,35 @@ def unlink_management_employee(employee_id):
         return jsonify({"msg": "At least one active admin is required"}), 400
 
     try:
+        old_values = user_old_values(employee, module="User Access")
+
         employee.clinic_id = None
-        employee.user_role = "asisten"
         employee.is_active = False
+
+        db.session.flush()
+
+        write_audit_log(
+            user_id=admin.user_id,
+            action="REMOVE_USER_FROM_CLINIC",
+            old_values=old_values,
+            new_values={
+                **user_old_values(employee, module="User Access"),
+                "removed_from_clinic": True,
+            },
+        )
 
         db.session.commit()
 
-        return jsonify({"msg": "Employee removed from clinic successfully"}), 200
+        return (
+            jsonify(
+                {
+                    "msg": "Employee removed from clinic successfully",
+                    "removed_employee_id": str(employee_id),
+                }
+            ),
+            200,
+        )
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": "Failed to remove employee", "error": str(e)}), 500
+        return jsonify({"msg": f"Failed to remove employee: {str(e)}"}), 500

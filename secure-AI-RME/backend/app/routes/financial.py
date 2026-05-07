@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models import db, User
-from app.utils import decrypt_data, generate_financial_number
+from app.utils import decrypt_data, generate_financial_number, write_audit_log
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from sqlalchemy import text
@@ -12,6 +12,33 @@ import uuid
 financial_bp = Blueprint("financial", __name__)
 
 FINANCIAL_ALLOWED_ROLES = ["admin", "midwife"]
+
+
+def to_str(value):
+    if value is None:
+        return None
+
+    return str(value)
+
+
+def role_to_text(value):
+    if value is None:
+        return ""
+
+    if hasattr(value, "value"):
+        return str(value.value)
+
+    return str(value)
+
+
+def safe_decrypt(value):
+    if value is None:
+        return ""
+
+    try:
+        return decrypt_data(value)
+    except Exception:
+        return str(value)
 
 
 def get_current_user():
@@ -32,7 +59,9 @@ def require_financial_access():
     if not current_user.is_active:
         return None, (jsonify({"msg": "Your account is inactive"}), 403)
 
-    if current_user.user_role not in FINANCIAL_ALLOWED_ROLES:
+    current_role = role_to_text(current_user.user_role)
+
+    if current_role not in FINANCIAL_ALLOWED_ROLES:
         return None, (
             jsonify(
                 {
@@ -55,7 +84,12 @@ def parse_payment_date(value):
     if not value:
         return None
 
-    return datetime.strptime(value, "%Y-%m-%d").date()
+    raw_value = str(value).strip()
+
+    if "T" in raw_value:
+        raw_value = raw_value.split("T")[0]
+
+    return datetime.strptime(raw_value, "%Y-%m-%d").date()
 
 
 def format_date(value):
@@ -65,7 +99,15 @@ def format_date(value):
     if hasattr(value, "strftime"):
         return value.strftime("%Y-%m-%d")
 
-    return str(value)
+    raw_value = str(value)
+
+    if "T" in raw_value:
+        return raw_value.split("T")[0]
+
+    if " " in raw_value:
+        return raw_value.split(" ")[0]
+
+    return raw_value
 
 
 def get_enum_labels(type_name):
@@ -178,6 +220,97 @@ def reserve_next_sequence(year):
     return int(result.scalar_one())
 
 
+def resolve_visit_or_record_reference(reference_id, clinic_id):
+    if not reference_id:
+        return None
+
+    reference_id = str(reference_id).strip()
+
+    visit_row = db.session.execute(
+        text(
+            """
+            SELECT
+                vm.visit_id::text AS visit_id,
+                vm.visit_number,
+                vm.record_id::text AS record_id,
+                mr.record_number,
+                mr.record_type::text AS record_type,
+                p.patient_id::text AS patient_id,
+                p.clinic_id::text AS clinic_id,
+                p.patient_name
+            FROM visit_master vm
+            JOIN medical_record mr
+                ON mr.record_id::text = vm.record_id::text
+            JOIN patient p
+                ON p.patient_id::text = mr.patient_id::text
+            WHERE vm.visit_id::text = :reference_id
+              AND p.clinic_id::text = :clinic_id
+            """
+        ),
+        {
+            "reference_id": reference_id,
+            "clinic_id": str(clinic_id),
+        },
+    ).mappings().first()
+
+    if visit_row:
+        return dict(visit_row)
+
+    record_row = db.session.execute(
+        text(
+            """
+            SELECT
+                NULL::text AS visit_id,
+                NULL::text AS visit_number,
+                mr.record_id::text AS record_id,
+                mr.record_number,
+                mr.record_type::text AS record_type,
+                p.patient_id::text AS patient_id,
+                p.clinic_id::text AS clinic_id,
+                p.patient_name
+            FROM medical_record mr
+            JOIN patient p
+                ON p.patient_id::text = mr.patient_id::text
+            WHERE mr.record_id::text = :reference_id
+              AND p.clinic_id::text = :clinic_id
+            """
+        ),
+        {
+            "reference_id": reference_id,
+            "clinic_id": str(clinic_id),
+        },
+    ).mappings().first()
+
+    if not record_row:
+        return None
+
+    resolved_row = dict(record_row)
+
+    latest_visit = db.session.execute(
+        text(
+            """
+            SELECT
+                vm.visit_id::text AS visit_id,
+                vm.visit_number
+            FROM visit_master vm
+            WHERE vm.record_id::text = :record_id
+            ORDER BY
+                vm.visit_date DESC NULLS LAST,
+                vm.visit_time DESC NULLS LAST,
+                vm.visit_number DESC
+            LIMIT 1
+            """
+        ),
+        {"record_id": resolved_row["record_id"]},
+    ).mappings().first()
+
+    if latest_visit:
+        resolved_row["visit_id"] = latest_visit.get("visit_id")
+        resolved_row["visit_number"] = latest_visit.get("visit_number")
+
+    return resolved_row
+
+
 FINANCIAL_SELECT_QUERY = """
     SELECT
         f.transaction_id::text AS transaction_id,
@@ -192,26 +325,45 @@ FINANCIAL_SELECT_QUERY = """
         f.payment_date,
         f.description,
 
+        vm.visit_number,
+        vm.record_id::text AS record_id,
+
         mr.record_number,
-        mr.record_type,
+        mr.record_type::text AS record_type,
 
         p.patient_name,
-        u.fullname AS user_name
+        p.patient_number,
+        p.clinic_id::text AS clinic_id,
+
+        u.fullname AS user_name,
+        u.clinic_id::text AS user_clinic_id
     FROM financial f
+    LEFT JOIN visit_master vm
+        ON vm.visit_id::text = f.visit_id::text
     LEFT JOIN medical_record mr
-        ON mr.record_id::text = f.visit_id::text
+        ON mr.record_id::text = vm.record_id::text
     LEFT JOIN patient p
-        ON p.patient_id::text = f.patient_id::text
+        ON p.patient_id::text = COALESCE(f.patient_id::text, mr.patient_id::text)
     LEFT JOIN users u
         ON u.user_id::text = f.user_id::text
 """
 
 
 def serialize_financial_row(row):
+    if not row:
+        return {}
+
     encrypted_patient_name = row.get("patient_name")
-    patient_name = decrypt_data(encrypted_patient_name) if encrypted_patient_name else "-"
+    patient_name = safe_decrypt(encrypted_patient_name) if encrypted_patient_name else "-"
 
     payment_date = format_date(row.get("payment_date"))
+
+    visit_display = (
+        row.get("visit_number")
+        or row.get("record_number")
+        or row.get("visit_id")
+        or "-"
+    )
 
     return {
         "transaction_id": row.get("transaction_id"),
@@ -226,10 +378,13 @@ def serialize_financial_row(row):
         "payment_method": row.get("payment_method"),
         "status": row.get("status"),
         "description": row.get("description") or "",
-        "visit_display": row.get("record_number") or row.get("visit_id") or "-",
+        "visit_display": visit_display,
+        "visit_number": row.get("visit_number") or "-",
+        "record_id": row.get("record_id"),
         "record_number": row.get("record_number") or "-",
         "record_type": row.get("record_type") or "-",
         "patient_name": patient_name or "-",
+        "patient_number": row.get("patient_number") or "-",
         "user_name": row.get("user_name") or "-",
     }
 
@@ -311,38 +466,46 @@ def get_all_financial_transactions():
         date_filter = request.args.get("date")
         search_query = request.args.get("search", "").strip()
 
-        conditions = []
-        params = {}
+        conditions = [
+            """
+            (
+                p.clinic_id::text = :clinic_id
+                OR (
+                    p.patient_id IS NULL
+                    AND u.clinic_id::text = :clinic_id
+                )
+            )
+            """
+        ]
 
-        if current_clinic_id:
-            conditions.append("p.clinic_id::text = :clinic_id")
-            params["clinic_id"] = str(current_clinic_id)
+        params = {
+            "clinic_id": str(current_clinic_id),
+        }
 
         if date_filter:
-            conditions.append("f.payment_date = :payment_date")
+            conditions.append("CAST(f.payment_date AS date) = :payment_date")
             params["payment_date"] = parse_payment_date(date_filter)
 
         if search_query:
             conditions.append(
                 """
                 (
-                    LOWER(f.transaction_number) LIKE :search
+                    LOWER(COALESCE(f.transaction_number, '')) LIKE :search
+                    OR LOWER(COALESCE(vm.visit_number, '')) LIKE :search
                     OR LOWER(COALESCE(mr.record_number, '')) LIKE :search
-                    OR LOWER(COALESCE(mr.record_type, '')) LIKE :search
-                    OR LOWER(CAST(f.trans_type AS text)) LIKE :search
-                    OR LOWER(CAST(f.payment_method AS text)) LIKE :search
-                    OR LOWER(CAST(f.status AS text)) LIKE :search
-                    OR LOWER(CAST(f.amount AS text)) LIKE :search
+                    OR LOWER(COALESCE(mr.record_type::text, '')) LIKE :search
+                    OR LOWER(COALESCE(f.trans_type::text, '')) LIKE :search
+                    OR LOWER(COALESCE(f.payment_method::text, '')) LIKE :search
+                    OR LOWER(COALESCE(f.status::text, '')) LIKE :search
+                    OR LOWER(COALESCE(CAST(f.amount AS text), '')) LIKE :search
                     OR LOWER(COALESCE(u.fullname, '')) LIKE :search
+                    OR LOWER(COALESCE(p.patient_number, '')) LIKE :search
                 )
                 """
             )
             params["search"] = f"%{search_query.lower()}%"
 
-        where_clause = ""
-
-        if conditions:
-            where_clause = "WHERE " + " AND ".join(conditions)
+        where_clause = "WHERE " + " AND ".join(conditions)
 
         rows = db.session.execute(
             text(
@@ -413,7 +576,7 @@ def add_financial_transaction():
 
     try:
         payment_date = parse_payment_date(data.get("payment_date"))
-        visit_id = str(data.get("visit_id")).strip()
+        reference_id = str(data.get("visit_id")).strip()
 
         trans_type = normalize_enum_value(
             "transaction_type",
@@ -440,42 +603,16 @@ def add_financial_transaction():
         if amount < 0:
             return jsonify({"msg": "Amount cannot be negative"}), 400
 
-        record_row = db.session.execute(
-            text(
-                """
-                SELECT
-                    mr.record_id::text AS record_id,
-                    mr.record_number,
-                    mr.patient_id::text AS patient_id,
-                    p.clinic_id::text AS clinic_id,
-                    p.patient_name
-                FROM medical_record mr
-                JOIN patient p
-                    ON p.patient_id::text = mr.patient_id::text
-                WHERE mr.record_id::text = :visit_id
-                """
-            ),
-            {"visit_id": visit_id},
-        ).mappings().first()
+        resolved_reference = resolve_visit_or_record_reference(
+            reference_id,
+            current_clinic_id,
+        )
 
-        if not record_row:
-            return jsonify({"msg": "Medical record not found"}), 404
+        if not resolved_reference:
+            return jsonify({"msg": "Visit or medical record not found in your clinic"}), 404
 
-        patient_id = record_row.get("patient_id")
-
-        if (
-            current_clinic_id
-            and record_row.get("clinic_id")
-            and str(record_row.get("clinic_id")) != str(current_clinic_id)
-        ):
-            return (
-                jsonify(
-                    {
-                        "msg": "You are not allowed to create financial data for this record"
-                    }
-                ),
-                403,
-            )
+        visit_id = resolved_reference.get("visit_id")
+        patient_id = resolved_reference.get("patient_id")
 
         year = payment_date.year
         sequence_number = reserve_next_sequence(year)
@@ -517,7 +654,7 @@ def add_financial_transaction():
                 "transaction_id": transaction_id,
                 "visit_id": visit_id,
                 "user_id": str(current_user_id),
-                "patient_id": str(patient_id),
+                "patient_id": patient_id,
                 "transaction_number": transaction_number,
                 "trans_type": trans_type,
                 "amount": amount,
@@ -529,6 +666,25 @@ def add_financial_transaction():
         )
 
         saved_row = fetch_financial_by_transaction_id(transaction_id)
+
+        write_audit_log(
+            user_id=current_user_id,
+            action="ADD_INVOICE",
+            old_values={},
+            new_values={
+                "module": "Financial",
+                "transaction_id": transaction_id,
+                "transaction_number": transaction_number,
+                "visit_id": visit_id,
+                "patient_id": str(patient_id),
+                "trans_type": trans_type,
+                "amount": str(amount),
+                "payment_method": payment_method,
+                "status": status,
+                "payment_date": str(payment_date),
+                "description": description,
+            },
+        )
 
         db.session.commit()
 

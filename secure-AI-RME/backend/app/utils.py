@@ -12,7 +12,7 @@ def get_latest_record_count(record_type):
 
     count = MedicalRecord.query.filter(
         MedicalRecord.record_type == record_type,
-        MedicalRecord.created_at >= datetime(current_year, 1, 1)
+        MedicalRecord.created_at >= datetime(current_year, 1, 1),
     ).count()
 
     return count
@@ -24,7 +24,7 @@ def generate_record_number(record_type, latest_count):
         "Persalinan": "RMP",
         "Imunisasi": "RMI",
         "Umum": "RMU",
-        "Keluarga Berencana": "RMK"
+        "Keluarga Berencana": "RMK",
     }
 
     prefix = mapping.get(record_type, "RMG")
@@ -38,9 +38,11 @@ def get_latest_visits_count(record_id):
     from app.models import VisitMaster
     from app.models import MedicalRecord
 
-    count = VisitMaster.query.join(MedicalRecord)\
-        .filter(MedicalRecord.record_id == record_id)\
+    count = (
+        VisitMaster.query.join(MedicalRecord)
+        .filter(MedicalRecord.record_id == record_id)
         .count()
+    )
 
     return count
 
@@ -55,14 +57,19 @@ def generate_visit_number(latest_count):
 
 def generate_financial_number(year, sequence_number):
     prefix = "INV"
-    sequence = f"{int(sequence_number):03d}"
+    sequence = f"{int(sequence_number):04d}"
 
     return f"{prefix}-{int(year)}-{sequence}"
 
 
 load_dotenv()
 
-secret_key = os.getenv("ENCRYPTION_KEY").encode()
+raw_secret_key = os.getenv("ENCRYPTION_KEY")
+
+if not raw_secret_key:
+    raise RuntimeError("ENCRYPTION_KEY is not set in .env")
+
+secret_key = raw_secret_key.encode()
 
 
 def encrypt_data(plain_text):
@@ -74,7 +81,7 @@ def encrypt_data(plain_text):
 
     combined = cipher.nonce + tag + ciphertext
 
-    return base64.b64encode(combined).decode('utf-8')
+    return base64.b64encode(combined).decode("utf-8")
 
 
 def decrypt_data(encrypted_text):
@@ -91,8 +98,80 @@ def decrypt_data(encrypted_text):
         cipher = AES.new(secret_key, AES.MODE_GCM, nonce=nonce)
         plain_text = cipher.decrypt_and_verify(ciphertext, tag)
 
-        return plain_text.decode('utf-8')
+        return plain_text.decode("utf-8")
 
     except (ValueError, KeyError, TypeError) as e:
         print(f"Decryption failed (likely old data or wrong key): {e}")
         return encrypted_text
+
+
+def make_audit_number():
+    import uuid
+
+    now = datetime.utcnow()
+    short_id = str(uuid.uuid4()).split("-")[0].upper()
+
+    return f"AUD-{now.strftime('%Y%m%d')}-{short_id}"
+
+
+def clean_audit_json(value):
+    import json
+
+    if value is None:
+        return {}
+
+    if isinstance(value, dict):
+        return value
+
+    try:
+        return json.loads(json.dumps(value, default=str))
+    except Exception:
+        return {"value": str(value)}
+
+
+def write_audit_log(user_id, action, old_values=None, new_values=None):
+    """
+    Jangan commit di helper ini.
+    Commit tetap di route utama.
+
+    Jadi kalau proses utama gagal dan rollback,
+    audit juga ikut rollback.
+    """
+
+    if not user_id:
+        return
+
+    import json
+    from sqlalchemy import text
+    from app import db
+
+    db.session.execute(
+        text(
+            """
+            INSERT INTO audit (
+                user_id,
+                audit_number,
+                times,
+                action,
+                old_values,
+                new_values
+            )
+            VALUES (
+                CAST(:user_id AS uuid),
+                :audit_number,
+                :times,
+                :action,
+                CAST(:old_values AS json),
+                CAST(:new_values AS json)
+            )
+            """
+        ),
+        {
+            "user_id": str(user_id),
+            "audit_number": make_audit_number(),
+            "times": datetime.utcnow(),
+            "action": action,
+            "old_values": json.dumps(clean_audit_json(old_values), default=str),
+            "new_values": json.dumps(clean_audit_json(new_values), default=str),
+        },
+    )

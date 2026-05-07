@@ -234,6 +234,9 @@ const ManagementSetting = () => {
     const [selectedRole, setSelectedRole] = useState<Role>('asisten');
     const [selectedIsActive, setSelectedIsActive] = useState(true);
 
+    const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+
     const [isLoading, setIsLoading] = useState(true);
     const [isSavingClinic, setIsSavingClinic] = useState(false);
     const [isCreatingAccount, setIsCreatingAccount] = useState(false);
@@ -429,6 +432,20 @@ const ManagementSetting = () => {
         return '';
     };
 
+    const openAccountModal = () => {
+        setAccountForm(emptyAccountForm);
+        setErrorMessage('');
+        setSuccessMessage('');
+        setIsAccountModalOpen(true);
+    };
+
+    const closeAccountModal = () => {
+        if (isCreatingAccount) return;
+
+        setIsAccountModalOpen(false);
+        setAccountForm(emptyAccountForm);
+    };
+
     const handleUpdateClinic = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
@@ -542,6 +559,7 @@ const ManagementSetting = () => {
             }
 
             setAccountForm(emptyAccountForm);
+            setIsAccountModalOpen(false);
             setSuccessMessage('Akun user berhasil dibuat');
             await fetchOverview();
         } catch (error) {
@@ -560,6 +578,7 @@ const ManagementSetting = () => {
         setSelectedEmployee(employee);
         setSelectedRole(employee.role || 'asisten');
         setSelectedIsActive(Boolean(employee.is_active));
+        setIsDeleteModalOpen(false);
         setErrorMessage('');
         setSuccessMessage('');
     };
@@ -567,7 +586,22 @@ const ManagementSetting = () => {
     const closeEmployeeDetail = () => {
         if (isSavingEmployee) return;
 
+        setIsDeleteModalOpen(false);
         setSelectedEmployee(null);
+    };
+
+    const openDeleteModal = () => {
+        if (!selectedEmployee) return;
+
+        setErrorMessage('');
+        setSuccessMessage('');
+        setIsDeleteModalOpen(true);
+    };
+
+    const closeDeleteModal = () => {
+        if (isSavingEmployee) return;
+
+        setIsDeleteModalOpen(false);
     };
 
     const handleSaveEmployee = async () => {
@@ -629,12 +663,6 @@ const ManagementSetting = () => {
     const handleRemoveEmployee = async () => {
         if (!selectedEmployee) return;
 
-        const confirmed = window.confirm(
-            `Remove ${selectedEmployee.fullname} from this clinic? Akun akan dinonaktifkan dan dilepas dari klinik.`,
-        );
-
-        if (!confirmed) return;
-
         try {
             setIsSavingEmployee(true);
             setErrorMessage('');
@@ -665,12 +693,17 @@ const ManagementSetting = () => {
                 return;
             }
 
+            if (response.status === 400 || response.status === 403) {
+                throw new Error(data?.msg || 'User ini tidak bisa dihapus');
+            }
+
             if (!response.ok) {
                 throw new Error(data?.msg || 'Gagal menghapus user');
             }
 
+            setIsDeleteModalOpen(false);
             setSelectedEmployee(null);
-            setSuccessMessage('User berhasil dilepas dari klinik');
+            setSuccessMessage('User berhasil dinonaktifkan dan dilepas dari klinik');
             await fetchOverview();
         } catch (error) {
             const message =
@@ -775,135 +808,22 @@ const ManagementSetting = () => {
 
                                 <section className="mt-[26px] box-border w-full rounded-l-[8px] border border-r-0 border-[#D2D8CF] bg-white px-4 py-[26px] shadow-sm sm:px-[30px]">
                                     <h2 className="text-[18px] font-bold leading-none text-black">
-                                        Add Account
-                                    </h2>
-
-                                    <p className="mt-[8px] text-[11px] text-black">
-                                        User tidak bisa membuat akun sendiri. Admin membuat akun login baru dari form ini.
-                                    </p>
-
-                                    <form
-                                        onSubmit={handleCreateAccount}
-                                        className="mt-[22px] grid w-full min-w-0 grid-cols-1 gap-x-[42px] gap-y-[14px] md:grid-cols-2 xl:grid-cols-3"
-                                    >
-                                        <label className="block min-w-0">
-                                            <span className="text-[11px] font-bold text-black">
-                                                Full Name
-                                            </span>
-                                            <input
-                                                type="text"
-                                                name="fullname"
-                                                value={accountForm.fullname}
-                                                onChange={handleAccountChange}
-                                                className={inputClassName}
-                                            />
-                                        </label>
-
-                                        <label className="block min-w-0">
-                                            <span className="text-[11px] font-bold text-black">
-                                                Email
-                                            </span>
-                                            <input
-                                                type="email"
-                                                name="email"
-                                                value={accountForm.email}
-                                                onChange={handleAccountChange}
-                                                className={inputClassName}
-                                            />
-                                        </label>
-
-                                        <label className="block min-w-0">
-                                            <span className="text-[11px] font-bold text-black">
-                                                STR Number
-                                            </span>
-                                            <input
-                                                type="text"
-                                                name="strnumber"
-                                                value={accountForm.strnumber}
-                                                onChange={handleAccountChange}
-                                                className={inputClassName}
-                                            />
-                                        </label>
-
-                                        <label className="block min-w-0">
-                                            <span className="text-[11px] font-bold text-black">
-                                                Password
-                                            </span>
-                                            <input
-                                                type="password"
-                                                name="password"
-                                                value={accountForm.password}
-                                                onChange={handleAccountChange}
-                                                className={inputClassName}
-                                            />
-                                        </label>
-
-                                        <label className="block min-w-0">
-                                            <span className="text-[11px] font-bold text-black">
-                                                Confirm Password
-                                            </span>
-                                            <input
-                                                type="password"
-                                                name="confirmPassword"
-                                                value={accountForm.confirmPassword}
-                                                onChange={handleAccountChange}
-                                                className={inputClassName}
-                                            />
-                                        </label>
-
-                                        <label className="block min-w-0">
-                                            <span className="text-[11px] font-bold text-black">
-                                                Role
-                                            </span>
-                                            <select
-                                                name="role"
-                                                value={accountForm.role}
-                                                onChange={handleAccountChange}
-                                                className={inputClassName}
-                                            >
-                                                {roleOptions.map((role) => (
-                                                    <option key={role.value} value={role.value}>
-                                                        {role.label}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </label>
-
-                                        <label className="block min-w-0">
-                                            <span className="text-[11px] font-bold text-black">
-                                                Status
-                                            </span>
-                                            <select
-                                                name="isActive"
-                                                value={accountForm.isActive ? 'active' : 'inactive'}
-                                                onChange={handleAccountChange}
-                                                className={inputClassName}
-                                            >
-                                                <option value="active">Active</option>
-                                                <option value="inactive">Inactive</option>
-                                            </select>
-                                        </label>
-
-                                        <div className="flex items-end">
-                                            <button
-                                                type="submit"
-                                                disabled={isCreatingAccount}
-                                                className="h-[34px] rounded-[50px] bg-[#86A789] px-[22px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-70"
-                                            >
-                                                {isCreatingAccount ? 'Creating...' : 'Create Account'}
-                                            </button>
-                                        </div>
-                                    </form>
-                                </section>
-
-                                <section className="mt-[26px] box-border w-full rounded-l-[8px] border border-r-0 border-[#D2D8CF] bg-white px-4 py-[26px] shadow-sm sm:px-[30px]">
-                                    <h2 className="text-[18px] font-bold leading-none text-black">
                                         User Access
                                     </h2>
 
                                     <p className="mt-[8px] text-[11px] text-black">
                                         Kelola akun admin, midwife, dan asisten yang terhubung ke klinik.
                                     </p>
+
+                                    <div className="mt-[14px]">
+                                        <button
+                                            type="button"
+                                            onClick={openAccountModal}
+                                            className="h-[34px] rounded-[50px] bg-[#86A789] px-[22px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-70"
+                                        >
+                                            Add Account
+                                        </button>
+                                    </div>
 
                                     <div className="mt-[22px] grid w-full min-w-0 grid-cols-1 gap-[12px] lg:grid-cols-[1fr_180px_180px]">
                                         <input
@@ -1118,6 +1038,159 @@ const ManagementSetting = () => {
                 </main>
             </div>
 
+            {isAccountModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-6">
+                    <div className="relative box-border w-full max-w-[560px] overflow-hidden rounded-[16px] border border-[#D2E3C8] bg-[#FDFEF9] shadow-2xl">
+                        <button
+                            type="button"
+                            onClick={closeAccountModal}
+                            disabled={isCreatingAccount}
+                            className="absolute right-[18px] top-[16px] z-10 flex h-[28px] w-[28px] items-center justify-center rounded-full text-[22px] leading-none text-[#2F2F2F] transition-all hover:bg-[#EEF3EA] disabled:cursor-not-allowed disabled:opacity-60"
+                            aria-label="Close add account"
+                        >
+                            ×
+                        </button>
+
+                        <div className="bg-white px-[26px] pb-[20px] pt-[30px] text-center">
+                            <div className="mx-auto flex h-[72px] w-[72px] items-center justify-center rounded-full bg-[#D2E3C8] text-[26px] font-bold text-[#4F6F52] shadow-sm">
+                                +
+                            </div>
+
+                            <h2 className="mt-[16px] text-[24px] font-bold leading-tight text-[#4F6F52]">
+                                Add Account
+                            </h2>
+
+                            <p className="mt-[8px] text-[12px] text-[#444444]">
+                                Buat akun login baru untuk user klinik.
+                            </p>
+                        </div>
+
+                        <form onSubmit={handleCreateAccount} className="px-[26px] pb-[26px]">
+                            <div className="rounded-[10px] border border-[#E4E8E1] bg-[#F8FAF6] p-[16px]">
+                                <div className="grid grid-cols-1 gap-[12px] sm:grid-cols-2">
+                                    <label className="block min-w-0">
+                                        <span className="text-[11px] font-bold text-black">
+                                            Full Name
+                                        </span>
+                                        <input
+                                            type="text"
+                                            name="fullname"
+                                            value={accountForm.fullname}
+                                            onChange={handleAccountChange}
+                                            className={inputClassName}
+                                        />
+                                    </label>
+
+                                    <label className="block min-w-0">
+                                        <span className="text-[11px] font-bold text-black">
+                                            Email
+                                        </span>
+                                        <input
+                                            type="email"
+                                            name="email"
+                                            value={accountForm.email}
+                                            onChange={handleAccountChange}
+                                            className={inputClassName}
+                                        />
+                                    </label>
+
+                                    <label className="block min-w-0">
+                                        <span className="text-[11px] font-bold text-black">
+                                            STR Number
+                                        </span>
+                                        <input
+                                            type="text"
+                                            name="strnumber"
+                                            value={accountForm.strnumber}
+                                            onChange={handleAccountChange}
+                                            className={inputClassName}
+                                        />
+                                    </label>
+
+                                    <label className="block min-w-0">
+                                        <span className="text-[11px] font-bold text-black">
+                                            Role
+                                        </span>
+                                        <select
+                                            name="role"
+                                            value={accountForm.role}
+                                            onChange={handleAccountChange}
+                                            className={inputClassName}
+                                        >
+                                            {roleOptions.map((role) => (
+                                                <option key={role.value} value={role.value}>
+                                                    {role.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </label>
+
+                                    <label className="block min-w-0">
+                                        <span className="text-[11px] font-bold text-black">
+                                            Password
+                                        </span>
+                                        <input
+                                            type="password"
+                                            name="password"
+                                            value={accountForm.password}
+                                            onChange={handleAccountChange}
+                                            className={inputClassName}
+                                        />
+                                    </label>
+
+                                    <label className="block min-w-0">
+                                        <span className="text-[11px] font-bold text-black">
+                                            Confirm Password
+                                        </span>
+                                        <input
+                                            type="password"
+                                            name="confirmPassword"
+                                            value={accountForm.confirmPassword}
+                                            onChange={handleAccountChange}
+                                            className={inputClassName}
+                                        />
+                                    </label>
+
+                                    <label className="block min-w-0">
+                                        <span className="text-[11px] font-bold text-black">
+                                            Status
+                                        </span>
+                                        <select
+                                            name="isActive"
+                                            value={accountForm.isActive ? 'active' : 'inactive'}
+                                            onChange={handleAccountChange}
+                                            className={inputClassName}
+                                        >
+                                            <option value="active">Active</option>
+                                            <option value="inactive">Inactive</option>
+                                        </select>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div className="mt-[22px] flex items-center justify-end gap-[10px]">
+                                <button
+                                    type="button"
+                                    onClick={closeAccountModal}
+                                    disabled={isCreatingAccount}
+                                    className="h-[36px] rounded-[50px] border border-[#BFC7BB] bg-white px-[18px] text-[12px] font-bold text-black transition-all hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    Cancel
+                                </button>
+
+                                <button
+                                    type="submit"
+                                    disabled={isCreatingAccount}
+                                    className="h-[36px] rounded-[50px] bg-[#86A789] px-[20px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    {isCreatingAccount ? 'Creating...' : 'Create Account'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             {selectedEmployee && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-6">
                     <div className="relative box-border w-full max-w-[560px] overflow-hidden rounded-[16px] border border-[#D2E3C8] bg-[#FDFEF9] shadow-2xl">
@@ -1252,7 +1325,7 @@ const ManagementSetting = () => {
                             <div className="mt-[22px] flex flex-col-reverse gap-[10px] sm:flex-row sm:items-center sm:justify-between">
                                 <button
                                     type="button"
-                                    onClick={handleRemoveEmployee}
+                                    onClick={openDeleteModal}
                                     disabled={selectedEmployee.is_current_user || isSavingEmployee}
                                     className="h-[36px] rounded-[50px] border border-red-200 bg-white px-[18px] text-[12px] font-bold text-red-600 transition-all hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
@@ -1278,6 +1351,76 @@ const ManagementSetting = () => {
                                         {isSavingEmployee ? 'Saving...' : 'Save Changes'}
                                     </button>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isDeleteModalOpen && selectedEmployee && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4 py-6">
+                    <div className="relative box-border w-full max-w-[460px] overflow-hidden rounded-[18px] border border-red-100 bg-[#FDFEF9] shadow-2xl">
+                        <button
+                            type="button"
+                            onClick={closeDeleteModal}
+                            disabled={isSavingEmployee}
+                            className="absolute right-[18px] top-[16px] z-10 flex h-[28px] w-[28px] items-center justify-center rounded-full text-[22px] leading-none text-[#2F2F2F] transition-all hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            aria-label="Close delete confirmation"
+                        >
+                            ×
+                        </button>
+
+                        <div className="bg-white px-[26px] pb-[20px] pt-[30px] text-center">
+                            <div className="mx-auto flex h-[72px] w-[72px] items-center justify-center rounded-full bg-red-50 text-[30px] font-bold text-red-600 shadow-sm">
+                                !
+                            </div>
+
+                            <h2 className="mt-[16px] text-[23px] font-bold leading-tight text-red-600">
+                                Hapus Akses User?
+                            </h2>
+
+                            <p className="mt-[8px] text-[12px] leading-relaxed text-[#444444]">
+                                Apakah kamu yakin ingin menghapus akses akun ini dari klinik?
+                            </p>
+                        </div>
+
+                        <div className="px-[26px] pb-[26px]">
+                            <div className="rounded-[10px] border border-red-100 bg-red-50 px-[16px] py-[14px]">
+                                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-red-600">
+                                    User yang akan dihapus
+                                </p>
+
+                                <p className="mt-[8px] text-[14px] font-bold text-black">
+                                    {selectedEmployee.fullname}
+                                </p>
+
+                                <p className="mt-[4px] break-all text-[12px] font-medium text-[#5F5F5F]">
+                                    {selectedEmployee.email}
+                                </p>
+
+                                <p className="mt-[8px] text-[11px] font-semibold text-red-600">
+                                    Akun akan dinonaktifkan dan dilepas dari klinik. Data audit tetap tersimpan.
+                                </p>
+                            </div>
+
+                            <div className="mt-[22px] flex flex-col-reverse gap-[10px] sm:flex-row sm:items-center sm:justify-end">
+                                <button
+                                    type="button"
+                                    onClick={closeDeleteModal}
+                                    disabled={isSavingEmployee}
+                                    className="h-[36px] rounded-[50px] border border-[#BFC7BB] bg-white px-[18px] text-[12px] font-bold text-black transition-all hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    Cancel
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={handleRemoveEmployee}
+                                    disabled={isSavingEmployee}
+                                    className="h-[36px] rounded-[50px] bg-red-600 px-[20px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    {isSavingEmployee ? 'Removing...' : 'Yes, Remove User'}
+                                </button>
                             </div>
                         </div>
                     </div>
