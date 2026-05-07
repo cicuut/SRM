@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
@@ -28,6 +28,7 @@ type UserData = {
     strnumber?: string | null;
     clinic_id?: string | null;
     is_active?: boolean;
+    profile_photo?: string | null;
     created_at?: string | null;
     last_login?: string | null;
 };
@@ -73,8 +74,6 @@ type InfoItemProps = {
 
 type ClinicSummaryProps = {
     clinic: ClinicData | null;
-    canOpenManagement: boolean;
-    onOpenManagement: () => void;
 };
 
 const emptyFormData: AccountFormData = {
@@ -271,34 +270,17 @@ const SectionCard = ({
     );
 };
 
-const ClinicSummary = ({
-    clinic,
-    canOpenManagement,
-    onOpenManagement,
-}: ClinicSummaryProps) => {
+const ClinicSummary = ({ clinic }: ClinicSummaryProps) => {
     return (
         <section className="mt-[26px] box-border w-full max-w-full rounded-[8px] border border-[#D2D8CF] bg-white px-4 py-[28px] shadow-sm sm:px-[30px]">
-            <div className="flex flex-col gap-[14px] lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                    <h2 className="text-[16px] leading-none font-bold text-black">
-                        Clinic Summary
-                    </h2>
+            <div>
+                <h2 className="text-[16px] leading-none font-bold text-black">
+                    Clinic Summary
+                </h2>
 
-                    <p className="mt-[8px] text-[10px] leading-snug text-black">
-                        Data klinik ditampilkan di sini sebagai informasi akun.
-                        Untuk mengubah data klinik, gunakan Management Setting.
-                    </p>
-                </div>
-
-                {canOpenManagement && (
-                    <button
-                        type="button"
-                        onClick={onOpenManagement}
-                        className="h-[34px] shrink-0 rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072]"
-                    >
-                        Open Management Setting
-                    </button>
-                )}
+                <p className="mt-[8px] text-[10px] leading-snug text-black">
+                    Data klinik ditampilkan di sini sebagai informasi akun.
+                </p>
             </div>
 
             <div className="mt-[22px] grid w-full min-w-0 grid-cols-1 gap-x-[52px] gap-y-[16px] md:grid-cols-2">
@@ -320,21 +302,22 @@ const ClinicSummary = ({
 
 const AccountSetting = () => {
     const router = useRouter();
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
 
     const [formData, setFormData] =
         useState<AccountFormData>(emptyFormData);
     const [clinic, setClinic] = useState<ClinicData | null>(null);
+    const [profilePhoto, setProfilePhoto] = useState('');
 
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isUpdatingPhoto, setIsUpdatingPhoto] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
 
     const displayName = formData.fullname || 'User';
     const displayRole = formatRole(formData.role);
     const initials = getInitials(displayName);
-
-    const canOpenManagement = formData.role.toLowerCase() === 'admin';
 
     const getToken = () => {
         return Cookies.get('access_token');
@@ -348,6 +331,7 @@ const AccountSetting = () => {
         localStorage.removeItem('user_email');
         localStorage.removeItem('user_role');
         localStorage.removeItem('clinic_id');
+        localStorage.removeItem('profile_photo');
 
         router.push('/login');
     };
@@ -362,6 +346,11 @@ const AccountSetting = () => {
         localStorage.setItem('user_email', data.user.email || '');
         localStorage.setItem('user_role', role || '');
         localStorage.setItem('clinic_id', data.user.clinic_id || '');
+
+        if (data.user.profile_photo) {
+            localStorage.setItem('profile_photo', data.user.profile_photo);
+            setProfilePhoto(data.user.profile_photo);
+        }
     };
 
     const fetchAccountData = async () => {
@@ -369,6 +358,9 @@ const AccountSetting = () => {
             setIsLoading(true);
             setErrorMessage('');
             setSuccessMessage('');
+
+            const savedPhoto = localStorage.getItem('profile_photo') || '';
+            setProfilePhoto(savedPhoto);
 
             const token = getToken();
 
@@ -551,6 +543,60 @@ const AccountSetting = () => {
         }
     };
 
+    const handleUpdatePhotoClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handlePhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            setErrorMessage('File harus berupa gambar');
+            event.target.value = '';
+            return;
+        }
+
+        if (file.size > 2 * 1024 * 1024) {
+            setErrorMessage('Ukuran foto maksimal 2MB');
+            event.target.value = '';
+            return;
+        }
+
+        try {
+            setIsUpdatingPhoto(true);
+            setErrorMessage('');
+            setSuccessMessage('');
+
+            const reader = new FileReader();
+
+            reader.onload = () => {
+                const result = String(reader.result || '');
+
+                setProfilePhoto(result);
+                localStorage.setItem('profile_photo', result);
+                window.dispatchEvent(new Event('profile-photo-updated'));
+
+                setSuccessMessage('Profile photo berhasil diperbarui');
+                setIsUpdatingPhoto(false);
+                event.target.value = '';
+            };
+
+            reader.onerror = () => {
+                setErrorMessage('Gagal membaca file gambar');
+                setIsUpdatingPhoto(false);
+                event.target.value = '';
+            };
+
+            reader.readAsDataURL(file);
+        } catch {
+            setErrorMessage('Terjadi kesalahan saat update photo');
+            setIsUpdatingPhoto(false);
+            event.target.value = '';
+        }
+    };
+
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
@@ -614,7 +660,15 @@ const AccountSetting = () => {
                         <div className="mt-[28px] box-border flex min-h-[104px] w-full max-w-full flex-col gap-[18px] rounded-l-[8px] bg-[#86A789] px-4 py-[22px] shadow-md sm:px-[38px] lg:flex-row lg:items-center lg:justify-between">
                             <div className="flex min-w-0 items-center gap-[22px]">
                                 <div className="relative flex h-[64px] w-[64px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#FDFEF9] text-[24px] font-bold text-[#5F785F]">
-                                    <span>{initials}</span>
+                                    {profilePhoto ? (
+                                        <img
+                                            src={profilePhoto}
+                                            alt="Profile photo"
+                                            className="h-full w-full object-cover"
+                                        />
+                                    ) : (
+                                        <span>{initials}</span>
+                                    )}
                                 </div>
 
                                 <div className="min-w-0">
@@ -636,17 +690,24 @@ const AccountSetting = () => {
                             </div>
 
                             <div className="flex flex-wrap items-center gap-[12px] lg:justify-end">
-                                {canOpenManagement && (
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            router.push('/management-setting')
-                                        }
-                                        className="h-[32px] shrink-0 rounded-[50px] bg-white px-[18px] text-[12px] font-bold text-[#5F785F] shadow-sm transition-all hover:bg-[#F4F4F4]"
-                                    >
-                                        Management Setting
-                                    </button>
-                                )}
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handlePhotoChange}
+                                    className="hidden"
+                                />
+
+                                <button
+                                    type="button"
+                                    onClick={handleUpdatePhotoClick}
+                                    disabled={isUpdatingPhoto || isLoading}
+                                    className="h-[32px] shrink-0 rounded-[50px] bg-white px-[18px] text-[12px] font-bold text-[#5F785F] shadow-sm transition-all hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-70"
+                                >
+                                    {isUpdatingPhoto
+                                        ? 'Updating...'
+                                        : 'Update Photo'}
+                                </button>
                             </div>
                         </div>
 
@@ -681,13 +742,7 @@ const AccountSetting = () => {
                                     className="min-h-[220px] rounded-r-none"
                                 />
 
-                                <ClinicSummary
-                                    clinic={clinic}
-                                    canOpenManagement={canOpenManagement}
-                                    onOpenManagement={() =>
-                                        router.push('/management-setting')
-                                    }
-                                />
+                                <ClinicSummary clinic={clinic} />
 
                                 <SectionCard
                                     title="Change Password"
