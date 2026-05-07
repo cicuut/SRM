@@ -254,7 +254,7 @@ def add_visit_familyplanning():
             weight_kg= clean_float(data.get('weight')),
             blood_pressure = data.get('blood_pressure'),
             kb_method=data.get('contraceptive_method'),
-            return_visit_date=format_date(data.get('return_visit_date')),
+            return_visit_date=data.get('return_visit_date'),
             complaint=data.get('complaint')
         )
         
@@ -291,9 +291,9 @@ def get_familyplanning_visit(uuid):
         return jsonify({
             "complaint": decrypted_complaint,
             "weight_kg": clean_float(current_familyplanning_visit.weight_kg),
-            "height_cm": clean_float(current_familyplanning_visit.height_cm),
+            "blood_pressure": clean_float(current_familyplanning_visit.blood_pressure),
             "contraceptive_method": current_familyplanning_visit.kb_method,
-            "return_visit_date": current_familyplanning_visit.return_visit_date.strftime('%Y-%m-%d') if current_familyplanning_visit.return_visit_date else None
+            "return_visit_date": format_date(current_familyplanning_visit.return_visit_date) if current_familyplanning_visit.return_visit_date else None
         }), 200
 
     except Exception as e:

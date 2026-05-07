@@ -9,7 +9,7 @@ import api from "@/utils/app";
 
 interface VisitFamilyPlanningDetailProps {
     weight_kg?: string;
-    height_cm?: string;
+    blood_pressure?: string;
     contraceptive_method?: string;
     complaint?: string;
     return_visit_date?: string;
@@ -58,9 +58,9 @@ const VisitFamilyPlanningDetail = () => {
                     </div>
                 </div>
                 <div className="flex flex-col text-sm gap-2 min-w-[200px]">
-                    <label className="block mb-1 font-bold text-black">Tinggi Badan</label>
+                    <label className="block mb-1 font-bold text-black">Tekanan Darah</label>
                     <div className="w-full  p-2 overflow-y-auto text-wrap rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-                        {visitFamilyPlanningDetail?.height_cm}
+                        {visitFamilyPlanningDetail?.blood_pressure}
                     </div>
                 </div>
             </div>

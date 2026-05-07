@@ -101,7 +101,7 @@ const VisitFamilyPlanningAccordition = () => {
                                     <tr>
                                         <td>Tekanan Darah</td>
                                         <td> : </td>
-                                        <td>{visitFamilyPlanning.blood_pressure} cm</td>
+                                        <td>{visitFamilyPlanning.blood_pressure}</td>
                                     </tr>
                                     <tr>
                                         <td>Metode KB</td>

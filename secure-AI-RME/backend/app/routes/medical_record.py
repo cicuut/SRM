@@ -105,8 +105,8 @@ def add_pregnancy_record():
             record_id=new_record.record_id,
             contraceptive_history=data.get('contraceptive_history'),
             family_med_history=data.get('family_med_history'),
-            last_menstrual_period=data.get('last_menstrual_period'),
-            expected_due_date=data.get('expected_due_date'),
+            last_menstrual_period=clean_float(data.get('last_menstrual_period')),
+            expected_due_date=clean_float(data.get('expected_due_date')),
             diagnosis=data.get('diagnosis'),
             registration_date = clean_float(data.get('registration_date')),
             height_cm=clean_float(data.get('height_cm')),
@@ -493,7 +493,7 @@ def add_delivery_record():
          # Add Delivery record
         new_delivery_record = DeliveryRecord(
             record_id=new_record.record_id,
-            delivery_date = format_date(data.get('delivery_date')),
+            delivery_date = clean_float(data.get('delivery_date')),
             delivery_type = data.get('delivery_type'),
             deliver_complications = data.get('deliver_complications'),
             baby_gender = data.get('baby_gender'),
