@@ -55,7 +55,7 @@ const Signin = () => {
                     text: "Berhasil menambahkan pengguna",
                     icon: "success",
                     timer: 2000,
-                    confirmButtonColor: "#739072" 
+                    showConfirmButton: false
                 });
 
                 if (data.user_id) {

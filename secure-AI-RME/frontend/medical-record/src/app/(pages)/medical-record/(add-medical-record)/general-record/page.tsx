@@ -27,7 +27,7 @@ const GeneralRecord = () => {
     const fetchRmNumber = async () => {
         try {
         const response = await api.get(
-                `i/medical-record/rm-number?type=${recordType}`);
+                `/medical-record/rm-number?type=${recordType}`);
             setRmNumber(response.data.next_rm_number);
         } catch (error) {
             console.error("Error fetching RM number:", error);

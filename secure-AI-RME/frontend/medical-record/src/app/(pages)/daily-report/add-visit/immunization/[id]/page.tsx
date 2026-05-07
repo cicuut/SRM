@@ -56,7 +56,7 @@ const AddVisitImmunization = () => {
             if (!uuid) return;
             try {
                 const response = await api.get(`/visit-report/get-visit-information?uuid=${uuid}`);
-                const data = response.data();
+                const data = response.data;
                 setData(data);
             } catch (err: any) {
                 setError(err.message);
@@ -99,15 +99,15 @@ const AddVisitImmunization = () => {
                 abdominal_circumference: abdominalCircumference,
                 dosage_given: dosage_given
             };
-            const response = await api.post("/visit-report/add-visit-immunization", payload );
+            const response = await api.post(`/visit-report/add-visit-immunization`, payload );
 
             if (response.status === 201) {
-                Swal.fire({
+                await Swal.fire({
                     title: "Success",
                     text: "Data Imunisasi berhasil disimpan!",
                     icon: "success",
                      showConfirmButton: false,
-                timer: 2000
+                    timer: 2000
                 });
                 fetchVisitNumber();
 
@@ -194,25 +194,25 @@ const AddVisitImmunization = () => {
             <div className="flex-1 flex flex-row py-5 gap-6">
                 <div className="flex flex-col flex-1 text-sm gap-2">
                     <label className="block mb-1 font-bold text-black">Berat</label>
-                    <input type="text" name="weight" value={weight} onChange={(e) => setWeight(e.target.value)} id="weight" className="w-full p-2 h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                    <input type="number"  placeholder="Tanpa satuan"  name="weight" value={weight} onChange={(e) => setWeight(e.target.value)} id="weight" className="w-full p-2 h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                 </div>
                 <div className="flex flex-col flex-1 text-sm gap-2 ">
                     <label className="block mb-1 font-bold text-black">Tinggi</label>
-                    <input type="text" name="height" value={height} onChange={(e) => setHeight(e.target.value)} id="height" className="w-full p-2 h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                    <input type="number" placeholder="Tanpa satuan" name="height" value={height} onChange={(e) => setHeight(e.target.value)} id="height" className="w-full p-2 h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                 </div>
                 <div className="flex flex-col flex-1 text-sm gap-2">
                     <label className="block mb-1 font-bold text-black">Suhu Tubuh</label>
-                    <input type="text" name="temperature" value={temperature} onChange={(e) => setTemperature(e.target.value)} id="temperature" className="w-full p-2 h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                    <input type="number"  placeholder="Tanpa satuan" name="temperature" value={temperature} onChange={(e) => setTemperature(e.target.value)} id="temperature" className="w-full p-2 h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                 </div>
             </div>
             <div className="flex-1 flex flex-row py-5 gap-6">
                 <div className="flex flex-col flex-1 text-sm gap-2">
                     <label className="block mb-1 font-bold text-black">Lingkar Kepala</label>
-                    <input type="text" name="head_circumference" value={headCircumference} onChange={(e) => setHeadCircumference(e.target.value)} id="head_circumference" className="w-full p-2 h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                    <input type="number"  placeholder="Tanpa satuan" name="head_circumference" value={headCircumference} onChange={(e) => setHeadCircumference(e.target.value)} id="head_circumference" className="w-full p-2 h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                 </div>
                 <div className="flex flex-col flex-1 text-sm gap-2 ">
                     <label className="block mb-1 font-bold text-black">Lingkar Perut</label>
-                    <input type="text" name="abdominal_circumference" value={abdominalCircumference} onChange={(e) => setAbdominalCircumference(e.target.value)} id="abdominal_circumference" className="w-full p-2 h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                    <input type="number"  placeholder="Tanpa satuan" name="abdominal_circumference" value={abdominalCircumference} onChange={(e) => setAbdominalCircumference(e.target.value)} id="abdominal_circumference" className="w-full p-2 h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                 </div>
             </div>
             <div className="border-b-2 text-[#D9D9D9] font-bold"> <p className="text-sm border-b-2 w-fit border-[#739072] text-[#739072] font-bold">Pemberian Imunisasi</p></div>

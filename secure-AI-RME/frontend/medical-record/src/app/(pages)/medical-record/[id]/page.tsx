@@ -20,13 +20,15 @@ export default function MedicalRecordDetailPage() {
     useEffect(() => {
         const fetchDetail = async () => {
             try {
+                setLoading(true);
                 const respons = await api.get(`/medical-record/get-record/${id}`);
-                if (respons.status === 2000) {
-                    const data = respons.data();
+                if (respons.status === 200) {
+                    const data = respons.data;
                     setRecord(data);
                 }
             } catch (err: any) {
-                setError(err.message);
+               console.error(err);
+            setError(err.response?.data?.msg || err.message);
             } finally {
                 setLoading(false);
             }

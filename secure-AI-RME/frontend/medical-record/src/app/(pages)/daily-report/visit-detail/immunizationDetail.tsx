@@ -32,7 +32,7 @@ const VisitImmunizationDetail = () => {
                 const response = await api.get(
                     `/visit-report/get-visit-immunization/${uuid}`
                 );
-                const data =response.data();
+                const data =response.data;
                 setVisitImmunizationDetail(data);
             } catch (err: any) {
                 setError(err.message);

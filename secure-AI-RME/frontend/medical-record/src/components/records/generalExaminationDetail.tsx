@@ -29,7 +29,7 @@ const GeneralExainationDetail = () => {
             if (!uuid) return;
             try {
                 const response = await api.get(`/medical-record/get-pregnancy-record-data/${uuid}` );
-                const data = response.data();
+                const data = response.data;
                 setData(data);
             }catch (err: any) {
             const msg = err.response?.data?.msg || err.message || "Terjadi kesalahan";

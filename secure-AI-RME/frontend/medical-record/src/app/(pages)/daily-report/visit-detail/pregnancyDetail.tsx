@@ -32,9 +32,10 @@ const VisitPregnancyDetail = () => {
       if (!uuid) return;
       try {
         const response = await api.get(
-          `/visit-report/get-visit-pregnancy/${uuid}` );
+          `/visit-report/get-visit-pregnancy/${uuid}`
+        );
 
-        const data =response.data();
+        const data =response.data;
         setVisitPregnancyDetail(data);
       } catch (err: any) {
         setError(err.message);
@@ -48,7 +49,7 @@ const VisitPregnancyDetail = () => {
 
   if (loading)
     return (
-      <div className="p-8 text-center text-blue-600 animate-pulse">
+      <div className="p-8 text-center text-[#739072] animate-pulse">
         Sedang mengambil data medis...
       </div>
     );

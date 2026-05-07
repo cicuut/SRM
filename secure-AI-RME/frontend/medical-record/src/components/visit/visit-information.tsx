@@ -29,7 +29,7 @@ const VisitInformation = () => {
         const response = await api.get(
           `/visit-report/get-visit-data/${uuid}`
         );
-        const data = response.data();
+        const data = response.data;
         setVisitData(data);
       } catch (err: any) {
         setError(err.message);

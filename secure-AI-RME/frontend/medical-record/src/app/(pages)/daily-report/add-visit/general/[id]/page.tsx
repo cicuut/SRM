@@ -52,7 +52,7 @@ const AddVisitGeneral = () => {
             if (!uuid) return;
             try {
                 const response = await api.get(`/visit-report/get-visit-information?uuid=${uuid}`);
-                const data = response.data();
+                const data = response.data;
                 setData(data);
             } catch (err: any) {
                 setError(err.message);

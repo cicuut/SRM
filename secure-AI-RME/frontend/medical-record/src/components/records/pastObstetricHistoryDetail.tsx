@@ -22,7 +22,8 @@ interface PastObstetricHistoryDetailList {
     pregnancy_complications?: string;
     delivery_mode?: string;
     delivery_complications?: string;
-    baby_weight_height?: string;
+    baby_weight?: string;
+    baby_height?: string;
     baby_complications?: string;
     postpartum_status?: string;
     postpartum_complications?: string;
@@ -41,7 +42,7 @@ const PastObstecticHistoryDetail = () => {
             if (!uuid) return;
             try {
                 const response = await api.get(`/medical-record/get-pregnancy-record-data/${uuid}`);
-                const data = response.data();
+                const data = response.data;
                 setData(data);
             } catch (err: any) {
             const msg = err.response?.data?.msg || err.message || "Terjadi kesalahan";
@@ -104,9 +105,29 @@ const PastObstecticHistoryDetail = () => {
                                     </div>
                                 </div>
                                 <div className="flex flex-row w-full gap-20 justify-between">
-                                    <div className="flex flex-col flex-1 gap-1 ">
-                                        Berat dan Panjang Badan Bayi
-                                        <input type="text" value={item.baby_weight_height} readOnly className="p-2 w-full h-8 rounded-md bg-white  border border-gray-300 focus:outline-none" />
+                                 
+                                     <div className="flex flex-row flex-1 gap-3 text-sm">
+                        <div className="flex flex-col flex-1">
+                          {" "}
+                          Berat Badan Bayi (kg)
+                          <input
+                            type="text"
+                            value={item.baby_weight}
+                             readOnly
+                          className="p-2 w-full h-8 rounded-md bg-white  border border-gray-300 focus:outline-none"
+                          />
+                        </div>
+                        <div className="flex flex-col flex-1">
+                          {" "}
+                          Panjang Badan Bayi (cm)
+                          <input
+                            type="text"
+                           readOnly
+                            value={item.baby_height}
+                          className="p-2 w-full h-8 rounded-md bg-white  border border-gray-300 focus:outline-none"
+                          />
+                        </div>
+                      
                                     </div>
                                     <div className="flex flex-col flex-1 gap-1 ">
                                         Masa Nifas

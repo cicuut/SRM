@@ -20,7 +20,7 @@ export default function VisitDetailPage() {
             try {
                 const response = await api.get(`/visit-report/get-visit-report/${id}`);
                 if (response.status === 200) {
-                    const data = response.data();
+                    const data = response.data;
                     setVisit(data);
                 }
             } catch (err: any) {

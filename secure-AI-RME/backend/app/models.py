@@ -7,6 +7,7 @@ from app.utils import encrypt_data, decrypt_data
 from sqlalchemy.ext.hybrid import hybrid_property
 import sqlalchemy as sa
 from sqlalchemy.types import TypeDecorator, Text
+from sqlalchemy import text
 
 class EncryptedText(TypeDecorator):
     impl = Text
@@ -43,8 +44,16 @@ class User(db.Model):
     strnumber = db.Column(EncryptedText, nullable = True)
     email = db.Column(db.String(255), nullable=False)
     is_active = db.Column(db.Boolean, default=True)
-    last_login = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_login = db.Column(db.DateTime, 
+        nullable=False, 
+        server_default=text("timezone('Asia/Jakarta', now())")
+    )
+    created_at = db.Column(
+        db.DateTime, 
+        nullable=False, 
+        server_default=text("timezone('Asia/Jakarta', now())")
+    )
+    server_default=text("timezone('Asia/Jakarta', now())")
     
     def set_password(self, password):
       self.password_hash = bcrypt.hash(password[:72])
@@ -153,8 +162,8 @@ class DeliveryRecord(db.Model):
     delivery_type = db.Column(db.String(100), nullable=True)
     deliver_complications = db.Column(EncryptedText, nullable=True)
     baby_gender = db.Column(db.String(10), nullable=False)
-    baby_weight = db.Column(db.String(20), nullable=True)
-    baby_length = db.Column(db.String(20), nullable=True)
+    baby_weight = db.Column(db.Float, nullable=True)
+    baby_length = db.Column(db.Float, nullable=True)
     apgar_score = db.Column(db.String(10), nullable=True)
     baby_complications = db.Column(EncryptedText, nullable=True)
     vit_k_given = db.Column(db.Boolean, default=False, nullable=False)
@@ -196,8 +205,8 @@ class VisitMaster(db.Model):
     record_id = db.Column(db.String(36), db.ForeignKey('medical_record.record_id'), nullable=False)
     user_id = db.Column(db.String(36), db.ForeignKey('users.user_id'), nullable=False)
     visit_number = db.Column(db.String(20), unique=True, nullable=False)
-    visit_date = db.Column(db.DateTime, default=datetime.utcnow)
-    visit_time = db.Column(db.DateTime, default=datetime.utcnow)
+    visit_date = db.Column(db.Date, default=datetime.utcnow) 
+    visit_time = db.Column(db.DateTime(timezone=True), default=datetime.utcnow)
     
 class VisitPregnancy(db.Model):
     __tablename__ = 'pregnancy_visit'
@@ -222,8 +231,8 @@ class VisitFamilyPlanning(db.Model):
     visit_kb_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     visit_id = db.Column(db.String(36), db.ForeignKey('visit_master.visit_id'), nullable=False)
     kb_id = db.Column(db.String(36), db.ForeignKey('pregnancy_record.pr_id'), nullable=False)
-    weight_kg = db.Column(db.String(20), nullable=True)
-    blood_pressure = db.Column(db.String(20), nullable=True)
+    weight_kg = db.Column(db.Float, nullable=True)
+    blood_pressure = db.Column(db.String(10), nullable=True)
     kb_method = db.Column(db.String(50), nullable=True)
     return_visit_date = db.Column(db.Date, nullable=True)
     complaint = db.Column(EncryptedText, nullable=True)

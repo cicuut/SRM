@@ -2,7 +2,8 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from app.models import db, User, Clinic
 from datetime import datetime
-from app.utils import decrypt_data
+from app.utils import decrypt_data, format_date
+import pytz
 
 auth_bp = Blueprint ('auth', __name__)
 
@@ -13,6 +14,7 @@ def register():
     email = data.get('email')
     password = data.get('password')
     strnumber = data.get('strnumber')
+    
 
     #input validation
     if not fullname or not email or not password:
@@ -34,7 +36,8 @@ def register():
             strnumber=strnumber,
             user_role='owner',
             is_active=True,
-            clinic_id=None
+            clinic_id=None,
+           
         )
         new_user.set_password(password)
 
@@ -48,7 +51,7 @@ def register():
         return jsonify({
             "msg": "Registration Successful",
             "access_token": access_token,
-            "user_id": str(new_user.user_id)  
+            "user_id": str(new_user.user_id)  ,
         }), 201    
         
     except Exception as e:
@@ -138,6 +141,9 @@ def login():
         additional_claims = {"clinic_id": user.clinic_id}
         access_token = create_access_token(identity=str(user.user_id), additional_claims=additional_claims)
         
+        user.last_login = datetime.now()
+        db.session.commit()
+        
         return jsonify({
             "msg": "Login successful",
             "access_token": access_token,
@@ -145,7 +151,8 @@ def login():
                 "id": user.user_id,
                 "fullname": user.fullname,
                 "role": user.user_role,
-                "clinic_id": user.clinic_id
+                "clinic_id": user.clinic_id,
+                "last_login": user.last_login.strftime('%Y-%m-%d %H:%M:%S')
             }
         }), 200
 

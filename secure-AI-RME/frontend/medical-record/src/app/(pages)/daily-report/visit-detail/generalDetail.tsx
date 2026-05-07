@@ -28,7 +28,7 @@ const visitGeneralDetail = () => {
         const response = await api.get(
           `/visit-report/get-visit-general/${uuid}`,
         );
-        const data = response.data();
+        const data = response.data;
         setVisitGeneralDetail(data);
       } catch (err: any) {
         setError(err.message);
@@ -41,7 +41,7 @@ const visitGeneralDetail = () => {
 
   if (loading)
     return (
-      <div className="p-8 text-center text-blue-600 animate-pulse">
+      <div className="p-8 text-center  text-[#739072]  animate-pulse">
         Sedang mengambil data medis...
       </div>
     );

@@ -22,7 +22,7 @@ const Header = () => {
         "delivery-record": "Tambah Rekam Persalinan",
         "pregnancy": "Kehamilan",
         "add-visit": "Tambah Kunjungan",
-        "kb": "Keluarga Berencana",
+        "familyplanning": "Keluarga Berencana",
         "general": "Umum",
         "immunization": "Imunisasi",
         "delivery": "Persalinan"
@@ -50,13 +50,9 @@ const Header = () => {
                     return (
                         <React.Fragment key={url}>
                             <ChevronRight className="mx-1 opacity-50 size-8" />
-                            {isLast ? (
-                                <span className="underline cursor-pointer">{label}</span>
-                            ) : (
-                                <Link href={url} className="hover:opacity-80 transition-opacity underline">
-                                    {label}
-                                </Link>
-                            )}
+                            
+                                <span className="underline">{label}</span>
+                            
                         </React.Fragment>
                     );
                 })}

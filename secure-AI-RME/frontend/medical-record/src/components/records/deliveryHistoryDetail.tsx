@@ -9,7 +9,7 @@ import api from "@/utils/app";
 interface DeliverHistoryDetailList {
    delivery_date?: string;
    delivery_type?: string;
-   delivery_complications?: string;
+   deliver_complications?: string;
 }
 
 const DeliverHistoryDetail = () => {
@@ -24,7 +24,7 @@ const DeliverHistoryDetail = () => {
             if (!uuid) return;
             try {
                 const response = await api.get(`/medical-record/get-delivery-record-data/${uuid}` );
-                const data = response.data();
+                const data = response.data;
                 setData(data);
             } catch (err: any) {
             const msg = err.response?.data?.msg || err.message || "Terjadi kesalahan";
@@ -56,7 +56,7 @@ const DeliverHistoryDetail = () => {
                         <td colSpan={5}>:</td>
                     </tr>
                     <tr className="align-center">
-                        <td colSpan={6} className="p-2 bg-white h-50 drop-shadow-lg rounded-lg align-top">{data?.delivery_complications}</td>
+                        <td colSpan={6} className="p-2 bg-white h-50 drop-shadow-lg rounded-lg align-top">{data?.deliver_complications}</td>
                     </tr>
                 </tbody>
             </table>

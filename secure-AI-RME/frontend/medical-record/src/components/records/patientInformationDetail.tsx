@@ -35,7 +35,7 @@ const PatientInformationDetail = () => {
             try {
                 const response = await api.get(`/medical-record/get-patient-data/${uuid}`);
 
-                const data = response.data();
+                const data = response.data;
                 setPatientData(data);
             } catch (err: any) {
             const msg = err.response?.data?.msg || err.message || "Terjadi kesalahan";

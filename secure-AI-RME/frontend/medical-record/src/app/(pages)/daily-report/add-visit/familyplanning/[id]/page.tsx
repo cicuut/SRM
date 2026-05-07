@@ -52,8 +52,8 @@ const AddVisitFamilyPlanning = () => {
         const fetchPatientData = async () => {
             if (!uuid) return;
             try {
-                const response = await api.get(`/get-visit-information?uuid=${uuid}`);
-                const data = response.data();
+                const response = await api.get(`/visit-report/get-visit-information?uuid=${uuid}`);
+                const data = response.data;
                 setData(data);
             } catch (err: any) {
                 setError(err.message);
@@ -175,11 +175,11 @@ const AddVisitFamilyPlanning = () => {
             <div className="flex-1 flex flex-row py-5 gap-6">
                     <div className="flex flex-col flex-1 text-sm gap-2 max-w-[200px]">
                         <label className="block mb-1 font-bold text-black">Berat</label>
-                        <input type="text" name="weight" value={weight} onChange={(e) => setWeight(e.target.value)} id="weight" className="w-full p-2 h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        <input type="number" name="weight" value={weight} onChange={(e) => setWeight(e.target.value)} id="weight" className="w-full p-2 h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                     <div className="flex flex-col flex-1 text-sm gap-2 max-w-[200px]">
                         <label className="block mb-1 font-bold text-black">Tekanan Darah</label>
-                        <input type="text" name="bloodPressure" value={bloodPressure} onChange={(e) => setBloodPressure(e.target.value)} id="blood_pressure" className="w-full p-2 h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        <input type="number" name="bloodPressure" value={bloodPressure} onChange={(e) => setBloodPressure(e.target.value)} id="blood_pressure" className="w-full p-2 h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
             </div>
             <div className="border-b-2 text-[#D9D9D9] font-bold"> <p className="text-sm border-b-2 w-fit border-[#739072] text-[#739072] font-bold">SOAP</p></div>
@@ -188,7 +188,7 @@ const AddVisitFamilyPlanning = () => {
                     <div className="flex flex-col text-sm gap-2 min-w-[200px]">
                         <label className="block mb-1 font-bold text-black">Metode Kontrasepsi</label>
 
-                        <select value={contraceptive_method} onChange={(e) => setContraceptiveMethod(e.target.value)} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
+                        <select value={contraceptive_method} onChange={(e) => setContraceptiveMethod(e.target.value)} className="w-full h-8 p-2 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
                             <option value="" disabled>Pilih</option>
                             <option value="PIL">PIL</option>
                             <option value="Suntik 1 Bulan">Suntik 1 Bulan</option>
@@ -199,12 +199,12 @@ const AddVisitFamilyPlanning = () => {
                     </div>
                     <div className="flex flex-col text-sm gap-2 min-w-[200px]">
                         <label className="block mb-1 font-bold text-black">Kunjungan Selanjutnya</label>
-                        <input type="date" name="next_visit" value={next_visit} onChange={(e) => setNextVisit(e.target.value)} id="next_visit" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                        <input type="date" name="next_visit" value={next_visit} onChange={(e) => setNextVisit(e.target.value)} id="next_visit" className="w-full h-8 p-2 ounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                     </div>
                 </div>
                 <div className="flex flex-col text-sm gap-2">
                     <label className="block mb-1 font-bold text-black">Keluhan</label>
-                    <textarea name="complaint" value={complaint} onChange={(e) => setComplaint(e.target.value)} id="complaint" className="w-full h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                    <textarea name="complaint" value={complaint} onChange={(e) => setComplaint(e.target.value)} id="complaint" className="w-full h-30 p-2 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                 </div>
             </div>
 

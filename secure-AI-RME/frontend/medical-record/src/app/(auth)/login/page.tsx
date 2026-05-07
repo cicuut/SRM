@@ -28,7 +28,7 @@ const Login = () => {
                     password: password
             });
 
-            const data = response.data();
+            const data = response.data;
 
             if (response.status === 200) {
                 const userData = data.user 
@@ -44,7 +44,8 @@ const Login = () => {
                         text: "Selamat Datang!",
                         icon: "success",
                         timer: 2000,
-                        confirmButtonColor: "#739072"
+                        showConfirmButton: false
+                      
                     });
                 }
                     router.push('/dashboard');
@@ -59,7 +60,7 @@ const Login = () => {
                     title: "Login Failed",
                     text: errorMsg,
                     icon: "error",
-                    confirmButtonColor: "#739072",
+                   showConfirmButton: false,
                     timer: 2000
                 });
         } finally {

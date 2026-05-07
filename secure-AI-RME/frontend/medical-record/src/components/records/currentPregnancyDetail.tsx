@@ -26,7 +26,7 @@ const CurrentPregnancyDetail = () => {
             if (!uuid) return;
             try {
                 const response = await api.get(`/medical-record/get-pregnancy-record-data/${uuid}`);
-                const data = response.data();
+                const data = response.data;
                 setData(data);
             } catch (err: any) {
                 setError(err.message);

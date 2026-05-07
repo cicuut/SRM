@@ -31,7 +31,7 @@ const VisitFamilyPlanningDetail = () => {
                 const response = await api.get(
                     `/visit-report/get-visit-family-planning/${uuid}`
                 );
-                const data = response.data();
+                const data = response.data;
                 setVisitFamilyPlanningDetail(data);
             } catch (err: any) {
                 setError(err.message);

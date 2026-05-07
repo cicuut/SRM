@@ -105,8 +105,8 @@ def add_pregnancy_record():
             record_id=new_record.record_id,
             contraceptive_history=data.get('contraceptive_history'),
             family_med_history=data.get('family_med_history'),
-            last_menstrual_period=clean_float(data.get('last_menstrual_period')),
-            expected_due_date=clean_float(data.get('expected_due_date')),
+            last_menstrual_period=data.get('last_menstrual_period'),
+            expected_due_date=data.get('expected_due_date'),
             diagnosis=data.get('diagnosis'),
             registration_date = clean_float(data.get('registration_date')),
             height_cm=clean_float(data.get('height_cm')),
@@ -144,7 +144,7 @@ def add_pregnancy_record():
         
         return jsonify({
             "msg": "Medical record added successfully", 
-            "patient_id": str(new_patient.patient_id),
+            "patient_id": new_patient.patient_id,
             "rm_number": new_record.record_number
         }), 201
 
@@ -228,7 +228,7 @@ def add_family_planning_record():
         # Add family planning record
         new_family_planning_record = FamilyPlanningRecord(
             record_id=new_record.record_id,
-            number_of_children = data.get('number_of_children'),
+            number_of_children = clean_float(data.get('number_of_children')),
             youngest_child_age = data.get('youngest_child_age'),
             family_med_history=data.get('family_med_history'),
         )
@@ -493,14 +493,14 @@ def add_delivery_record():
          # Add Delivery record
         new_delivery_record = DeliveryRecord(
             record_id=new_record.record_id,
-            delivery_date = data.get('delivery_date'),
+            delivery_date = format_date(data.get('delivery_date')),
             delivery_type = data.get('delivery_type'),
             deliver_complications = data.get('deliver_complications'),
             baby_gender = data.get('baby_gender'),
-            baby_weight = data.get('baby_weight'),
-            baby_length = data.get('baby_length'),
+            baby_weight = clean_float(data.get('baby_weight')),
+            baby_length = clean_float(data.get('baby_lenght')),
             apgar_score = data.get('apgar_score'),
-            baby_complications = data.get('baby_complications'),
+            baby_complications = data.get('baby_complications') ,
             vit_k_given = data.get('vit_k_given'),
             hbo_given = data.get('hbo_given'),
             eye_ointment = data.get('eye_ointment'),
@@ -645,7 +645,7 @@ def get_family_data(uuid):
             "patient_number": decrypt_data(family_person.patient_number),
             "occupation": family_person.occupation or "-",
             "education": family_person.education_level or "-",
-            "address": decrypt_data(family_person.address)
+            "address": decrypt_data(family_person.address)  or "-"
         }
 
         return jsonify(response_data), 200
@@ -681,7 +681,8 @@ def get_pregnancy_record_data(uuid):
                 "pregnancy_complications": decrypt_data(obs.pregnancy_complications) or "-",
                 "delivery_mode": obs.delivery_mode or "-",
                 "delivery_complications": decrypt_data(obs.delivery_complications) or "-",
-                "baby_weight_height": decrypt_data(obs.baby_weight_height) or "-",
+                "baby_weight": obs.baby_weight or "-",
+                "baby_height": obs.baby_height or "-",
                 "baby_complications": decrypt_data(obs.baby_complications) or "-",
                 "postpartum_status": decrypt_data(obs.postpartum_status) or "-",
                 "postpartum_complications": decrypt_data(obs.postpartum_complications) or "-"
@@ -722,10 +723,8 @@ def get_pregnancy_visit_data(uuid):
             filter(VisitMaster.record_id == uuid).\
             order_by(VisitMaster.visit_date.desc()).all()
 
-        return jsonify({
-                "msg": "Belum ada kunjungan", 
-                "data": [] 
-            }), 200
+        if not results:
+            return jsonify([]), 200
 
         visit_list = []
         for master, detail in results:
@@ -767,7 +766,7 @@ def get_family_planning_record_data(uuid):
         
 
         response_data = {
-            "number_of_children": current_family_planning_record.number_of_children or "-",
+            "number_of_children": clean_float(current_family_planning_record.number_of_children) or "-",
             "family_med_history": decrypt_data(current_family_planning_record.family_med_history) or "-",
             "youngest_child_age": current_family_planning_record.youngest_child_age or "-"
         }
@@ -826,7 +825,7 @@ def get_delivery_record_data(uuid):
         
 
         response_data = {
-            "delivery_date": format_date(current_delivery_record.delivery_date),
+            "delivery_date": format_date(current_delivery_record.delivery_date)  or "-",
             "delivery_type": current_delivery_record.delivery_type  or "-", 
             "deliver_complications": decrypt_data(current_delivery_record.deliver_complications)  or "-",
             "baby_gender": current_delivery_record.baby_gender  or "-",

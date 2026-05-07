@@ -32,7 +32,7 @@ const VisitGeneralAccordition = () => {
             if (!uuid) return;
             try {
                 const response = await api.get(`/medical-record/get-general-visit-data/${uuid}`);
-                const data = response.data();
+                const data = response.data;
                 setVisitGeneral(data);
             } catch (err: any) {
             const msg = err.response?.data?.msg || err.message || "Terjadi kesalahan";

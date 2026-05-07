@@ -1,6 +1,6 @@
-'use client';
+"use client";
 import { useState, useEffect } from "react";
-import Cookies from 'js-cookie';
+import Cookies from "js-cookie";
 import { useParams } from "next/navigation";
 import Accordion from '@mui/material/Accordion';
 import AccordionDetails from '@mui/material/AccordionDetails';
@@ -9,22 +9,23 @@ import { ChevronDown } from 'lucide-react';
 import api from "@/utils/app";
 
 interface VisitFamilyPlanningAccorditionList {
-    visit_id?: string;
-    visit_date?: string
-    weight?: string;
-    blood_pressure?: string;
-    contraceptive_method?: string;
-    follow_up_visit?: string;
-    complaints?: string;
+  visit_id?: string;
+  visit_date?: string;
+  weight?: string;
+  blood_pressure?: string;
+  contraceptive_method?: string;
+  follow_up_visit?: string;
+  complaints?: string;
 }
 
 const VisitFamilyPlanningAccordition = () => {
-    const [error, setError] = useState("");
-    const [loading, setLoading] = useState(false);
-    const params = useParams();
-    const uuid = params.id;
-    const [visitFamilyPlanning, setVisitFamilyPlanning] = useState<VisitFamilyPlanningAccorditionList[]>([]);
-
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const params = useParams();
+  const uuid = params.id;
+  const [visitFamilyPlanning, setVisitFamilyPlanning] = useState<
+    VisitFamilyPlanningAccorditionList[]
+  >([]);
 
     useEffect(() => {
         const visitDate = async () => {
@@ -32,14 +33,23 @@ const VisitFamilyPlanningAccordition = () => {
             try {
                 const response = await api.get(`/medical-record/get-family-planning-visit-data/${uuid}`);
 
-                const data = response.data();
-                setVisitFamilyPlanning(data);
+                const data = response.data;
+  const actualData = data || [];
+
+      if (actualData.length === 0) {
+                setError("Belum ada kunjungan");
+            } else {
+                setError(""); 
+                setVisitFamilyPlanning(actualData);
+            }
+                
             } catch (err: any) {
                 setError(err.message);
             } finally {
                 setLoading(false);
             }
         };
+
         visitDate();
     }, [uuid]);
 
@@ -47,7 +57,8 @@ const VisitFamilyPlanningAccordition = () => {
     if (error) return <div className="p-8 text-center text-red-500">Error: {error}</div>;
     return (
         <div className="w-full">
-            {visitFamilyPlanning.map((visitFamilyPlanning) => (
+          {visitFamilyPlanning && visitFamilyPlanning.length > 0 ? (
+      visitFamilyPlanning.map((visitFamilyPlanning) => (
                 <Accordion key={visitFamilyPlanning.visit_id} disableGutters
                     elevation={2}
                     sx={{
@@ -98,27 +109,32 @@ const VisitFamilyPlanningAccordition = () => {
                                         <td>{visitFamilyPlanning.contraceptive_method}</td>
                                     </tr>
 
-                                    <tr>
-                                        <td>Kunjungan Berikutnya</td>
-                                        <td> : </td>
-                                        <td>{visitFamilyPlanning.follow_up_visit}</td>
-                                    </tr>
-                                    <tr>
-                                        <td>complaint</td>
-                                        <td colSpan={2}> : </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                            <div className="min-h-10 p-2 overflow-y-auto text-wrap rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-                                {visitFamilyPlanning.complaints}
-                            </div>
-                        </div>
-                    </AccordionDetails>
-                </Accordion>
-            ))}
+                    <tr>
+                      <td>Kunjungan Berikutnya</td>
+                      <td> : </td>
+                      <td>{visitFamilyPlanning.follow_up_visit}</td>
+                    </tr>
+                    <tr>
+                      <td>complaint</td>
+                      <td colSpan={2}> : </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div className="min-h-10 p-2 overflow-y-auto text-wrap rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
+                  {visitFamilyPlanning.complaints}
+                </div>
+              </div>
+            </AccordionDetails>
+          </Accordion>
+        ))
+      ) : (
+        <div className="text-center p-10 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+          <p className="text-gray-500 font-medium">
+            Belum ada riwayat kunjungan untuk pasien ini.
+          </p>
         </div>
-
-    )
-
-}
+      )}
+    </div>
+  );
+};
 export default VisitFamilyPlanningAccordition;

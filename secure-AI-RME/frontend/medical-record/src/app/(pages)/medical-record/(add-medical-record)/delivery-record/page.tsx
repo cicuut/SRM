@@ -62,7 +62,7 @@ const DeliveryRecord = () => {
                 record_number: rmNumber,
                 record_type: recordType,
                 delivery_date: deliveryDate,
-                deliver_complication: deliveryComplications,
+                deliver_complications: deliveryComplications,
                 delivery_type: deliveryMethod,
                 baby_gender: newbornGender,
                 baby_weight: birthWeight,
@@ -128,11 +128,11 @@ const DeliveryRecord = () => {
                     <div className="flex flex-row w-full gap-20 justify-between">
                         <div className="flex flex-col flex-1 gap-y-1 ">
                             Tanggal Persalinan
-                            <input type="date" name="deliveryDate" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} id="deliveryDate" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                            <input type="date" name="deliveryDate" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} id="deliveryDate" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2 p-2" />
                         </div>
                         <div className="flex flex-col  flex-1">
                             Metode Persalinan
-                            <select name="deliveryMethod" value={deliveryMethod} onChange={(e) => setDeliveryMethod(e.target.value)} id="deliveryMethod" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
+                            <select name="deliveryMethod" value={deliveryMethod} onChange={(e) => setDeliveryMethod(e.target.value)} id="deliveryMethod" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2 p-2">
                                 <option value="" disabled> Pilih </option>
                                 <option value="normal">Normal</option>
                                 <option value="komplikasi">Komplikasi</option>
@@ -142,7 +142,7 @@ const DeliveryRecord = () => {
                     <div className="flex flex-row w-full gap-20 justify-between">
                         <div className="flex flex-col flex-1" >
                             Komplikasi Persalinan
-                            <textarea name="deliveryComplications" value={deliveryComplications} onChange={(e) => setDeliveryComplications(e.target.value)} id="deliveryComplications" className="w-full h-50 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                            <textarea name="deliveryComplications" value={deliveryComplications} onChange={(e) => setDeliveryComplications(e.target.value)} id="deliveryComplications" className="w-full h-50 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2 p-2" />
                         </div>
                     </div>
 
@@ -155,24 +155,24 @@ const DeliveryRecord = () => {
                     <div className="flex flex-row w-full gap-20 justify-between">
                         <div className="flex flex-col flex-1 gap-y-1 ">
                             Jenis Kelamin
-                            <select name="newbornGender" id="newbornGender" value={newbornGender} onChange={(e) => setNewbornGender(e.target.value)} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
+                            <select name="newbornGender" id="newbornGender" value={newbornGender} onChange={(e) => setNewbornGender(e.target.value)} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2 p-2">
                                 <option value="" disabled>Pilih Jenis Kelamin</option>
                                 <option value="perempuan">Wanita</option>
                                 <option value="laki-laki">Pria</option>
                             </select>                        </div>
                         <div className="flex flex-col  flex-1">
                             Berat Badan
-                            <input type="text" name="birthWeight" value={birthWeight} onChange={(e) => setBirthWeight(e.target.value)} id="birthWeight" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                            <input type="number" name="birthWeight" value={birthWeight} onChange={(e) => setBirthWeight(e.target.value)} id="birthWeight" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2 p-2" />
                         </div>
                         <div className="flex flex-col  flex-1">
                             Panjang Badan
-                            <input type="text" name="birthLenght" value={birthLenght} onChange={(e) => setBirthLenght(e.target.value)} id="birthLenght" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                            <input type="number" name="birthLenght" value={birthLenght} onChange={(e) => setBirthLenght(e.target.value)} id="birthLenght" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2 p-2" />
                         </div>
                     </div>
                     <div className="flex flex-row w-full gap-20  justify-between items-center">
                         <div className="flex flex-col flex-1 gap-y-1 ">
                             APGAR Score
-                            <input type="text" name="apgarScore" value={apgarScore} onChange={(e) => setApgarScore(e.target.value)} id="apgarScore" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                            <input type="text" name="apgarScore" value={apgarScore} onChange={(e) => setApgarScore(e.target.value)} id="apgarScore" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2 p-2" />
                         </div>
                         
                             <div className="flex flex-col ">
@@ -289,7 +289,7 @@ const DeliveryRecord = () => {
                     <div className="flex flex-row w-full gap-20 justify-between">
                         <div className="flex flex-col flex-1" >
                             Komplikasi
-                            <textarea name="newbornComplication" value={newbornComplication} onChange={(e) => setNewbornComplication(e.target.value)} id="newbornComplication" className="w-full h-50 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                            <textarea name="newbornComplication" value={newbornComplication} onChange={(e) => setNewbornComplication(e.target.value)} id="newbornComplication" className="w-full h-50 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2 p-2" />
                         </div>
                     </div>
                 </div>
