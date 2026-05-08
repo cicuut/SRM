@@ -13,6 +13,25 @@ financial_bp = Blueprint("financial", __name__)
 
 FINANCIAL_ALLOWED_ROLES = ["admin", "midwife"]
 
+ENUM_ALIASES = {
+    "transaction_type": {
+        "income": "pemasukan",
+        "pemasukan": "pemasukan",
+        "expense": "pengeluaran",
+        "outcome": "pengeluaran",
+        "pengeluaran": "pengeluaran",
+    },
+    "payment_type": {
+        "transfer": "Transfer",
+        "qris": "QRIS",
+        "cash": "Cash",
+    },
+    "payment_status": {
+        "paid": "paid",
+        "unpaid": "unpaid",
+    },
+}
+
 
 def to_str(value):
     if value is None:
@@ -135,6 +154,11 @@ def normalize_enum_value(type_name, value):
 
     if not raw_value:
         raise ValueError(f"{type_name} is required")
+
+    alias_value = ENUM_ALIASES.get(type_name, {}).get(raw_value.lower())
+
+    if alias_value:
+        raw_value = alias_value
 
     enum_labels = get_enum_labels(type_name)
 
@@ -403,6 +427,49 @@ def fetch_financial_by_transaction_id(transaction_id):
     return row
 
 
+def fetch_financial_for_user(transaction_id, clinic_id):
+    row = db.session.execute(
+        text(
+            f"""
+            {FINANCIAL_SELECT_QUERY}
+            WHERE f.transaction_id::text = :transaction_id
+              AND (
+                    p.clinic_id::text = :clinic_id
+                    OR (
+                        p.patient_id IS NULL
+                        AND u.clinic_id::text = :clinic_id
+                    )
+              )
+            """
+        ),
+        {
+            "transaction_id": str(transaction_id),
+            "clinic_id": str(clinic_id),
+        },
+    ).mappings().first()
+
+    return row
+
+
+def row_to_audit_values(row):
+    serialized = serialize_financial_row(row)
+
+    return {
+        "module": "Financial",
+        "transaction_id": serialized.get("transaction_id"),
+        "transaction_number": serialized.get("transaction_number"),
+        "visit_id": serialized.get("visit_id"),
+        "record_id": serialized.get("record_id"),
+        "patient_id": serialized.get("patient_id"),
+        "trans_type": serialized.get("trans_type"),
+        "amount": str(serialized.get("amount")),
+        "payment_method": serialized.get("payment_method"),
+        "status": serialized.get("status"),
+        "payment_date": serialized.get("payment_date"),
+        "description": serialized.get("description"),
+    }
+
+
 @financial_bp.route("/transaction-number", methods=["GET"])
 @jwt_required()
 def get_transaction_number():
@@ -528,6 +595,34 @@ def get_all_financial_transactions():
             jsonify(
                 {
                     "msg": "Failed to get financial data",
+                    "error": str(e),
+                }
+            ),
+            500,
+        )
+
+
+@financial_bp.route("/detail/<transaction_id>", methods=["GET"])
+@jwt_required()
+def get_financial_detail(transaction_id):
+    current_user, error_response = require_financial_access()
+
+    if error_response:
+        return error_response
+
+    try:
+        row = fetch_financial_for_user(transaction_id, current_user.clinic_id)
+
+        if not row:
+            return jsonify({"msg": "Financial transaction not found"}), 404
+
+        return jsonify({"data": serialize_financial_row(row)}), 200
+
+    except Exception as e:
+        return (
+            jsonify(
+                {
+                    "msg": "Failed to get financial detail",
                     "error": str(e),
                 }
             ),
@@ -720,6 +815,224 @@ def add_financial_transaction():
             jsonify(
                 {
                     "msg": "Failed to add financial transaction",
+                    "error": str(e),
+                }
+            ),
+            500,
+        )
+
+
+@financial_bp.route("/detail/<transaction_id>", methods=["PATCH"])
+@jwt_required()
+def update_financial_detail(transaction_id):
+    current_user, error_response = require_financial_access()
+
+    if error_response:
+        return error_response
+
+    current_clinic_id = current_user.clinic_id
+    current_user_id = current_user.user_id
+
+    old_row = fetch_financial_for_user(transaction_id, current_clinic_id)
+
+    if not old_row:
+        return jsonify({"msg": "Financial transaction not found"}), 404
+
+    data = request.get_json() or {}
+
+    required_fields = [
+        "payment_date",
+        "visit_id",
+        "trans_type",
+        "amount",
+        "payment_method",
+        "status",
+    ]
+
+    missing_fields = [
+        field
+        for field in required_fields
+        if data.get(field) is None or data.get(field) == ""
+    ]
+
+    if missing_fields:
+        return (
+            jsonify(
+                {
+                    "msg": "All required data must be filled",
+                    "missing_fields": missing_fields,
+                }
+            ),
+            400,
+        )
+
+    try:
+        payment_date = parse_payment_date(data.get("payment_date"))
+        reference_id = str(data.get("visit_id")).strip()
+
+        trans_type = normalize_enum_value(
+            "transaction_type",
+            data.get("trans_type"),
+        )
+
+        payment_method = normalize_enum_value(
+            "payment_type",
+            data.get("payment_method"),
+        )
+
+        status = normalize_enum_value(
+            "payment_status",
+            data.get("status"),
+        )
+
+        description = (data.get("description") or "").strip()
+
+        try:
+            amount = Decimal(str(data.get("amount")))
+        except InvalidOperation:
+            return jsonify({"msg": "Amount must be a valid number"}), 400
+
+        if amount < 0:
+            return jsonify({"msg": "Amount cannot be negative"}), 400
+
+        resolved_reference = resolve_visit_or_record_reference(
+            reference_id,
+            current_clinic_id,
+        )
+
+        if not resolved_reference:
+            return jsonify({"msg": "Visit or medical record not found in your clinic"}), 404
+
+        visit_id = resolved_reference.get("visit_id")
+        patient_id = resolved_reference.get("patient_id")
+
+        old_values = row_to_audit_values(old_row)
+
+        db.session.execute(
+            text(
+                """
+                UPDATE financial
+                SET
+                    visit_id = CAST(:visit_id AS uuid),
+                    patient_id = CAST(:patient_id AS uuid),
+                    trans_type = CAST(:trans_type AS transaction_type),
+                    amount = :amount,
+                    payment_method = CAST(:payment_method AS payment_type),
+                    status = CAST(:status AS payment_status),
+                    payment_date = :payment_date,
+                    description = :description
+                WHERE transaction_id::text = :transaction_id
+                """
+            ),
+            {
+                "transaction_id": str(transaction_id),
+                "visit_id": visit_id,
+                "patient_id": patient_id,
+                "trans_type": trans_type,
+                "amount": amount,
+                "payment_method": payment_method,
+                "status": status,
+                "payment_date": payment_date,
+                "description": description,
+            },
+        )
+
+        updated_row = fetch_financial_by_transaction_id(transaction_id)
+
+        write_audit_log(
+            user_id=current_user_id,
+            action="UPDATE_INVOICE",
+            old_values=old_values,
+            new_values=row_to_audit_values(updated_row),
+        )
+
+        db.session.commit()
+
+        return (
+            jsonify(
+                {
+                    "msg": "Financial transaction updated successfully",
+                    "data": serialize_financial_row(updated_row),
+                }
+            ),
+            200,
+        )
+
+    except ValueError as e:
+        db.session.rollback()
+        return jsonify({"msg": str(e)}), 400
+
+    except Exception as e:
+        db.session.rollback()
+        return (
+            jsonify(
+                {
+                    "msg": "Failed to update financial transaction",
+                    "error": str(e),
+                }
+            ),
+            500,
+        )
+
+
+@financial_bp.route("/detail/<transaction_id>", methods=["DELETE"])
+@jwt_required()
+def delete_financial_detail(transaction_id):
+    current_user, error_response = require_financial_access()
+
+    if error_response:
+        return error_response
+
+    current_clinic_id = current_user.clinic_id
+    current_user_id = current_user.user_id
+
+    old_row = fetch_financial_for_user(transaction_id, current_clinic_id)
+
+    if not old_row:
+        return jsonify({"msg": "Financial transaction not found"}), 404
+
+    try:
+        old_values = row_to_audit_values(old_row)
+
+        db.session.execute(
+            text(
+                """
+                DELETE FROM financial
+                WHERE transaction_id::text = :transaction_id
+                """
+            ),
+            {"transaction_id": str(transaction_id)},
+        )
+
+        write_audit_log(
+            user_id=current_user_id,
+            action="DELETE_INVOICE",
+            old_values=old_values,
+            new_values={
+                "module": "Financial",
+                "transaction_id": str(transaction_id),
+                "deleted": True,
+            },
+        )
+
+        db.session.commit()
+
+        return (
+            jsonify(
+                {
+                    "msg": "Financial transaction deleted successfully",
+                    "transaction_id": str(transaction_id),
+                }
+            ),
+            200,
+        )
+
+    except Exception as e:
+        db.session.rollback()
+        return (
+            jsonify(
+                {
+                    "msg": "Failed to delete financial transaction",
                     "error": str(e),
                 }
             ),

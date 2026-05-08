@@ -20,7 +20,7 @@ const FINANCIAL_ALLOWED_ROLES = ['admin', 'midwife'];
 
 type FinancialTransaction = {
     transaction_id: string;
-    visit_id: string;
+    visit_id: string | null;
     user_id: string;
     patient_id: string;
     transaction_number: string;
@@ -76,9 +76,6 @@ type FilterOptions = {
 
 type SummaryData = {
     totalRecords: number;
-    totalAmount: number;
-    incomeAmount: number;
-    outcomeAmount: number;
 };
 
 const tableHeaders: TableHeader[] = [
@@ -187,6 +184,10 @@ const formatEnumLabel = (value: string) => {
 
     if (lowerValue === 'qris') return 'QRIS';
 
+    if (lowerValue === 'pemasukan') return 'Pemasukan';
+
+    if (lowerValue === 'pengeluaran') return 'Pengeluaran';
+
     return normalizedValue
         .split(' ')
         .filter(Boolean)
@@ -219,16 +220,7 @@ const getStatusBadgeClassName = (status: string) => {
         return 'bg-[#D2E3C8] text-[#4F6F52]';
     }
 
-    if (normalizedStatus === 'pending') {
-        return 'bg-[#F3E8C8] text-[#7A5A00]';
-    }
-
-    if (
-        normalizedStatus === 'unpaid' ||
-        normalizedStatus === 'failed' ||
-        normalizedStatus === 'cancelled' ||
-        normalizedStatus === 'canceled'
-    ) {
+    if (normalizedStatus === 'unpaid') {
         return 'bg-red-50 text-red-600';
     }
 
@@ -506,31 +498,9 @@ const FinancialReport = () => {
     ]);
 
     const summaryData = useMemo<SummaryData>(() => {
-        return filteredTransactions.reduce(
-            (summary, transaction) => {
-                const amount = Number(transaction.amount || 0);
-                const type = safeLower(transaction.trans_type);
-
-                summary.totalRecords += 1;
-                summary.totalAmount += amount;
-
-                if (type === 'income') {
-                    summary.incomeAmount += amount;
-                }
-
-                if (type === 'outcome' || type === 'expense') {
-                    summary.outcomeAmount += amount;
-                }
-
-                return summary;
-            },
-            {
-                totalRecords: 0,
-                totalAmount: 0,
-                incomeAmount: 0,
-                outcomeAmount: 0,
-            },
-        );
+        return {
+            totalRecords: filteredTransactions.length,
+        };
     }, [filteredTransactions]);
 
     const activeFilterCount = useMemo(() => {
@@ -600,18 +570,6 @@ const FinancialReport = () => {
             [
                 escapeCsvValue('Total Records'),
                 escapeCsvValue(summaryData.totalRecords),
-            ].join(','),
-            [
-                escapeCsvValue('Total Amount'),
-                escapeCsvValue(formatRupiah(summaryData.totalAmount)),
-            ].join(','),
-            [
-                escapeCsvValue('Total Income'),
-                escapeCsvValue(formatRupiah(summaryData.incomeAmount)),
-            ].join(','),
-            [
-                escapeCsvValue('Total Outcome'),
-                escapeCsvValue(formatRupiah(summaryData.outcomeAmount)),
             ].join(','),
         ];
 
@@ -703,13 +661,25 @@ const FinancialReport = () => {
                                     </h1>
 
                                     <p className="mt-[10px] max-w-[620px] text-[12px] font-medium leading-relaxed text-white/90">
-                                        Pantau pemasukan, pengeluaran, invoice,
-                                        metode pembayaran, dan status transaksi
-                                        klinik dalam satu halaman.
+                                        Pantau invoice, metode pembayaran, status
+                                        transaksi, dan data pembayaran klinik
+                                        dalam satu halaman.
                                     </p>
                                 </div>
 
                                 <div className="flex shrink-0 flex-wrap items-center gap-[12px]">
+                                    <div className="rounded-[14px] bg-white px-[22px] py-[15px] shadow-sm">
+                                        <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#5F785F]">
+                                            Records
+                                        </p>
+                                        <p className="mt-[8px] text-[26px] font-bold leading-none text-black">
+                                            {summaryData.totalRecords}
+                                        </p>
+                                        <p className="mt-[7px] text-[10px] font-medium text-[#6B6B6B]">
+                                            Transaction(s)
+                                        </p>
+                                    </div>
+
                                     <button
                                         type="button"
                                         onClick={() =>
@@ -741,56 +711,6 @@ const FinancialReport = () => {
                                         />
                                         <span>Download</span>
                                     </button>
-                                </div>
-                            </div>
-
-                            <div className="mt-[24px] grid w-full min-w-0 grid-cols-1 gap-[14px] md:grid-cols-2 xl:grid-cols-4">
-                                <div className="rounded-[14px] bg-white px-[18px] py-[16px] shadow-sm">
-                                    <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#5F785F]">
-                                        Records
-                                    </p>
-                                    <p className="mt-[8px] text-[26px] font-bold leading-none text-black">
-                                        {summaryData.totalRecords}
-                                    </p>
-                                    <p className="mt-[7px] text-[10px] font-medium text-[#6B6B6B]">
-                                        Transaction(s)
-                                    </p>
-                                </div>
-
-                                <div className="rounded-[14px] bg-white px-[18px] py-[16px] shadow-sm">
-                                    <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#5F785F]">
-                                        Income
-                                    </p>
-                                    <p className="mt-[8px] truncate text-[18px] font-bold leading-none text-black">
-                                        {formatRupiah(summaryData.incomeAmount)}
-                                    </p>
-                                    <p className="mt-[7px] text-[10px] font-medium text-[#6B6B6B]">
-                                        Total pemasukan
-                                    </p>
-                                </div>
-
-                                <div className="rounded-[14px] bg-white px-[18px] py-[16px] shadow-sm">
-                                    <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#5F785F]">
-                                        Outcome
-                                    </p>
-                                    <p className="mt-[8px] truncate text-[18px] font-bold leading-none text-black">
-                                        {formatRupiah(summaryData.outcomeAmount)}
-                                    </p>
-                                    <p className="mt-[7px] text-[10px] font-medium text-[#6B6B6B]">
-                                        Total pengeluaran
-                                    </p>
-                                </div>
-
-                                <div className="rounded-[14px] bg-white px-[18px] py-[16px] shadow-sm">
-                                    <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#5F785F]">
-                                        Total Amount
-                                    </p>
-                                    <p className="mt-[8px] truncate text-[18px] font-bold leading-none text-black">
-                                        {formatRupiah(summaryData.totalAmount)}
-                                    </p>
-                                    <p className="mt-[7px] text-[10px] font-medium text-[#6B6B6B]">
-                                        Semua transaksi
-                                    </p>
                                 </div>
                             </div>
                         </section>
@@ -1026,7 +946,7 @@ const FinancialReport = () => {
                                 <div className="rounded-[50px] bg-[#F8FAF6] px-[14px] py-[7px] text-[11px] font-bold text-[#5F785F]">
                                     {isLoading
                                         ? 'Loading data...'
-                                        : 'Data ready'}
+                                        : 'Click row to view detail'}
                                 </div>
                             </div>
 
@@ -1088,7 +1008,12 @@ const FinancialReport = () => {
                                                             transaction.transaction_id ||
                                                             transaction.transaction_number
                                                         }
-                                                        className="border-b border-gray-100 bg-white text-center text-black transition-all hover:bg-[#F8FAF6]"
+                                                        onClick={() =>
+                                                            router.push(
+                                                                `/financial-report/${transaction.transaction_id}`,
+                                                            )
+                                                        }
+                                                        className="cursor-pointer border-b border-gray-100 bg-white text-center text-black transition-all hover:bg-[#EEF3E9]"
                                                     >
                                                         {tableHeaders.map(
                                                             (

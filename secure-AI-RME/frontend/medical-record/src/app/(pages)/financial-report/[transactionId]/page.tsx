@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
 import Sidebar from '@/components/sidebar';
 
@@ -19,10 +19,6 @@ type MeResponse = {
         role: string;
         clinic_id?: string | null;
     };
-    clinic?: {
-        id: string;
-        clinic_name: string;
-    } | null;
 };
 
 type MedicalRecordOption = {
@@ -37,7 +33,30 @@ type MedicalRecordOption = {
     updated_at: string;
 };
 
-type InvoiceFormData = {
+type FinancialDetail = {
+    transaction_id: string;
+    visit_id: string | null;
+    record_id?: string | null;
+    patient_id: string;
+    transaction_number: string;
+    trans_id: string;
+    payment_date: string;
+    trans_type: string;
+    amount: number;
+    payment_method: string;
+    status: string;
+    description: string;
+    visit_display: string;
+    visit_number?: string;
+    record_number: string;
+    record_type: string;
+    patient_name: string;
+    patient_number?: string;
+    user_name: string;
+};
+
+type DetailFormData = {
+    transaction_number: string;
     payment_date: string;
     visit_id: string;
     trans_type: string;
@@ -47,12 +66,11 @@ type InvoiceFormData = {
     description: string;
 };
 
-const getTodayInputValue = () => {
-    const date = new Date();
-    date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+const inputClassName =
+    'mt-[8px] h-[34px] w-full rounded-[4px] border border-transparent bg-white px-3 text-[13px] text-black shadow-md outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072]';
 
-    return date.toISOString().split('T')[0];
-};
+const selectClassName =
+    'mt-[8px] h-[34px] w-full rounded-[4px] border border-transparent bg-white px-3 text-[13px] text-black shadow-md outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072]';
 
 const readJson = async (response: Response) => {
     try {
@@ -62,22 +80,29 @@ const readJson = async (response: Response) => {
     }
 };
 
-const inputClassName =
-    'mt-[8px] h-[34px] w-full rounded-[4px] border border-transparent bg-white px-3 text-[13px] text-black shadow-md outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072]';
+const formatRupiah = (value: number) => {
+    return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        minimumFractionDigits: 0,
+    }).format(Number(value || 0));
+};
 
-const selectClassName =
-    'mt-[8px] h-[34px] w-full rounded-[4px] border border-transparent bg-white px-3 text-[13px] text-black shadow-md outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072]';
-
-const AddInvoice = () => {
+const DetailInvoicePage = () => {
     const router = useRouter();
+    const params = useParams();
 
-    const [transactionNumber, setTransactionNumber] = useState('');
+    const transactionId = String(params.transactionId || '');
+
     const [medicalRecords, setMedicalRecords] = useState<MedicalRecordOption[]>(
         [],
     );
 
-    const [formData, setFormData] = useState<InvoiceFormData>({
-        payment_date: getTodayInputValue(),
+    const [detail, setDetail] = useState<FinancialDetail | null>(null);
+
+    const [formData, setFormData] = useState<DetailFormData>({
+        transaction_number: '',
+        payment_date: '',
         visit_id: '',
         trans_type: 'pemasukan',
         amount: '',
@@ -88,9 +113,14 @@ const AddInvoice = () => {
 
     const [hasAccess, setHasAccess] = useState(false);
     const [isCheckingAccess, setIsCheckingAccess] = useState(true);
+    const [isLoading, setIsLoading] = useState(true);
     const [isLoadingRecords, setIsLoadingRecords] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
     const [errorMessage, setErrorMessage] = useState('');
+    const [successMessage, setSuccessMessage] = useState('');
 
     const selectedRecord = useMemo(() => {
         return medicalRecords.find(
@@ -157,12 +187,6 @@ const AddInvoice = () => {
                 return;
             }
 
-            localStorage.setItem('user_id', data.user.id || '');
-            localStorage.setItem('fullname', data.user.fullname || '');
-            localStorage.setItem('user_email', data.user.email || '');
-            localStorage.setItem('user_role', data.user.role || '');
-            localStorage.setItem('clinic_id', data.user.clinic_id || '');
-
             setHasAccess(true);
         } catch (error) {
             const message =
@@ -176,55 +200,9 @@ const AddInvoice = () => {
         }
     };
 
-    const fetchTransactionNumber = async (date: string) => {
-        try {
-            const token = getToken();
-
-            if (!token) {
-                handleUnauthorized();
-                return;
-            }
-
-            const response = await fetch(
-                `${API_BASE_URL}/financial/transaction-number?date=${date}`,
-                {
-                    method: 'GET',
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
-                },
-            );
-
-            const data = await readJson(response);
-
-            if (response.status === 401 || response.status === 422) {
-                handleUnauthorized();
-                return;
-            }
-
-            if (response.status === 403) {
-                handleForbidden();
-                return;
-            }
-
-            if (!response.ok) {
-                throw new Error(
-                    data?.msg || 'Gagal membuat nomor transaksi',
-                );
-            }
-
-            setTransactionNumber(data.transaction_number || '');
-        } catch {
-            const year = date.split('-')[0];
-            setTransactionNumber(`INV-${year}----`);
-        }
-    };
-
     const fetchMedicalRecords = async () => {
         try {
             setIsLoadingRecords(true);
-            setErrorMessage('');
 
             const token = getToken();
 
@@ -262,11 +240,76 @@ const AddInvoice = () => {
             const message =
                 error instanceof Error
                     ? error.message
-                    : 'Terjadi kesalahan saat mengambil data medical record';
+                    : 'Terjadi kesalahan saat mengambil medical record';
 
             setErrorMessage(message);
         } finally {
             setIsLoadingRecords(false);
+        }
+    };
+
+    const fetchFinancialDetail = async () => {
+        try {
+            setIsLoading(true);
+            setErrorMessage('');
+            setSuccessMessage('');
+
+            const token = getToken();
+
+            if (!token) {
+                handleUnauthorized();
+                return;
+            }
+
+            const response = await fetch(
+                `${API_BASE_URL}/financial/detail/${transactionId}`,
+                {
+                    method: 'GET',
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                },
+            );
+
+            const data = await readJson(response);
+
+            if (response.status === 401 || response.status === 422) {
+                handleUnauthorized();
+                return;
+            }
+
+            if (response.status === 403) {
+                handleForbidden();
+                return;
+            }
+
+            if (!response.ok || !data?.data) {
+                throw new Error(data?.msg || 'Gagal mengambil detail invoice');
+            }
+
+            const invoice = data.data as FinancialDetail;
+
+            setDetail(invoice);
+            setFormData({
+                transaction_number: invoice.transaction_number || '',
+                payment_date: invoice.payment_date || '',
+                visit_id: invoice.record_id || invoice.visit_id || '',
+                trans_type: invoice.trans_type || 'pemasukan',
+                amount: String(invoice.amount || ''),
+                payment_method: invoice.payment_method || 'Transfer',
+                status: invoice.status || 'paid',
+                description: invoice.description || '',
+            });
+        } catch (error) {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : 'Terjadi kesalahan saat mengambil detail invoice';
+
+            setErrorMessage(message);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -279,15 +322,9 @@ const AddInvoice = () => {
         if (!hasAccess) return;
 
         fetchMedicalRecords();
+        fetchFinancialDetail();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [hasAccess]);
-
-    useEffect(() => {
-        if (!hasAccess) return;
-
-        fetchTransactionNumber(formData.payment_date);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [hasAccess, formData.payment_date]);
+    }, [hasAccess, transactionId]);
 
     const handleChange = (
         event:
@@ -312,10 +349,6 @@ const AddInvoice = () => {
             return 'Recorder wajib dipilih';
         }
 
-        if (!formData.trans_type) {
-            return 'Transaction type wajib dipilih';
-        }
-
         if (!['pemasukan', 'pengeluaran'].includes(formData.trans_type)) {
             return 'Transaction type tidak valid';
         }
@@ -324,16 +357,8 @@ const AddInvoice = () => {
             return 'Total amount harus lebih dari 0';
         }
 
-        if (!formData.payment_method) {
-            return 'Payment method wajib dipilih';
-        }
-
         if (!['Transfer', 'QRIS', 'Cash'].includes(formData.payment_method)) {
             return 'Payment method tidak valid';
-        }
-
-        if (!formData.status) {
-            return 'Status wajib dipilih';
         }
 
         if (!['paid', 'unpaid'].includes(formData.status)) {
@@ -343,12 +368,13 @@ const AddInvoice = () => {
         return '';
     };
 
-    const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    const handleSave = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
         try {
-            setIsSubmitting(true);
+            setIsSaving(true);
             setErrorMessage('');
+            setSuccessMessage('');
 
             const validationMessage = validateForm();
 
@@ -364,22 +390,92 @@ const AddInvoice = () => {
                 return;
             }
 
-            const response = await fetch(`${API_BASE_URL}/financial/add`, {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
+            const response = await fetch(
+                `${API_BASE_URL}/financial/detail/${transactionId}`,
+                {
+                    method: 'PATCH',
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        payment_date: formData.payment_date,
+                        visit_id: formData.visit_id,
+                        trans_type: formData.trans_type,
+                        amount: Number(formData.amount),
+                        payment_method: formData.payment_method,
+                        status: formData.status,
+                        description: formData.description,
+                    }),
                 },
-                body: JSON.stringify({
-                    payment_date: formData.payment_date,
-                    visit_id: formData.visit_id,
-                    trans_type: formData.trans_type,
-                    amount: Number(formData.amount),
-                    payment_method: formData.payment_method,
-                    status: formData.status,
-                    description: formData.description,
-                }),
+            );
+
+            const data = await readJson(response);
+
+            if (response.status === 401 || response.status === 422) {
+                handleUnauthorized();
+                return;
+            }
+
+            if (response.status === 403) {
+                handleForbidden();
+                return;
+            }
+
+            if (!response.ok || !data?.data) {
+                throw new Error(data?.msg || 'Gagal menyimpan perubahan');
+            }
+
+            const updatedInvoice = data.data as FinancialDetail;
+
+            setDetail(updatedInvoice);
+            setFormData({
+                transaction_number: updatedInvoice.transaction_number || '',
+                payment_date: updatedInvoice.payment_date || '',
+                visit_id: updatedInvoice.record_id || updatedInvoice.visit_id || '',
+                trans_type: updatedInvoice.trans_type || 'pemasukan',
+                amount: String(updatedInvoice.amount || ''),
+                payment_method: updatedInvoice.payment_method || 'Transfer',
+                status: updatedInvoice.status || 'paid',
+                description: updatedInvoice.description || '',
             });
+
+            setSuccessMessage('Invoice berhasil diperbarui');
+        } catch (error) {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : 'Terjadi kesalahan saat menyimpan perubahan';
+
+            setErrorMessage(message);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        try {
+            setIsDeleting(true);
+            setErrorMessage('');
+            setSuccessMessage('');
+
+            const token = getToken();
+
+            if (!token) {
+                handleUnauthorized();
+                return;
+            }
+
+            const response = await fetch(
+                `${API_BASE_URL}/financial/detail/${transactionId}`,
+                {
+                    method: 'DELETE',
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                },
+            );
 
             const data = await readJson(response);
 
@@ -394,7 +490,7 @@ const AddInvoice = () => {
             }
 
             if (!response.ok) {
-                throw new Error(data?.msg || 'Gagal menambahkan invoice');
+                throw new Error(data?.msg || 'Gagal menghapus invoice');
             }
 
             router.push('/financial-report');
@@ -402,22 +498,23 @@ const AddInvoice = () => {
             const message =
                 error instanceof Error
                     ? error.message
-                    : 'Terjadi kesalahan saat menambahkan invoice';
+                    : 'Terjadi kesalahan saat menghapus invoice';
 
             setErrorMessage(message);
+            setShowDeleteConfirm(false);
         } finally {
-            setIsSubmitting(false);
+            setIsDeleting(false);
         }
     };
 
-    if (isCheckingAccess) {
+    if (isCheckingAccess || isLoading) {
         return (
             <div className="flex min-h-screen w-full overflow-x-auto bg-[#FDFEF9]">
                 <Sidebar />
 
                 <main className="flex min-h-screen min-w-0 flex-1 items-center justify-center bg-[#FDFEF9] pb-[40px] pl-[28px] pr-[28px] pt-[26px]">
                     <p className="text-[14px] font-bold text-[#5F785F]">
-                        Checking financial access...
+                        Loading invoice detail...
                     </p>
                 </main>
             </div>
@@ -430,23 +527,64 @@ const AddInvoice = () => {
 
             <main className="flex min-h-screen min-w-0 flex-1 flex-col bg-[#FDFEF9] pb-[40px] pl-[28px] pr-[28px] pt-[26px]">
                 <div className="w-full">
-                    <form
-                        onSubmit={handleSubmit}
-                        className="mt-[54px] w-full max-w-[980px]"
-                    >
-                        <div>
-                            <h1 className="text-[26px] font-bold leading-none text-[#5F785F]">
-                                {transactionNumber || 'INV----- ---'}
-                            </h1>
-
-                            {errorMessage && (
-                                <p className="mt-5 text-[12px] font-medium text-red-600">
-                                    {errorMessage}
+                    <div className="mt-[40px] rounded-[18px] bg-[#86A789] px-6 py-6 shadow-md">
+                        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                            <div>
+                                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/80">
+                                    Invoice Detail
                                 </p>
-                            )}
-                        </div>
 
-                        <div className="mt-[26px] grid grid-cols-1 gap-x-[48px] gap-y-[20px] md:grid-cols-3">
+                                <h1 className="mt-[10px] text-[28px] font-bold leading-none text-white">
+                                    {formData.transaction_number || 'Invoice'}
+                                </h1>
+
+                                <p className="mt-[10px] text-[12px] font-medium text-white/90">
+                                    Edit detail invoice, simpan perubahan, atau
+                                    hapus transaksi.
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => router.push('/financial-report')}
+                                className="h-[38px] rounded-[50px] bg-white px-5 text-[12px] font-bold text-[#5F785F] shadow-sm transition-all hover:bg-[#F4F4F4]"
+                            >
+                                Back to Financial
+                            </button>
+                        </div>
+                    </div>
+
+                    {errorMessage && (
+                        <div className="mt-[18px] rounded-[8px] border border-red-200 bg-red-50 px-4 py-3 text-[12px] font-medium text-red-700">
+                            {errorMessage}
+                        </div>
+                    )}
+
+                    {successMessage && (
+                        <div className="mt-[18px] rounded-[8px] border border-green-200 bg-green-50 px-4 py-3 text-[12px] font-medium text-green-700">
+                            {successMessage}
+                        </div>
+                    )}
+
+                    <form
+                        onSubmit={handleSave}
+                        className="mt-[26px] w-full max-w-[980px] rounded-[14px] border border-[#D2D8CF] bg-[#EEF3E9] px-6 py-6 shadow-sm"
+                    >
+                        <div className="grid grid-cols-1 gap-x-[48px] gap-y-[20px] md:grid-cols-3">
+                            <label className="block">
+                                <span className="text-[14px] font-bold text-black">
+                                    Invoice No
+                                </span>
+
+                                <input
+                                    type="text"
+                                    name="transaction_number"
+                                    value={formData.transaction_number}
+                                    readOnly
+                                    className={`${inputClassName} cursor-not-allowed bg-[#F4F4F4] text-[#6B6B6B]`}
+                                />
+                            </label>
+
                             <label className="block">
                                 <span className="text-[14px] font-bold text-black">
                                     Date
@@ -523,7 +661,6 @@ const AddInvoice = () => {
                                     onChange={handleChange}
                                     min="0"
                                     required
-                                    placeholder="150000"
                                     className={inputClassName}
                                 />
                             </label>
@@ -562,24 +699,37 @@ const AddInvoice = () => {
                                     <option value="unpaid">Unpaid</option>
                                 </select>
                             </label>
-                        </div>
 
-                        {selectedRecord && (
-                            <div className="mt-[24px] rounded-[12px] border border-[#D2D8CF] bg-[#EEF3E9] px-5 py-4 text-[12px] text-[#4B4B4B]">
+                            <div className="rounded-[12px] bg-white px-4 py-4 text-[12px] text-[#4B4B4B] shadow-sm md:col-span-2">
                                 <p>
-                                    <span className="font-bold">Selected:</span>{' '}
-                                    {selectedRecord.patient_name} -{' '}
-                                    {selectedRecord.record_number}
+                                    <span className="font-bold">Patient:</span>{' '}
+                                    {selectedRecord?.patient_name ||
+                                        detail?.patient_name ||
+                                        '-'}
+                                </p>
+
+                                <p className="mt-1">
+                                    <span className="font-bold">Record:</span>{' '}
+                                    {selectedRecord?.record_number ||
+                                        detail?.record_number ||
+                                        '-'}
                                 </p>
 
                                 <p className="mt-1">
                                     <span className="font-bold">Type:</span>{' '}
-                                    {selectedRecord.record_type}
+                                    {selectedRecord?.record_type ||
+                                        detail?.record_type ||
+                                        '-'}
+                                </p>
+
+                                <p className="mt-1">
+                                    <span className="font-bold">Amount:</span>{' '}
+                                    {formatRupiah(Number(formData.amount || 0))}
                                 </p>
                             </div>
-                        )}
+                        </div>
 
-                        <div className="mt-[36px]">
+                        <div className="mt-[28px]">
                             <label className="block">
                                 <span className="text-[14px] font-bold text-black">
                                     Description
@@ -595,19 +745,28 @@ const AddInvoice = () => {
                             </label>
                         </div>
 
-                        <div className="mt-[42px] flex flex-wrap items-center gap-[12px]">
+                        <div className="mt-[36px] flex flex-wrap items-center gap-[12px]">
                             <button
                                 type="submit"
-                                disabled={isSubmitting}
-                                className="min-w-[120px] rounded-[50px] bg-[#86A789] px-6 py-2 text-[12px] font-semibold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+                                disabled={isSaving || isDeleting}
+                                className="min-w-[130px] rounded-[50px] bg-[#86A789] px-6 py-2 text-[12px] font-semibold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
                             >
-                                {isSubmitting ? 'Saving...' : 'Add Record'}
+                                {isSaving ? 'Saving...' : 'Save Changes'}
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setShowDeleteConfirm(true)}
+                                disabled={isSaving || isDeleting}
+                                className="min-w-[100px] rounded-[50px] bg-red-600 px-6 py-2 text-[12px] font-semibold text-white shadow-sm transition-all hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                Delete
                             </button>
 
                             <button
                                 type="button"
                                 onClick={() => router.push('/financial-report')}
-                                disabled={isSubmitting}
+                                disabled={isSaving || isDeleting}
                                 className="min-w-[100px] rounded-[50px] border border-[#BFC7BB] bg-white px-6 py-2 text-[12px] font-semibold text-[#4B4B4B] shadow-sm transition-all hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-60"
                             >
                                 Cancel
@@ -616,8 +775,47 @@ const AddInvoice = () => {
                     </form>
                 </div>
             </main>
+
+            {showDeleteConfirm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+                    <div className="w-full max-w-[420px] rounded-[18px] bg-white px-6 py-6 shadow-xl">
+                        <h2 className="text-[20px] font-bold text-black">
+                            Delete Invoice?
+                        </h2>
+
+                        <p className="mt-[12px] text-[13px] leading-relaxed text-[#4B4B4B]">
+                            Invoice{' '}
+                            <span className="font-bold">
+                                {formData.transaction_number}
+                            </span>{' '}
+                            akan dihapus dari financial report. Aksi ini tidak
+                            bisa dibatalkan.
+                        </p>
+
+                        <div className="mt-[24px] flex flex-wrap justify-end gap-[10px]">
+                            <button
+                                type="button"
+                                onClick={() => setShowDeleteConfirm(false)}
+                                disabled={isDeleting}
+                                className="rounded-[50px] border border-[#BFC7BB] bg-white px-5 py-2 text-[12px] font-bold text-[#4B4B4B] hover:bg-[#F4F4F4] disabled:opacity-60"
+                            >
+                                Cancel
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={handleDelete}
+                                disabled={isDeleting}
+                                className="rounded-[50px] bg-red-600 px-5 py-2 text-[12px] font-bold text-white hover:bg-red-700 disabled:opacity-60"
+                            >
+                                {isDeleting ? 'Deleting...' : 'Yes, Delete'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
 
-export default AddInvoice;
+export default DetailInvoicePage;
