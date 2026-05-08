@@ -82,12 +82,12 @@ const tableHeaders: TableHeader[] = [
     {
         label: 'Invoice No',
         key: 'transaction_number',
-        width: 'w-[18%]',
+        width: 'w-[17%]',
     },
     {
-        label: 'Trans ID',
+        label: 'Date',
         key: 'trans_id',
-        width: 'w-[14%]',
+        width: 'w-[13%]',
     },
     {
         label: 'Type',
@@ -95,24 +95,24 @@ const tableHeaders: TableHeader[] = [
         width: 'w-[12%]',
     },
     {
-        label: 'Visit_ID',
+        label: 'Visit / Record',
         key: 'visit_display',
         width: 'w-[18%]',
     },
     {
         label: 'Method',
         key: 'payment_method',
-        width: 'w-[14%]',
+        width: 'w-[13%]',
     },
     {
-        label: 'Total Amount',
+        label: 'Amount',
         key: 'amount',
         width: 'w-[16%]',
     },
     {
         label: 'Status',
         key: 'status',
-        width: 'w-[12%]',
+        width: 'w-[11%]',
     },
 ];
 
@@ -668,18 +668,6 @@ const FinancialReport = () => {
                                 </div>
 
                                 <div className="flex shrink-0 flex-wrap items-center gap-[12px]">
-                                    <div className="rounded-[14px] bg-white px-[22px] py-[15px] shadow-sm">
-                                        <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#5F785F]">
-                                            Records
-                                        </p>
-                                        <p className="mt-[8px] text-[26px] font-bold leading-none text-black">
-                                            {summaryData.totalRecords}
-                                        </p>
-                                        <p className="mt-[7px] text-[10px] font-medium text-[#6B6B6B]">
-                                            Transaction(s)
-                                        </p>
-                                    </div>
-
                                     <button
                                         type="button"
                                         onClick={() =>
@@ -694,22 +682,6 @@ const FinancialReport = () => {
                                             className="w-4"
                                         />
                                         <span>Add Invoice</span>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={handleDownload}
-                                        disabled={
-                                            isLoading ||
-                                            filteredTransactions.length === 0
-                                        }
-                                        className="flex h-[40px] items-center justify-center gap-x-2 rounded-[50px] border border-white/50 bg-white/10 px-[20px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
-                                    >
-                                        <FontAwesomeIcon
-                                            icon={faDownload}
-                                            className="w-4"
-                                        />
-                                        <span>Download</span>
                                     </button>
                                 </div>
                             </div>
@@ -926,11 +898,12 @@ const FinancialReport = () => {
                         )}
 
                         <section className="box-border w-full overflow-hidden rounded-l-[18px] border border-r-0 border-[#D2D8CF] bg-white shadow-sm">
-                            <div className="flex flex-col gap-[8px] border-b border-[#E4E8E1] px-5 py-[20px] sm:flex-row sm:items-center sm:justify-between sm:px-[26px]">
-                                <div>
+                            <div className="flex flex-col gap-[16px] border-b border-[#E4E8E1] px-5 py-[20px] lg:flex-row lg:items-center lg:justify-between sm:px-[26px]">
+                                <div className="min-w-0">
                                     <h2 className="text-[20px] font-bold leading-none text-[#5F785F]">
                                         Financial List
                                     </h2>
+
                                     <p className="mt-[7px] text-[11px] text-[#5F5F5F]">
                                         Showing{' '}
                                         <span className="font-bold text-black">
@@ -943,28 +916,158 @@ const FinancialReport = () => {
                                     </p>
                                 </div>
 
-                                <div className="rounded-[50px] bg-[#F8FAF6] px-[14px] py-[7px] text-[11px] font-bold text-[#5F785F]">
-                                    {isLoading
-                                        ? 'Loading data...'
-                                        : 'Click row to view detail'}
+                                <div className="flex w-full flex-col gap-[10px] sm:flex-row sm:items-center sm:justify-between lg:w-auto lg:justify-end">
+                                    <div className="flex min-h-[38px] items-center justify-between rounded-[12px] border border-[#D2D8CF] bg-[#F8FAF6] px-[14px] py-[9px] sm:min-w-[156px]">
+                                        <div>
+                                            <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-[#5F785F]">
+                                                Records
+                                            </p>
+                                            <p className="mt-[3px] text-[17px] font-bold leading-none text-black">
+                                                {summaryData.totalRecords}
+                                            </p>
+                                        </div>
+
+                                        <p className="text-[10px] font-semibold text-[#6B6B6B]">
+                                            Data
+                                        </p>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={handleDownload}
+                                        disabled={
+                                            isLoading ||
+                                            filteredTransactions.length === 0
+                                        }
+                                        className="flex min-h-[38px] items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                        <FontAwesomeIcon
+                                            icon={faDownload}
+                                            className="w-4"
+                                        />
+                                        <span>Download</span>
+                                    </button>
                                 </div>
                             </div>
 
-                            <div className="w-full overflow-x-auto">
-                                <table className="w-full min-w-[1050px] divide-y divide-gray-200 text-[11px]">
-                                    <thead className="bg-[#D2E3C8] font-semibold text-gray-700">
-                                        <tr>
+                            <div className="block lg:hidden">
+                                <div className="grid grid-cols-1 gap-[12px] px-4 py-4 sm:grid-cols-2">
+                                    {isLoading ? (
+                                        <div className="col-span-full rounded-[14px] border border-[#E4E8E1] bg-[#F8FAF6] px-4 py-8 text-center text-[12px] text-gray-500">
+                                            Loading financial data...
+                                        </div>
+                                    ) : filteredTransactions.length === 0 ? (
+                                        <div className="col-span-full rounded-[14px] border border-[#E4E8E1] bg-[#F8FAF6] px-4 py-8 text-center text-[12px] text-gray-500">
+                                            No financial data found for{' '}
+                                            {formattedSelectedDate}
+                                        </div>
+                                    ) : (
+                                        filteredTransactions.map(
+                                            (transaction) => (
+                                                <button
+                                                    key={
+                                                        transaction.transaction_id ||
+                                                        transaction.transaction_number
+                                                    }
+                                                    type="button"
+                                                    onClick={() =>
+                                                        router.push(
+                                                            `/financial-report/${transaction.transaction_id}`,
+                                                        )
+                                                    }
+                                                    className="w-full rounded-[16px] border border-[#E4E8E1] bg-white px-4 py-4 text-left shadow-sm transition-all hover:border-[#86A789] hover:bg-[#F8FAF6]"
+                                                >
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                            <p className="truncate text-[13px] font-bold text-black">
+                                                                {transaction.transaction_number ||
+                                                                    '-'}
+                                                            </p>
+                                                            <p className="mt-[5px] text-[11px] font-medium text-[#6B6B6B]">
+                                                                {formatShortDate(
+                                                                    transaction.trans_id ||
+                                                                        transaction.payment_date,
+                                                                )}
+                                                            </p>
+                                                        </div>
+
+                                                        <span
+                                                            className={`inline-flex shrink-0 justify-center rounded-full px-3 py-1 text-[10px] font-bold ${getStatusBadgeClassName(
+                                                                transaction.status,
+                                                            )}`}
+                                                        >
+                                                            {formatEnumLabel(
+                                                                transaction.status,
+                                                            )}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="mt-[14px] grid grid-cols-2 gap-x-4 gap-y-3">
+                                                        <div>
+                                                            <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">
+                                                                Type
+                                                            </p>
+                                                            <p className="mt-[4px] truncate text-[11px] font-semibold text-black">
+                                                                {formatEnumLabel(
+                                                                    transaction.trans_type,
+                                                                )}
+                                                            </p>
+                                                        </div>
+
+                                                        <div>
+                                                            <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">
+                                                                Method
+                                                            </p>
+                                                            <p className="mt-[4px] truncate text-[11px] font-semibold text-black">
+                                                                {formatEnumLabel(
+                                                                    transaction.payment_method,
+                                                                )}
+                                                            </p>
+                                                        </div>
+
+                                                        <div>
+                                                            <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">
+                                                                Visit
+                                                            </p>
+                                                            <p className="mt-[4px] truncate text-[11px] font-semibold text-black">
+                                                                {transaction.visit_display ||
+                                                                    '-'}
+                                                            </p>
+                                                        </div>
+
+                                                        <div>
+                                                            <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">
+                                                                Amount
+                                                            </p>
+                                                            <p className="mt-[4px] truncate text-[11px] font-semibold text-black">
+                                                                {formatRupiah(
+                                                                    transaction.amount,
+                                                                )}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            ),
+                                        )
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="hidden w-full overflow-x-auto lg:block">
+                                <table className="w-full min-w-[1050px] border-separate border-spacing-0 text-[11px]">
+                                    <thead>
+                                        <tr className="bg-[#D2E3C8] text-gray-700">
                                             {tableHeaders.map(
                                                 (header, index) => (
                                                     <th
                                                         key={header.key}
-                                                        className={`px-6 py-4 text-center ${
+                                                        className={`px-6 py-4 text-center font-bold ${
                                                             header.width
                                                         } ${
                                                             index !==
                                                             tableHeaders.length -
                                                                 1
-                                                                ? 'border-r border-gray-200'
+                                                                ? 'border-r border-[#BFC7BB]'
                                                                 : ''
                                                         }`}
                                                     >
@@ -1002,7 +1105,7 @@ const FinancialReport = () => {
                                             </tr>
                                         ) : (
                                             filteredTransactions.map(
-                                                (transaction) => (
+                                                (transaction, rowIndex) => (
                                                     <tr
                                                         key={
                                                             transaction.transaction_id ||
@@ -1013,7 +1116,11 @@ const FinancialReport = () => {
                                                                 `/financial-report/${transaction.transaction_id}`,
                                                             )
                                                         }
-                                                        className="cursor-pointer border-b border-gray-100 bg-white text-center text-black transition-all hover:bg-[#EEF3E9]"
+                                                        className={`cursor-pointer text-center text-black transition-all hover:bg-[#EEF3E9] ${
+                                                            rowIndex % 2 === 0
+                                                                ? 'bg-white'
+                                                                : 'bg-[#FBFCF8]'
+                                                        }`}
                                                     >
                                                         {tableHeaders.map(
                                                             (
@@ -1024,11 +1131,11 @@ const FinancialReport = () => {
                                                                     key={
                                                                         header.key
                                                                     }
-                                                                    className={`px-6 py-4 ${
+                                                                    className={`border-b border-[#E4E8E1] px-6 py-4 ${
                                                                         index !==
                                                                         tableHeaders.length -
                                                                             1
-                                                                            ? 'border-r border-gray-100'
+                                                                            ? 'border-r border-[#EEF0EC]'
                                                                             : ''
                                                                     }`}
                                                                 >
