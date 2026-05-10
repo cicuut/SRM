@@ -34,16 +34,10 @@ def generate_record_number(record_type, latest_count):
     return f"{prefix}-{year}-{sequence}"
 
 
-def get_latest_visits_count(record_id):
-    from app.models import VisitMaster
-    from app.models import MedicalRecord
-
-    count = (
-        VisitMaster.query.join(MedicalRecord)
-        .filter(MedicalRecord.record_id == record_id)
-        .count()
-    )
-
+def get_latest_visits_count():
+    from app.models import VisitMaster 
+    
+    count = VisitMaster.query.count()
     return count
 
 

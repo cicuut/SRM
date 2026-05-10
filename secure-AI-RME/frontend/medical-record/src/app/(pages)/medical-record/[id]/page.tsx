@@ -56,7 +56,16 @@ export default function MedicalRecordDetailPage() {
     };
 
     if (loading) {
-        return <div className="max-w-5xl mx-auto p-6">Loading...</div>;
+        return  <div className="min-h-dvh w-full max-w-full overflow-x-hidden bg-[#FDFEF9]">
+                <div className="flex min-h-dvh w-full max-w-full overflow-x-hidden">
+
+                    <main className="box-border flex min-w-0 flex-1 items-center justify-center overflow-x-hidden bg-[#FDFEF9] pb-[40px] pl-4 pr-0 pt-[26px] sm:pl-[28px] sm:pr-0">
+                        <p className="text-[14px] font-bold text-[#5F785F]">
+                            Loading...
+                        </p>
+                    </main>
+                </div>
+            </div>
     }
 
     if (!record) {

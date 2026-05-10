@@ -1,6 +1,6 @@
 import { redirect } from "next/dist/server/api-utils";
-import SigninPage from "./(auth)/register/page";
+import Login from "./(auth)/login/page";
 
 export default function Page() {
-  return <SigninPage />;
+  return <Login />;
 }

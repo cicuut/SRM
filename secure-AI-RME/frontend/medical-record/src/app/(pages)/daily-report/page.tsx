@@ -1,12 +1,20 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Search, Funnel, X, ChevronDown, FileDown, CalendarDays } from 'lucide-react';
+import {
+  Plus,
+  Search,
+  Funnel,
+  X,
+  ChevronDown,
+  FileDown,
+  CalendarDays,
+} from "lucide-react";
 import { useRouter } from "nextjs-toploader/app";
 import Swal from "sweetalert2";
 import Cookies from "js-cookie";
 import axios from "axios";
 import { DateLabel } from "../dashboard/page";
-import api from "@/utils/app"
+import api from "@/utils/app";
 
 interface VisitList {
   visit_id: string;
@@ -31,6 +39,8 @@ const DailyReport = () => {
   const router = useRouter();
   const [verificationInput, setVerificationInput] = useState("");
   const [filteredResults, setFilteredResults] = useState<VisitList[]>([]);
+  const [filteredVisitResults, setFilteredVisitResults] = useState<VisitList[]>([]);
+  const [visitSearch, setVisitSearch] = useState("");
 
   useEffect(() => {
     const fetchDailyReport = async () => {
@@ -39,17 +49,26 @@ const DailyReport = () => {
         const data = response.data;
         setVisitReportList(data);
       } catch (err: any) {
-            const msg = err.response?.data?.msg || err.message || "Terjadi kesalahan";
-            setError(msg);
-        } finally {
-            setLoading(false);
-        }
+        const msg =
+          err.response?.data?.msg || err.message || "Terjadi kesalahan";
+        setError(msg);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchDailyReport();
   }, []);
 
   if (loading) {
-    return <div className="max-w-5xl mx-auto">Loading...</div>;
+    return (
+      <div className="min-h-dvh w-full max-w-full overflow-x-hidden bg-[#FDFEF9]">
+        <div className="flex min-h-dvh w-full max-w-full overflow-x-hidden">
+          <main className="box-border flex min-w-0 flex-1 items-center justify-center overflow-x-hidden bg-[#FDFEF9] pb-[40px] pl-4 pr-0 pt-[26px] sm:pl-[28px] sm:pr-0">
+            <p className="text-[14px] font-bold text-[#5F785F]">Loading...</p>
+          </main>
+        </div>
+      </div>
+    );
   }
   if (error)
     return <div className="p-8 text-center text-red-500">Error: {error}</div>;
@@ -95,7 +114,7 @@ const DailyReport = () => {
       Kehamilan: "pregnancy",
       "Keluarga Berencana": "familyplanning",
       "Poli Umum": "general",
-      "Imunisasi": "immunization",
+      Imunisasi: "immunization",
       Persalinan: "delivery",
     };
     const typePath = typeMap[type] || "general";
@@ -103,15 +122,33 @@ const DailyReport = () => {
   };
 
   const handleSearch = async (query: string) => {
-    if (query.length < 3) return; 
+    if (query.length < 3) return;
     try {
-      const response = await api.get(`/medical-record/search-patients?query=${query}`);
+      const response = await api.get(
+        `/medical-record/search-patients?query=${query}`,
+      );
       setFilteredResults(response.data);
     } catch (err: any) {
-            const msg = err.response?.data?.msg || err.message || "Gagal mencari pasien";
-            setError(msg);
+      const msg =
+        err.response?.data?.msg || err.message || "Gagal mencari pasien";
+      setError(msg);
     }
   };
+
+  const handleSearchVisit = async (query: string) => {
+    if (query.length < 3) return;
+    try {
+      const response = await api.get(
+        `/visit-report/search-visit?query=${query}`,
+      );
+      setFilteredVisitResults(response.data);
+    } catch (err: any) {
+      const msg =
+        err.response?.data?.msg || err.message || "Gagal mencari pasien";
+      setError(msg);
+    }
+  };
+
 
   const handleViewRecordDetail = (visitId: string) => {
     router.push(`/daily-report/${visitId}`);
@@ -122,12 +159,23 @@ const DailyReport = () => {
       <div className="flex-1 flex flex-col  w-full">
         <div className="w-full flex items-center py-6 gap-70  justify-between">
           <div className="relative flex-1  outline-1 outline-gray-300 rounded-lg px-4 py-2 shadow-sm transition-all focus-within:border-[#739072]">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-gray-300" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-gray-300" />
             <form>
               <input
                 type="text"
-                placeholder="Cari data kunjungan"
+                placeholder="Masukan Nama Pasien"
                 className="w-full focus:outline-none pl-8 text-gray-700 placeholder-gray-400"
+                value={visitSearch}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setVisitSearch(val); 
+
+                  if (val.length >= 3) {
+                    handleSearchVisit (val);
+                  } else {
+                    setFilteredVisitResults([]); 
+                  }
+                }}
               />
             </form>
           </div>
@@ -143,22 +191,17 @@ const DailyReport = () => {
         </div>
         <div className="w-full flex felx-row gap-x-5">
           <div className="flex items-center justify-center min-w-37.5 text-center bg-[#D2E3C8] p-2  rounded-[50px] font-bold">
-           <DateLabel />
+            <DateLabel />
           </div>
           <div className="flex items-center justify-center min-w-37.5 text-center border p-2 rounded-[50px] border-gray-400 cursor-pointer">
             Pilih Tanggal
-                <CalendarDays className="ml-2.5 size-5" />
-            
+            <CalendarDays className="ml-2.5 size-5" />
           </div>
           <div className="flex items-center justify-center min-w-37.5 text-center border p-2 rounded-[50px] border-gray-400 cursor-pointer">
-            Filter{" "}
-            <Funnel className="ml-2.5 size-5" />
-            
+            Filter <Funnel className="ml-2.5 size-5" />
           </div>
           <div className="flex items-center justify-center min-w-37.5 text-center border p-2 rounded-[50px] border-gray-400 cursor-pointer">
-            Download{" "}
-                       <FileDown className="ml-2.5 size-5" />
-
+            Download <FileDown className="ml-2.5 size-5" />
           </div>
         </div>
         <div className="mt-5">
@@ -169,7 +212,7 @@ const DailyReport = () => {
                   Kunjungan ID
                 </th>
                 <th className="px-6 py-4 border-r border-gray-200 w-50">
-                 Waktu
+                  Waktu
                 </th>
                 <th className="px-6 py-4 border-r border-gray-200 w-50">
                   RM ID
@@ -186,7 +229,10 @@ const DailyReport = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {visitReportList.map((item, index) => (
+             {(visitSearch.length >= 3
+                ? filteredVisitResults
+                : visitReportList
+              ).map((item, index) => (
                 <tr
                   key={index}
                   className="hover:bg-gray-50 transition-colors text-gray-600 cursor-pointer"
@@ -194,12 +240,21 @@ const DailyReport = () => {
                 >
                   <td className="px-4 py-4 text-center">{item.visit_number}</td>
                   <td className="px-4 py-4 ">{item.visit_date}</td>
-                    <td className="px-4 py-4 text-center">{item.record_number}</td>
+                  <td className="px-4 py-4 text-center">
+                    {item.record_number}
+                  </td>
                   <td className="px-4 py-4 ">{item.patient_name}</td>
                   <td className="px-4 py-4 text-center">{item.record_type}</td>
                   <td className="px-6 py-4">{item.made_by}</td>
                 </tr>
               ))}
+               {visitSearch.length >= 3 && filteredVisitResults.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="text-center py-10 text-gray-400">
+                    Pasien tidak ditemukan.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

@@ -447,3 +447,49 @@ def get_general_visit(uuid):
 
     except Exception as e:
         return jsonify({"msg": "Server error", "error": str(e)}), 500
+
+@visit_report_bp.route('/search-visit', methods=['GET'])
+@jwt_required()
+def search_visit():
+    try:
+        search_query = request.args.get('query', '').lower()
+        
+        results = db.session.query(VisitMaster, MedicalRecord, Patient, User).\
+            join(MedicalRecord, VisitMaster.record_id == MedicalRecord.record_id).\
+            join(Patient, MedicalRecord.patient_id == Patient.patient_id).\
+            join(User, VisitMaster.user_id == User.user_id).\
+            all()
+        matched_records = []
+
+        for visit, medical_record, patient, user in results:
+            raw_name = decrypt_data(patient.patient_name)
+            raw_nik = decrypt_data(patient.national_id)
+            
+            decrypted_name = str(raw_name).lower() if raw_name else ""
+            decrypted_nik = str(raw_nik).lower() if raw_nik else ""
+            record_number = str(medical_record.record_number).lower()
+            visit_number = str(visit.visit_number).lower()
+            
+         
+            if (search_query in decrypted_name or 
+                search_query in decrypted_nik or 
+                search_query in record_number or
+                search_query in visit_number):
+                
+                matched_records.append({
+                    "visit_id": visit.visit_id,
+                    "visit_date": f"{format_date(visit.visit_date)} {visit.visit_time.strftime('%H:%M')}",
+                    "visit_number": visit.visit_number,
+                    "record_number": medical_record.record_number,
+                    "patient_name": decrypted_name.title(),
+                    "nik": decrypted_nik,
+                    "record_type": medical_record.record_type,
+                    "made_by": user.fullname 
+                })
+
+        return jsonify(matched_records), 200
+
+    except Exception as e:
+        print(f"Search Error: {str(e)}")
+        return jsonify({"msg": "Server error", "error": str(e)}), 500
+    

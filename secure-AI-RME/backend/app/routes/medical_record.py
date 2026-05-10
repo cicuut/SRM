@@ -967,7 +967,7 @@ def search_patients():
 
         for record, patient in results:
             decrypted_name = decrypt_data(patient.patient_name).lower()
-            decrypted_nik = decrypt_data(patient.national_id)
+            decrypted_nik = str(decrypt_data(patient.national_id)).strip().lower()
             
             decrypted_birthdate = decrypt_data(patient.birth_date)
             
@@ -1001,7 +1001,9 @@ def search_patients():
                     "patient_name": decrypted_name.title(), 
                     "nik": decrypted_nik,
                     "birth_date": dob_display,
-                    "status": record.status
+                    "status": record.status,
+                    "created_at": format_date(record.created_at),
+                    "updated_at": format_date(record.last_update) if record.last_update else "-"
                 })
 
         return jsonify(matched_records), 200
