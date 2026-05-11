@@ -59,6 +59,32 @@ const readJson = async (response: Response) => {
     }
 };
 
+const translateMessage = (message: string) => {
+    const normalized = String(message || '').toLowerCase();
+
+    if (normalized.includes('clinic email is taken')) {
+        return 'Email klinik sudah digunakan.';
+    }
+
+    if (normalized.includes('sipb') || normalized.includes('license')) {
+        return 'Nomor praktik / SIPB sudah digunakan.';
+    }
+
+    if (normalized.includes('not linked')) {
+        return 'Akun belum terhubung ke klinik.';
+    }
+
+    if (normalized.includes('only admin')) {
+        return 'Hanya admin yang dapat mengatur informasi klinik.';
+    }
+
+    if (normalized.includes('failed to fetch')) {
+        return 'Tidak dapat terhubung ke server. Pastikan backend sedang berjalan.';
+    }
+
+    return message || 'Terjadi kesalahan. Silakan coba lagi.';
+};
+
 const CreateClinic = () => {
     const router = useRouter();
 
@@ -72,18 +98,20 @@ const CreateClinic = () => {
     const [loading, setLoading] = useState(false);
     const [checkingAccess, setCheckingAccess] = useState(true);
 
+    const getToken = () => {
+        return Cookies.get('access_token');
+    };
+
     const handleUnauthorized = () => {
         Cookies.remove('access_token');
+
         localStorage.removeItem('user_id');
         localStorage.removeItem('fullname');
         localStorage.removeItem('user_email');
         localStorage.removeItem('user_role');
         localStorage.removeItem('clinic_id');
-        router.push('/login');
-    };
 
-    const getToken = () => {
-        return Cookies.get('access_token');
+        router.push('/login');
     };
 
     const fetchCurrentUser = async () => {
@@ -114,7 +142,7 @@ const CreateClinic = () => {
             }
 
             if (!response.ok) {
-                throw new Error(data?.msg || 'Gagal mengambil data user');
+                throw new Error(data?.msg || 'Gagal mengambil data pengguna');
             }
 
             if (data.user?.role !== 'admin') {
@@ -139,8 +167,8 @@ const CreateClinic = () => {
         } catch (error) {
             const message =
                 error instanceof Error
-                    ? error.message
-                    : 'Cannot connect to server. Is Flask running?';
+                    ? translateMessage(error.message)
+                    : 'Tidak dapat terhubung ke server. Pastikan backend sedang berjalan.';
 
             setError(message);
 
@@ -162,27 +190,27 @@ const CreateClinic = () => {
 
     const validateForm = () => {
         if (!clinicName.trim()) {
-            return 'Nama klinik wajib diisi';
+            return 'Nama klinik wajib diisi.';
         }
 
         if (!sipbNumber.trim()) {
-            return 'Nomor praktek / SIPB wajib diisi';
+            return 'Nomor praktik / SIPB wajib diisi.';
         }
 
         if (!phone.trim()) {
-            return 'No telepon wajib diisi';
+            return 'Nomor telepon wajib diisi.';
         }
 
         if (!email.trim()) {
-            return 'Email klinik wajib diisi';
+            return 'Email klinik wajib diisi.';
         }
 
         if (!email.includes('@')) {
-            return 'Format email klinik tidak valid';
+            return 'Format email klinik tidak valid.';
         }
 
         if (!address.trim()) {
-            return 'Alamat lengkap wajib diisi';
+            return 'Alamat lengkap wajib diisi.';
         }
 
         return '';
@@ -203,7 +231,7 @@ const CreateClinic = () => {
                 setError(validationMessage);
 
                 await Swal.fire({
-                    title: 'Coba Lagi',
+                    title: 'Data Belum Lengkap',
                     text: validationMessage,
                     icon: 'warning',
                     confirmButtonColor: '#739072',
@@ -228,7 +256,7 @@ const CreateClinic = () => {
                 },
                 body: JSON.stringify({
                     clinic_name: clinicName.trim(),
-                    clinic_email: email.trim(),
+                    clinic_email: email.trim().toLowerCase(),
                     license_number: sipbNumber.trim(),
                     clinic_address: address.trim(),
                     clinic_phone: phone.trim(),
@@ -279,13 +307,13 @@ const CreateClinic = () => {
         } catch (error) {
             const message =
                 error instanceof Error
-                    ? error.message
-                    : 'Cannot connect to server. Is Flask running?';
+                    ? translateMessage(error.message)
+                    : 'Tidak dapat terhubung ke server. Pastikan backend sedang berjalan.';
 
             setError(message);
 
             await Swal.fire({
-                title: 'Pendaftaran Gagal',
+                title: 'Gagal Menyimpan',
                 text: message,
                 icon: 'error',
                 confirmButtonColor: '#739072',
@@ -298,125 +326,180 @@ const CreateClinic = () => {
 
     if (checkingAccess) {
         return (
-            <div className="container items-center justify-center bg-[#D2E3C8]">
-                <p className="text-xl font-bold text-[#4F6F52]">
-                    Checking clinic access...
-                </p>
-            </div>
+            <main className={styles.loadingPage}>
+                <div className={styles.loadingCard}>
+                    <Image
+                        src="/icon-1.png"
+                        alt="Logo NADI"
+                        width={56}
+                        height={56}
+                        priority
+                    />
+                    <p>Memeriksa akses klinik...</p>
+                </div>
+            </main>
         );
     }
 
     return (
-        <div className="container bg-[#D2E3C8]">
-            <div className="flex w-1/2 flex-col items-center justify-center gap-4">
-                <Image
-                    src="/hospital-icon.png"
-                    alt="Hospital Icon"
-                    width={400}
-                    height={400}
-                />
+        <main className={styles.page}>
+            <section className={styles.leftPanel}>
+                <div className={styles.overlay} />
 
-                <div className="w-1/2 text-center">
-                    <p className="text-4xl text-[#739072]">
-                        Masukan informasi klinik untuk mengaktifkan sistem.
-                    </p>
+                <div className={styles.logoArea}>
+                    <div className={styles.logoBox}>
+                        <Image
+                            src="/icon-1.png"
+                            alt="Logo NADI"
+                            width={42}
+                            height={42}
+                            className={styles.logoImage}
+                            priority
+                        />
+
+                        <div className={styles.logoText}>
+                            <h2>NADI</h2>
+                            <p>Clinic Management System</p>
+                        </div>
+                    </div>
                 </div>
-            </div>
 
-            <div className="flex w-1/2 flex-col items-center justify-center gap-4 rounded-bl-[10%] rounded-tl-[10%] bg-[#FFF]">
-                <form
-                    onSubmit={handleCreateClinic}
-                    className={styles['regist-input-wrapper']}
-                >
-                    <h1 className="text-center text-2xl font-bold text-[#4F6F52]">
-                        Clinic Information
-                    </h1>
+                <div className={styles.leftContent}>
+                    <div className={styles.heroText}>
+                        <p className={styles.badge}>Setup Awal Klinik</p>
 
-                    <p className="max-w-[360px] text-center text-[12px] leading-5 text-[#766E6E]">
-                        Halaman ini hanya untuk admin. Data klinik akan dipakai
-                        oleh semua user yang terhubung ke klinik ini.
-                    </p>
+                        <h1>Pengaturan Klinik</h1>
 
-                    <div className="w-full">
-                        <h3>Nama Klinik</h3>
-
-                        <input
-                            type="text"
-                            value={clinicName}
-                            onChange={(event) =>
-                                setClinicName(event.target.value)
-                            }
-                            disabled={loading}
-                            required
-                        />
-                    </div>
-
-                    <div className="w-full">
-                        <h3>Nomor Praktek / SIPB</h3>
-
-                        <input
-                            type="text"
-                            value={sipbNumber}
-                            onChange={(event) =>
-                                setSipbNumber(event.target.value)
-                            }
-                            disabled={loading}
-                            required
-                        />
-                    </div>
-
-                    <div className="w-full">
-                        <h3>No Telepon</h3>
-
-                        <input
-                            type="tel"
-                            value={phone}
-                            onChange={(event) => setPhone(event.target.value)}
-                            disabled={loading}
-                            required
-                        />
-                    </div>
-
-                    <div className="w-full">
-                        <h3>Email</h3>
-
-                        <input
-                            type="email"
-                            value={email}
-                            onChange={(event) => setEmail(event.target.value)}
-                            disabled={loading}
-                            required
-                        />
-                    </div>
-
-                    <div className="w-full">
-                        <h3>Alamat Lengkap</h3>
-
-                        <input
-                            type="text"
-                            value={address}
-                            onChange={(event) => setAddress(event.target.value)}
-                            disabled={loading}
-                            required
-                        />
-                    </div>
-
-                    {error && (
-                        <p className="w-full rounded-[6px] bg-red-50 px-3 py-2 text-center text-[12px] text-red-600">
-                            {error}
+                        <p className={styles.description}>
+                            Lengkapi informasi klinik untuk mengaktifkan sistem.
+                            Data ini akan digunakan pada akun pengguna, laporan,
+                            rekam medis, dan aktivitas operasional klinik.
                         </p>
-                    )}
+                    </div>
+                </div>
+            </section>
 
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-42 cursor-pointer rounded-[30px] bg-[#739072] px-4 py-2 font-poppins font-bold text-[#FFF] transition-all hover:bg-[#5F785F] disabled:cursor-not-allowed disabled:opacity-70"
+            <section className={styles.rightPanel}>
+                <div className={styles.formCard}>
+                    <div className={styles.formHeader}>
+                        <h2>Informasi Klinik</h2>
+
+                        <p>
+                            Isi data klinik dengan benar. Informasi ini dapat
+                            diperbarui kembali oleh admin melalui pengaturan
+                            manajemen.
+                        </p>
+                    </div>
+
+                    <form
+                        onSubmit={handleCreateClinic}
+                        className={styles.form}
                     >
-                        {loading ? 'Submitting...' : 'Save Clinic'}
-                    </button>
-                </form>
-            </div>
-        </div>
+                        <div className={styles.inputGroup}>
+                            <label htmlFor="clinicName">Nama Klinik</label>
+
+                            <input
+                                id="clinicName"
+                                type="text"
+                                value={clinicName}
+                                onChange={(event) =>
+                                    setClinicName(event.target.value)
+                                }
+                                disabled={loading}
+                                required
+                                placeholder="Contoh: Klinik Bidan Sehat"
+                            />
+                        </div>
+
+                        <div className={styles.inputGroup}>
+                            <label htmlFor="sipbNumber">
+                                Nomor Praktik / SIPB
+                            </label>
+
+                            <input
+                                id="sipbNumber"
+                                type="text"
+                                value={sipbNumber}
+                                onChange={(event) =>
+                                    setSipbNumber(event.target.value)
+                                }
+                                disabled={loading}
+                                required
+                                placeholder="Masukkan nomor praktik"
+                            />
+                        </div>
+
+                        <div className={styles.twoColumns}>
+                            <div className={styles.inputGroup}>
+                                <label htmlFor="phone">Nomor Telepon</label>
+
+                                <input
+                                    id="phone"
+                                    type="tel"
+                                    value={phone}
+                                    onChange={(event) =>
+                                        setPhone(event.target.value)
+                                    }
+                                    disabled={loading}
+                                    required
+                                    placeholder="08xxxxxxxxxx"
+                                />
+                            </div>
+
+                            <div className={styles.inputGroup}>
+                                <label htmlFor="email">Email Klinik</label>
+
+                                <input
+                                    id="email"
+                                    type="email"
+                                    value={email}
+                                    onChange={(event) =>
+                                        setEmail(event.target.value)
+                                    }
+                                    disabled={loading}
+                                    required
+                                    placeholder="klinik@email.com"
+                                />
+                            </div>
+                        </div>
+
+                        <div className={styles.inputGroup}>
+                            <label htmlFor="address">Alamat Lengkap</label>
+
+                            <textarea
+                                id="address"
+                                value={address}
+                                onChange={(event) =>
+                                    setAddress(event.target.value)
+                                }
+                                disabled={loading}
+                                required
+                                rows={4}
+                                placeholder="Masukkan alamat lengkap klinik"
+                            />
+                        </div>
+
+                        {error && (
+                            <div className={styles.errorBox}>{error}</div>
+                        )}
+
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className={styles.submitButton}
+                        >
+                            {loading
+                                ? 'Menyimpan...'
+                                : 'Simpan Informasi Klinik'}
+                        </button>
+
+                        <p className={styles.bottomInfo}>
+                            Halaman ini hanya dapat diakses oleh admin.
+                        </p>
+                    </form>
+                </div>
+            </section>
+        </main>
     );
 };
 
