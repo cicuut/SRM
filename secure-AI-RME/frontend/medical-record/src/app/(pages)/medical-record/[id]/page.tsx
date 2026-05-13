@@ -9,6 +9,7 @@ import ImmunizationDetail from '@/app/(pages)/medical-record/(medical-record-det
 import DeliveryDetail from '@/app/(pages)/medical-record/(medical-record-detail)/deliveryDetail';
 import GeneralDetail from '../(medical-record-detail)/generalDetail';
 import api from "@/utils/app";
+import LoadingOverlay from '@/components/loading'
 
 export default function MedicalRecordDetailPage() {
     const params = useParams();
@@ -57,15 +58,8 @@ export default function MedicalRecordDetailPage() {
 
     if (loading) {
         return  <div className="min-h-dvh w-full max-w-full overflow-x-hidden bg-[#FDFEF9]">
-                <div className="flex min-h-dvh w-full max-w-full overflow-x-hidden">
-
-                    <main className="box-border flex min-w-0 flex-1 items-center justify-center overflow-x-hidden bg-[#FDFEF9] pb-[40px] pl-4 pr-0 pt-[26px] sm:pl-[28px] sm:pr-0">
-                        <p className="text-[14px] font-bold text-[#5F785F]">
-                            Loading...
-                        </p>
-                    </main>
+            {loading && <LoadingOverlay />}
                 </div>
-            </div>
     }
 
     if (!record) {

@@ -2,7 +2,6 @@
 import React from "react";
 import { useState, useEffect } from "react";
 import { emit } from "process";
-import Sidebar from "@/components/sidebar";
 import { useSearchParams, useRouter } from "next/navigation";
 import axios from "axios";
 import { request } from "http";
@@ -59,17 +58,17 @@ const FamilyPlanningRecord = () => {
                 youngest_child_age: youngestChild,
                 family_med_history: geneticDiseaseHistory
             };
-            const response = await api.post("/medical-record/add-family-planning", payload );
+            const response = await api.post("/medical-record/add-family-planning", payload);
             if (response.status === 201) {
                 Swal.fire({
                     title: "Success",
                     text: "Rekam medis KB berhasil disimpan!",
                     icon: "success",
-                 showConfirmButton: false,
-                timer: 2000
+                    showConfirmButton: false,
+                    timer: 2000
                 });
                 fetchRmNumber();
-            }  router.push('/medical-record');
+            } router.push('/medical-record');
         } catch (err: any) {
             console.error(err);
             setLoading(false);
@@ -78,9 +77,9 @@ const FamilyPlanningRecord = () => {
                 title: "Gagal Menyimpan!",
                 text: errorMessage,
                 icon: "error",
-showConfirmButton: false,
+                showConfirmButton: false,
                 timer: 2000
-                        });
+            });
             setError(errorMessage);
         }
     };
@@ -110,27 +109,35 @@ showConfirmButton: false,
                 <div className="flex flex-col mt-4 gap-y-4">
                     <div className="flex flex-row w-full gap-20 justify-between">
                         <div className="flex flex-col flex-1 gap-y-1 ">
-                           Jumlah Anak
-                            <input type="number" name="numberOfChildren" value={numberOfChildren} onChange={(e) => setNumberOfChildren(e.target.value)} id="numberOfChildren" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                            Jumlah Anak
+                            <input type="number" name="numberOfChildren" value={numberOfChildren} onChange={(e) => setNumberOfChildren(e.target.value)} id="numberOfChildren" className="w-full h-8 rounded-md p-2 bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                         </div>
                         <div className="flex flex-col  flex-1">
-                           Anak terkecil
-                            <input type="text" name="youngestChild" value={youngestChild} id="youngestChild" onChange={(e) => setYoungestChild(e.target.value)} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                            Anak terkecil
+                            <input type="text" name="youngestChild" value={youngestChild} id="youngestChild" onChange={(e) => setYoungestChild(e.target.value)} className="w-full h-8 rounded-md bg-white p-2 drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                         </div>
                     </div>
                     <div className="flex flex-row w-full gap-20 justify-between">
                         <div className="flex flex-col flex-1" >
                             Genetic Disease History
-                            <textarea name="geneticDiseaseHistory" value={geneticDiseaseHistory} onChange={(e) => setGeneticDiseaseHistory(e.target.value)} id="geneticDiseaseHistory" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                            <textarea name="geneticDiseaseHistory" value={geneticDiseaseHistory} onChange={(e) => setGeneticDiseaseHistory(e.target.value)} id="geneticDiseaseHistory" className="w-full h-8 p-2 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                         </div>
                     </div>
                     <div className="flex justify-center gap-4 mt-10">
                         <button
                             type="submit"
                             onClick={handleSubmit}
+                            disabled={loading}
                             className="px-8 py-2 bg-[#739072] text-white rounded-full hover:bg-[#4F6F52] shadow-lg transition font-bold cursor-pointer"
                         >
-                            Save Record
+                            {loading ? (
+                                <div className="flex items-center gap-2">
+                                    <div className="spinner"></div>
+                                    <span>Memproses...</span>
+                                </div>
+                            ) : (
+                                "Simpan"
+                            )}
                         </button>
                     </div>
                 </div>

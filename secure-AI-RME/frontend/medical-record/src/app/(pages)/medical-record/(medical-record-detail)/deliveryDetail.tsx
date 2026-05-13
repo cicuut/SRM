@@ -2,7 +2,6 @@
 import React from "react";
 import { useState } from "react";
 import { emit } from "process";
-import Sidebar from "@/components/sidebar";
 import PatientInformationDetail from "../../../../components/records/patientInformationDetail";
 import FamilyInformation from "../../../../components/records/familyInformationDetail";
 import DeliverHistoryDetail from "@/components/records/deliveryHistoryDetail";

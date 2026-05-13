@@ -1,9 +1,8 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import {
   Plus,
   Search,
-  Funnel,
   X,
   ChevronDown,
   FileDown,
@@ -11,11 +10,13 @@ import {
 } from "lucide-react";
 import { useRouter } from "nextjs-toploader/app";
 import Swal from "sweetalert2";
-import Cookies from "js-cookie";
-import axios from "axios";
 import { DateLabel } from "../dashboard/page";
 import api from "@/utils/app";
+import RMTypeFilter from "@/components/rm_type";
+import DateRangeFilter from "@/components/date_range";
+import LoadingOverlay from "@/components/loading";
 
+// Interface for visit list data
 interface VisitList {
   visit_id: string;
   visit_number: string;
@@ -28,54 +29,31 @@ interface VisitList {
   made_by: string;
 }
 
+// Main component for daily report page
 const DailyReport = () => {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
+  const router = useRouter();
+
+  // State variables for component
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [visitReportList, setVisitReportList] = useState<VisitList[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isModalVisitOpen, setIsModalVisitOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [selectedType, setSelectedType] = useState("Select a type");
-  const router = useRouter();
   const [verificationInput, setVerificationInput] = useState("");
   const [filteredResults, setFilteredResults] = useState<VisitList[]>([]);
-  const [filteredVisitResults, setFilteredVisitResults] = useState<VisitList[]>([]);
   const [visitSearch, setVisitSearch] = useState("");
+  const [selectedType, setSelectedType] = useState("All");
+  const [selectedRMLabel, setSelectedRMLabel] = useState("Tipe RM");
+  const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([
+    null,
+    null,
+  ]);
+  const [startDate, endDate] = dateRange;
 
-  useEffect(() => {
-    const fetchDailyReport = async () => {
-      try {
-        const response = await api.get("/visit-report/get-all-visit");
-        const data = response.data;
-        setVisitReportList(data);
-      } catch (err: any) {
-        const msg =
-          err.response?.data?.msg || err.message || "Terjadi kesalahan";
-        setError(msg);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchDailyReport();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="min-h-dvh w-full max-w-full overflow-x-hidden bg-[#FDFEF9]">
-        <div className="flex min-h-dvh w-full max-w-full overflow-x-hidden">
-          <main className="box-border flex min-w-0 flex-1 items-center justify-center overflow-x-hidden bg-[#FDFEF9] pb-[40px] pl-4 pr-0 pt-[26px] sm:pl-[28px] sm:pr-0">
-            <p className="text-[14px] font-bold text-[#5F785F]">Loading...</p>
-          </main>
-        </div>
-      </div>
-    );
-  }
-  if (error)
-    return <div className="p-8 text-center text-red-500">Error: {error}</div>;
-
+  // Handle form submission for record type selection
   const handleSubmitRecordType = (e: React.FormEvent) => {
     e.preventDefault();
-
     setIsModalOpen(false);
     setIsDropdownOpen(false);
     setSelectedType("Masukan Identitas Pasien (Nama, NIK atau Tanggal Lahir)");
@@ -109,6 +87,7 @@ const DailyReport = () => {
     }
   };
 
+  // Navigate to add visit page based on record type
   const handleVisit = (rmId: string, type: string) => {
     const typeMap: { [key: string]: string } = {
       Kehamilan: "pregnancy",
@@ -121,6 +100,7 @@ const DailyReport = () => {
     router.push(`/daily-report/add-visit/${typePath}/${rmId}`);
   };
 
+  // Search for patients by query
   const handleSearch = async (query: string) => {
     if (query.length < 3) return;
     try {
@@ -135,13 +115,14 @@ const DailyReport = () => {
     }
   };
 
+  // Search for visits by query
   const handleSearchVisit = async (query: string) => {
     if (query.length < 3) return;
     try {
       const response = await api.get(
         `/visit-report/search-visit?query=${query}`,
       );
-      setFilteredVisitResults(response.data);
+      setFilteredResults(response.data);
     } catch (err: any) {
       const msg =
         err.response?.data?.msg || err.message || "Gagal mencari pasien";
@@ -149,14 +130,66 @@ const DailyReport = () => {
     }
   };
 
+  // Fetch filtered data based on search, type, and date range
+  const fetchFilteredData = async () => {
+    setLoading(true);
+    const [start, end] = dateRange;
 
+    const formatDate = (date: Date | null) => {
+      if (!date) return "";
+      return date.toISOString().split("T")[0];
+    };
+
+    try {
+      const params = new URLSearchParams({
+        search: visitSearch,
+        type: selectedType,
+        start_date: formatDate(start),
+        end_date: formatDate(end),
+      });
+
+      const response = await api.get(
+        `/visit-report/filter-all?${params.toString()}`,
+      );
+      setVisitReportList(response.data);
+    } catch (err) {
+      console.error("Gagal mengambil data terfilter", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Effect to fetch data when filters change
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      fetchFilteredData();
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [visitSearch, selectedType, dateRange]);
+
+  // Handle filter change for record type
+  const handleFilterChange = (type: string, label: string) => {
+    setSelectedType(type);
+    setSelectedRMLabel(label);
+  };
+
+  // Handle date range filter change
+  const handleFilterDate = (start: Date | null, end: Date | null) => {
+    setDateRange([start, end]);
+  };
+
+  // Navigate to visit detail page
   const handleViewRecordDetail = (visitId: string) => {
     router.push(`/daily-report/${visitId}`);
   };
 
+  // Main render function
   return (
     <div>
       <div className="flex-1 flex flex-col  w-full">
+           {loading && <LoadingOverlay />}
+        {/* Search bar and add visit button */}
         <div className="w-full flex items-center py-6 gap-70  justify-between">
           <div className="relative flex-1  outline-1 outline-gray-300 rounded-lg px-4 py-2 shadow-sm transition-all focus-within:border-[#739072]">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-gray-300" />
@@ -168,12 +201,12 @@ const DailyReport = () => {
                 value={visitSearch}
                 onChange={(e) => {
                   const val = e.target.value;
-                  setVisitSearch(val); 
+                  setVisitSearch(val);
 
                   if (val.length >= 3) {
-                    handleSearchVisit (val);
+                    handleSearchVisit(val);
                   } else {
-                    setFilteredVisitResults([]); 
+                    setFilteredResults([]);
                   }
                 }}
               />
@@ -189,21 +222,25 @@ const DailyReport = () => {
             </div>
           </div>
         </div>
-        <div className="w-full flex felx-row gap-x-5">
+        {/* Filters section */}
+        <div className="w-full flex flex-row gap-x-5">
           <div className="flex items-center justify-center min-w-37.5 text-center bg-[#D2E3C8] p-2  rounded-[50px] font-bold">
             <DateLabel />
           </div>
-          <div className="flex items-center justify-center min-w-37.5 text-center border p-2 rounded-[50px] border-gray-400 cursor-pointer">
-            Pilih Tanggal
-            <CalendarDays className="ml-2.5 size-5" />
-          </div>
-          <div className="flex items-center justify-center min-w-37.5 text-center border p-2 rounded-[50px] border-gray-400 cursor-pointer">
-            Filter <Funnel className="ml-2.5 size-5" />
-          </div>
+          <DateRangeFilter
+            onFilterDate={handleFilterDate}
+            selectedStartDate={startDate}
+            selectedEndDate={endDate}
+          />
+          <RMTypeFilter
+            onFilterChange={handleFilterChange}
+            currentLabel={selectedRMLabel}
+          />
           <div className="flex items-center justify-center min-w-37.5 text-center border p-2 rounded-[50px] border-gray-400 cursor-pointer">
             Download <FileDown className="ml-2.5 size-5" />
           </div>
         </div>
+        {/* Visit reports table */}
         <div className="mt-5">
           <table className="min-w-full divide-y divide-gray-200 text-[11px]">
             <thead className="bg-[#D2E3C8] text-gray-700 font-semibold drop-shadow-lg ">
@@ -229,36 +266,67 @@ const DailyReport = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-             {(visitSearch.length >= 3
-                ? filteredVisitResults
-                : visitReportList
-              ).map((item, index) => (
-                <tr
-                  key={index}
-                  className="hover:bg-gray-50 transition-colors text-gray-600 cursor-pointer"
-                  onClick={() => handleViewRecordDetail(item.visit_id)}
-                >
-                  <td className="px-4 py-4 text-center">{item.visit_number}</td>
-                  <td className="px-4 py-4 ">{item.visit_date}</td>
-                  <td className="px-4 py-4 text-center">
-                    {item.record_number}
-                  </td>
-                  <td className="px-4 py-4 ">{item.patient_name}</td>
-                  <td className="px-4 py-4 text-center">{item.record_type}</td>
-                  <td className="px-6 py-4">{item.made_by}</td>
-                </tr>
-              ))}
-               {visitSearch.length >= 3 && filteredVisitResults.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="text-center py-10 text-gray-400">
-                    Pasien tidak ditemukan.
-                  </td>
-                </tr>
-              )}
+              {(() => {
+                if (loading) {
+                  return (
+                    <tr>
+                      <td colSpan={6} className="py-20 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#739072] border-t-transparent"></div>
+                          <p className="text-sm font-bold text-[#739072]">
+                            Loading data...
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+                const displayData =
+                  visitSearch.length >= 3 ? filteredResults : visitReportList;
+                if (displayData.length === 0) {
+                  return (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className="text-center py-20 text-gray-400"
+                      >
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <p className="text-sm">
+                            {visitSearch.length >= 3
+                              ? `Kunjungan tidak ditemukan.`
+                              : "Belum ada riwayat kunjungan."}
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+                return displayData.map((item, index) => (
+                  <tr
+                    key={item.visit_id || index}
+                    className="hover:bg-gray-50 transition-colors text-gray-600 cursor-pointer"
+                    onClick={() => handleViewRecordDetail(item.visit_id)}
+                  >
+                    <td className="px-4 py-4 text-center">
+                      {item.visit_number}
+                    </td>
+                    <td className="px-4 py-4">{item.visit_date}</td>
+                    <td className="px-4 py-4 text-center">
+                      {item.record_number}
+                    </td>
+                    <td className="px-4 py-4 ">{item.patient_name}</td>
+                    <td className="px-4 py-4 text-center">
+                      {item.record_type}
+                    </td>
+                    <td className="px-6 py-4">{item.made_by}</td>
+                  </tr>
+                ));
+              })()}
             </tbody>
           </table>
         </div>
       </div>
+      {/* Modal for adding visit */}
       {isModalVisitOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
           <div className="flex flex-col bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-y-auto ">
@@ -275,13 +343,12 @@ const DailyReport = () => {
                 <X className="w-5" />
               </button>
             </div>
-
             <div className="p-8 flex flex-col gap-4 min-h-5 max-h-87.5">
               <div className="relative w-full ">
                 <input
                   type="text"
                   className="w-full bg-[#eeeeee] focus:outline-none rounded-lg h-12 p-4 border focus:border-[#739072]"
-                  placeholder="Masukkan Nama, NIK, atau Tanggal Lahir..."
+                  placeholder="Masukkan Nama, NIK, atau Tanggal Lahir"
                   value={verificationInput}
                   onChange={(e) => {
                     const val = e.target.value;
@@ -326,7 +393,6 @@ const DailyReport = () => {
                 )}
               </div>
             </div>
-
             <div className="text-sm text-center">
               <p>
                 Tidak ada rekam medis?
@@ -341,7 +407,6 @@ const DailyReport = () => {
                 </span>
               </p>
             </div>
-
             <div className="p-4  flex justify-end gap-3">
               <button
                 onClick={() => {
@@ -357,6 +422,7 @@ const DailyReport = () => {
           </div>
         </div>
       )}
+      {/* Modal for selecting record type */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
           <div className="flex flex-col gap-y-6 bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 h-80 pb-8">
@@ -413,7 +479,6 @@ const DailyReport = () => {
                   </ul>
                 )}
               </div>
-
               <div className="flex justify-center gap-4 mt-4">
                 <button
                   type="button"

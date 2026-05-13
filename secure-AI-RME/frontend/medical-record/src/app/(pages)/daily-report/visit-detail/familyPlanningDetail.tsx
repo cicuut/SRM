@@ -1,12 +1,11 @@
 'use client';
-import React, { useEffect } from "react";
+import  { useEffect } from "react";
 import { useState } from "react";
-import { emit } from "process";
 import { useParams } from "next/dist/client/components/navigation";
 import VisitInformation from "@/components/visit/visit-information";
-import Cookies from "js-cookie";
 import api from "@/utils/app";
 
+// Data shape for family planning visit details
 interface VisitFamilyPlanningDetailProps {
     weight_kg?: string;
     blood_pressure?: string;
@@ -16,6 +15,7 @@ interface VisitFamilyPlanningDetailProps {
 }
 
 const VisitFamilyPlanningDetail = () => {
+    // Local state for visit details and loading/error status
     const [visitFamilyPlanningDetail, setVisitFamilyPlanningDetail] =
         useState<VisitFamilyPlanningDetailProps | null>(null);
     const [error, setError] = useState("");
@@ -23,7 +23,7 @@ const VisitFamilyPlanningDetail = () => {
     const params = useParams();
     const uuid = params.id;
 
-
+    // Fetch visit details when the page loads or ID changes
     useEffect(() => {
         const fetchVisitFamilyPlanningData = async () => {
             if (!uuid) return;
@@ -50,6 +50,7 @@ const VisitFamilyPlanningDetail = () => {
                     Catatan Medis
                 </p>
             </div>
+            {/* Display family planning visit details */}
             <div className=" flex flex-row py-5 gap-6">
                 <div className="flex flex-col text-sm gap-2 min-w-[200px]">
                     <label className="block mb-1 font-bold text-black">Berat Badan</label>

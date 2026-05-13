@@ -3,7 +3,7 @@ import os
 import base64
 from Crypto.Cipher import AES
 from dotenv import load_dotenv
-
+import uuid
 
 def get_latest_record_count(record_type):
     from app.models import MedicalRecord
@@ -111,6 +111,16 @@ def format_date(date_obj):
         return date_obj.strftime('%d %B %Y')
     return None
 
+def parse_date(date_str):
+    if not date_str:
+        return None
+    for fmt in ('%Y-%m-%d', '%d/%m/%Y'): 
+        try:
+            return datetime.strptime(date_str.strip(), fmt).date()
+        except (ValueError, TypeError):
+            continue
+    return None
+
 def make_audit_number():
     import uuid
 
@@ -156,11 +166,13 @@ def write_audit_log(user_id, action, old_values=None, new_values=None):
     import json
     from sqlalchemy import text
     from app import db
-
+    
+    
     db.session.execute(
         text(
             """
             INSERT INTO audit (
+                log_id,
                 user_id,
                 audit_number,
                 times,
@@ -169,6 +181,7 @@ def write_audit_log(user_id, action, old_values=None, new_values=None):
                 new_values
             )
             VALUES (
+                :log_id,
                 CAST(:user_id AS uuid),
                 :audit_number,
                 :times,
@@ -179,6 +192,7 @@ def write_audit_log(user_id, action, old_values=None, new_values=None):
             """
         ),
         {
+            "log_id": str(uuid.uuid4()),
             "user_id": str(user_id),
             "audit_number": make_audit_number(),
             "times": datetime.utcnow(),

@@ -2,10 +2,12 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "nextjs-toploader/app";
 import Swal from "sweetalert2";
-import Cookies from "js-cookie";
-import { Plus, Search, Funnel, X, ChevronDown } from "lucide-react";
+import { Plus, Search, X, ChevronDown } from "lucide-react";
 import api from "@/utils/app";
+import RMTypeFilter from "@/components/rm_type";
+import LoadingOverlay from '@/components/loading'
 
+// Interface for medical record data
 interface MedicalRecordList {
   rm_id: string;
   record_number: string;
@@ -20,8 +22,11 @@ interface MedicalRecordList {
   address?: string;
 }
 
+// Main component for medical records page
 const MedicalRecord = () => {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // State variables for component
   const [error, setError] = useState(false);
   const [medicalRecordList, setMedicalRecordList] = useState<
     MedicalRecordList[]
@@ -33,8 +38,11 @@ const MedicalRecord = () => {
     [],
   );
   const [medicalSearch, setMedicalSearch] = useState("");
+  const [selectedRMValue, setSelectedRMValue] = useState("All");
+  const [selectedRMLabel, setSelectedRMLabel] = useState("Tipe RM");
   const router = useRouter();
 
+  // Fetch all medical records on component mount
   useEffect(() => {
     const fetchMedicalRecord = async () => {
       try {
@@ -52,20 +60,12 @@ const MedicalRecord = () => {
     fetchMedicalRecord();
   }, []);
 
-  if (loading) {
-    return (
-      <div className="min-h-dvh w-full max-w-full overflow-x-hidden bg-[#FDFEF9]">
-        <div className="flex min-h-dvh w-full max-w-full overflow-x-hidden">
-          <main className="box-border flex min-w-0 flex-1 items-center justify-center overflow-x-hidden bg-[#FDFEF9] pb-[40px] pl-4 pr-0 pt-[26px] sm:pl-[28px] sm:pr-0">
-            <p className="text-[14px] font-bold text-[#5F785F]">Loading...</p>
-          </main>
-        </div>
-      </div>
-    );
-  }
+
+  // Error state display
   if (error)
     return <div className="p-8 text-center text-red-500">Error: {error}</div>;
 
+  // Handle form submission for record type 
   const handleSubmitRecordType = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -101,6 +101,8 @@ const MedicalRecord = () => {
         });
     }
   };
+
+  // Search for patients by query
   const handleSearch = async (query: string) => {
     if (query.length < 3) return;
     try {
@@ -115,13 +117,32 @@ const MedicalRecord = () => {
     }
   };
 
+  // Navigate to record detail page
   const handleViewRecordDetail = (rmId: string) => {
     router.push(`/medical-record/${rmId}`);
   };
 
+  // Handle filter change for record type
+  const handleFilterChange = async (type: string, label: string) => {
+    setSelectedRMValue(type);
+    setSelectedRMLabel(label);
+    setLoading(true);
+    try {
+      const response = await api.get(`/medical-record/filter-rm-type?type=${type}`);
+      setMedicalRecordList(response.data);
+    } catch (err) {
+      console.error("Gagal filter", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Main render function
   return (
     <div>
       <div className="flex-1 flex flex-col  w-full">
+        {loading && <LoadingOverlay />}
+        {/* Search bar and add medical record button */}
         <div className="w-full flex items-center py-6 gap-70  justify-between">
           <div className="relative flex-1  outline-1 outline-gray-300 rounded-lg px-4 py-2 shadow-sm transition-all focus-within:border-[#739072]">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 size-5" />
@@ -133,23 +154,22 @@ const MedicalRecord = () => {
                 value={medicalSearch}
                 onChange={(e) => {
                   const val = e.target.value;
-                  setMedicalSearch(val); 
+                  setMedicalSearch(val);
 
                   if (val.length >= 3) {
                     handleSearch(val);
                   } else {
-                    setFilteredResults([]); 
+                    setFilteredResults([]);
                   }
                 }}
               />
             </form>
           </div>
           <div className=" flex flex-row items-center gap-5 shrink-0">
-            <div className="flex flex-row items-center gap-x-[4]  outline-1 outline-black-200 rounded-[50px] px-9 py-2 bg-white shadow-sm transition-all focus-within:border-[#739072]">
-              <button>RM Type</button>
-              <Funnel className="size-4" />
-            </div>
-
+            <RMTypeFilter
+              onFilterChange={handleFilterChange}
+              currentLabel={selectedRMLabel}
+            />
             <div
               onClick={() => setIsModalOpen(true)}
               className="cursor-pointer flex flex-row items-center gap-x-[4]  rounded-[50px] px-5 py-2 bg-[#86A789] shadow-sm transition-all focus-within:border-[#739072]"
@@ -159,6 +179,7 @@ const MedicalRecord = () => {
             </div>
           </div>
         </div>
+        {/* Medical records table */}
         <div className="mt-5">
           <table className="min-w-full divide-y divide-gray-200 text-[11px]">
             <thead className="bg-[#D2E3C8] text-gray-700 font-semibold drop-shadow-lg ">
@@ -202,11 +223,10 @@ const MedicalRecord = () => {
                   <td className="px-4 py-4 text-center">{item.birth_date}</td>
                   <td className="px-4 py-4 text-center">
                     <span
-                      className={`px-3 py-1 rounded-full text-xs ${
-                        item.status === "Active"
+                      className={`px-3 py-1 rounded-full text-xs ${item.status === "Active"
                           ? "bg-green-100 text-green-700"
                           : "bg-gray-100 text-gray-700"
-                      }`}
+                        }`}
                     >
                       {item.status}
                     </span>
@@ -215,10 +235,10 @@ const MedicalRecord = () => {
                   <td className="px-6 py-4">{item.updated_at}</td>
                 </tr>
               ))}
-              {medicalSearch.length >= 3 && filteredResults.length === 0 && (
+              {medicalSearch.length >= 3 && filteredResults.length === 0 && medicalRecordList.length === 0 && (
                 <tr>
                   <td colSpan={8} className="text-center py-10 text-gray-400">
-                    Pasien tidak ditemukan.
+                    Data tidak ditemukan.
                   </td>
                 </tr>
               )}
@@ -226,6 +246,7 @@ const MedicalRecord = () => {
           </table>
         </div>
       </div>
+      {/* Modal for selecting record type */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
           <div className="flex flex-col gap-y-6 bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-y-auto animate-in fade-in zoom-in duration-200 pb-8">

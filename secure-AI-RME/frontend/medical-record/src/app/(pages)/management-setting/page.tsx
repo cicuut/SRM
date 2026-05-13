@@ -4,8 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
-import Sidebar from '@/components/sidebar';
-
+import LoadingOverlay from '@/components/loading'
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
@@ -719,9 +718,8 @@ const ManagementSetting = () => {
 
     return (
         <div className="min-h-dvh w-full max-w-full overflow-x-hidden bg-[#FDFEF9]">
+            {isLoading && <LoadingOverlay />}
             <div className="flex min-h-dvh w-full max-w-full overflow-x-hidden">
-                <Sidebar />
-
                 <main className="box-border flex min-w-0 flex-1 flex-col overflow-x-hidden pb-[40px] pl-4 pr-0 pt-[26px] sm:pl-[28px] sm:pr-0">
                     <div className="box-border w-full max-w-none min-w-0">
                         <div className="mt-[28px] box-border flex min-h-[118px] w-full max-w-full flex-col gap-[18px] rounded-l-[8px] bg-[#86A789] px-4 py-[24px] shadow-md sm:px-[38px] lg:flex-row lg:items-center lg:justify-between">

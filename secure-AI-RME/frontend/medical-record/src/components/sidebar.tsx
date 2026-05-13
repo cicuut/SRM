@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import Cookies from 'js-cookie';
+import { House, UsersRound, HeartPulse, Wallet, UserCog, Settings, History    } from 'lucide-react';
 
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
@@ -14,7 +15,7 @@ type Role = 'admin' | 'midwife' | 'asisten' | '';
 type NavItem = {
     label: string;
     href: string;
-    icon: string;
+    icon: React.ElementType;
     roles: Role[];
 };
 
@@ -37,43 +38,43 @@ const navItems: NavItem[] = [
     {
         label: 'Dashboard',
         href: '/dashboard',
-        icon: '/dashboard-icon.svg',
+        icon: House,
         roles: ['admin', 'midwife', 'asisten'],
     },
     {
         label: 'Laporan Harian',
         href: '/daily-report',
-        icon: '/visit-icon.svg',
+        icon: UsersRound,
         roles: ['admin', 'midwife', 'asisten'],
     },
     {
         label: 'Rekam Medis',
         href: '/medical-record',
-        icon: '/record-icon.svg',
+        icon: HeartPulse,
         roles: ['admin', 'midwife', 'asisten'],
     },
     {
         label: 'Laporan Keuangan',
         href: '/financial-report',
-        icon: '/financial-icon.svg',
+        icon: Wallet,
         roles: ['admin', 'midwife'],
     },
     {
         label: 'Pengaturan Manajemen',
         href: '/management-setting',
-        icon: '/management-icon.svg',
+        icon: UserCog,
         roles: ['admin'],
     },
     {
         label: 'Pengaturan Akun',
         href: '/account-setting',
-        icon: '/setting-icon.svg',
+        icon: Settings ,
         roles: ['admin', 'midwife', 'asisten'],
     },
     {
         label: 'Riwayat Aktivitas',
         href: '/activity-history',
-        icon: '/activity-icon.svg',
+        icon:History ,
         roles: ['admin'],
     },
 ];
@@ -219,19 +220,9 @@ const Sidebar = () => {
                                         : 'text-black hover:bg-[#D2E3C8]'
                                 }`}
                             >
-                                <div className="relative z-10">
-                                    <Image
-                                        src={item.icon}
-                                        alt={item.label}
-                                        width={20}
-                                        height={20}
-                                        className={`h-5 w-5 transition-all ${
-                                            active
-                                                ? 'brightness-0 invert'
-                                                : 'opacity-70'
-                                        }`}
-                                    />
-                                </div>
+                                <item.icon 
+                                        size={20} 
+                                        className={`${active ? "text-white" : "text-black"} transition-colors`}/>
 
                                 <span className="relative z-10 text-[14px] font-medium">
                                     {item.label}

@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from app.models import db, Patient, MedicalRecord, PregnancyRecord, ObstetricHistory, FamilyPlanningRecord, GeneralRecord, DeliveryRecord, ImmunizationRecord, VisitImunization, VisitMaster, VisitFamilyPlanning, VisitPregnancy, VisitGeneral
-from app.utils import generate_record_number, get_latest_record_count, decrypt_data, clean_float, format_date
+from app.utils import generate_record_number, get_latest_record_count, decrypt_data, clean_float, format_date, parse_date
 from datetime import datetime
 from flask_jwt_extended import jwt_required, get_jwt
 from sqlalchemy import or_
@@ -105,10 +105,10 @@ def add_pregnancy_record():
             record_id=new_record.record_id,
             contraceptive_history=data.get('contraceptive_history'),
             family_med_history=data.get('family_med_history'),
-            last_menstrual_period=clean_float(data.get('last_menstrual_period')),
-            expected_due_date=clean_float(data.get('expected_due_date')),
+            last_menstrual_period=data.get('last_menstrual_period'),
+            expected_due_date= parse_date(data.get('expected_due_date')),
             diagnosis=data.get('diagnosis'),
-            registration_date = clean_float(data.get('registration_date')),
+            registration_date = parse_date(data.get('registration_date')),
             height_cm=clean_float(data.get('height_cm')),
             weight_kg=clean_float(data.get('weight_kg')),
             muac_cm=clean_float(data.get('muac_cm')),
@@ -526,8 +526,9 @@ def add_delivery_record():
 def get_all_records():
     try:
         results = db.session.query(MedicalRecord, Patient).\
-            join(Patient, MedicalRecord.patient_id == Patient.patient_id).\
-            all()
+            join(Patient, MedicalRecord.patient_id == Patient.patient_id)\
+            .order_by(MedicalRecord.last_update.desc())\
+            .all()
 
         record_list = []
         for record, patient in results:
@@ -1011,4 +1012,55 @@ def search_patients():
     except Exception as e:
         print(f"Search Error: {str(e)}")
         return jsonify({"msg": "Server error", "error": str(e)}), 500
+
+# RM Type
+@medical_record_bp.route('/filter-rm-type', methods=['GET'])
+@jwt_required()
+def filter_rm_type():
+    try:
+        selected_type = request.args.get('type')
     
+        query = db.session.query(MedicalRecord, Patient).\
+                join(Patient, MedicalRecord.patient_id == Patient.patient_id)
+
+        if selected_type and selected_type != "All":
+            query = query.filter(MedicalRecord.record_type == selected_type)
+
+        results = query.order_by(MedicalRecord.created_at.desc()).all()
+
+        filtered_data = []
+
+        for record, patient in results:
+            raw_name = decrypt_data(patient.patient_name)
+            raw_nik = decrypt_data(patient.national_id)
+            raw_dob = decrypt_data(patient.birth_date)
+
+            decrypted_name = str(raw_name) if raw_name else "Unknown"
+            decrypted_nik = str(raw_nik) if raw_nik else "-"
+            
+            dob_display = "-"
+            if raw_dob:
+                try:
+                    dob_str = str(raw_dob).strip()
+                    dob_obj = datetime.strptime(dob_str[:10], '%Y-%m-%d')
+                    dob_display = dob_obj.strftime('%d %B %Y')
+                except:
+                    dob_display = str(raw_dob)
+
+            filtered_data.append({
+                "rm_id": record.record_id,
+                "record_number": record.record_number,
+                "record_type": record.record_type,
+                "patient_name": decrypted_name.title(),
+                "nik": decrypted_nik,
+                "birth_date": dob_display,
+                "status": record.status,
+                "created_at": format_date(record.created_at),
+                "updated_at": format_date(record.last_update) if record.last_update else "-"
+            })
+
+        return jsonify(filtered_data), 200
+
+    except Exception as e:
+        print(f"Filter Error: {str(e)}")
+        return jsonify({"msg": "Gagal memfilter data", "error": str(e)}), 50

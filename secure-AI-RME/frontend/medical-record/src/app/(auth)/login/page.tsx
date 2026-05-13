@@ -139,18 +139,12 @@ const Login = () => {
         <div className="container bg-[#D2E3C8]">
             <div className="flex w-1/2 flex-col items-center justify-center gap-4">
                 <Image src="/icon-1.png" alt="Icon" width={300} height={300} />
-
-                <h1 className="font-poppins text-6xl font-bold text-[#FFF] drop-shadow-lg">
-                    NADI
-                </h1>
-
                 <div className="w-1/2 text-center">
                     <p className="text-4xl text-[#739072]">
-                        The Digital Heartbeat of Your Clinic.
+                        Clinic Management Information System
                     </p>
                 </div>
             </div>
-
             <div className="flex w-1/2 flex-col items-center justify-center gap-4 rounded-bl-[10%] rounded-tl-[10%] bg-[#FFF]">
                 <form
                     onSubmit={handleLogin}
@@ -159,15 +153,12 @@ const Login = () => {
                     <h1 className="text-center text-2xl font-bold text-[#4F6F52]">
                         Welcome Back
                     </h1>
-
                     <p className="max-w-[360px] text-center text-[12px] leading-5 text-[#766E6E]">
                         Akun hanya dapat dibuat oleh admin melalui Management
                         Setting.
                     </p>
-
                     <div className="w-full">
                         <h3>Email</h3>
-
                         <input
                             type="email"
                             value={email}
@@ -179,10 +170,8 @@ const Login = () => {
                             autoComplete="email"
                         />
                     </div>
-
                     <div className="w-full">
                         <h3>Password</h3>
-
                         <input
                             type="password"
                             value={password}
@@ -194,19 +183,24 @@ const Login = () => {
                             autoComplete="current-password"
                         />
                     </div>
-
                     {error && (
                         <p className="w-full rounded-[6px] bg-red-50 px-3 py-2 text-center text-[12px] text-red-600">
                             {error}
                         </p>
                     )}
-
                     <button
                         type="submit"
                         disabled={loading}
                         className="min-w-30 cursor-pointer rounded-[30px] bg-[#739072] px-4 py-2 font-poppins font-bold text-[#FFF] transition-all hover:bg-[#5F785F] disabled:cursor-not-allowed disabled:opacity-70"
                     >
-                        {loading ? 'Logging...' : 'Log In'}
+                        {loading ? (
+                            <div className="flex items-center gap-2">
+                                <div className={styles.spinner}></div>
+                                <span>Memproses...</span>
+                            </div>
+                        ) : (
+                            "Login"
+                        )}
                     </button>
                 </form>
             </div>

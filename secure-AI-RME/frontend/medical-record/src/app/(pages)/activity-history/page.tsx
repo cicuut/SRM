@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
-import Sidebar from '@/components/sidebar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
     faSearch,
@@ -11,6 +10,7 @@ import {
     faCalendarDays,
     faFileArrowDown,
 } from '@fortawesome/free-solid-svg-icons';
+import LoadingOverlay from "@/components/loading"
 
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
@@ -184,7 +184,7 @@ const ActivityHistory = () => {
 
     const [isCheckingAccess, setIsCheckingAccess] = useState(true);
     const [hasAccess, setHasAccess] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState('');
 
     const formattedSelectedDate = useMemo(() => {
@@ -334,8 +334,7 @@ const ActivityHistory = () => {
             const queryString = params.toString();
 
             const response = await fetch(
-                `${API_BASE_URL}/activity-history/get-all${
-                    queryString ? `?${queryString}` : ''
+                `${API_BASE_URL}/activity-history/get-all${queryString ? `?${queryString}` : ''
                 }`,
                 {
                     method: 'GET',
@@ -452,7 +451,7 @@ const ActivityHistory = () => {
     if (isCheckingAccess) {
         return (
             <div className="min-h-screen flex bg-[#FDFEF9] overflow-x-hidden">
-                <Sidebar />
+                {isLoading && <LoadingOverlay />}
 
                 <div className="flex-1 flex flex-col ml-0 pt-[26px] pb-[40px] pl-[28px] pr-[28px] min-w-0 overflow-x-hidden">
                     <div className="flex-1 flex flex-col w-full max-w-[1180px] items-center justify-center">
@@ -471,8 +470,7 @@ const ActivityHistory = () => {
 
     return (
         <div className="min-h-screen flex bg-[#FDFEF9] overflow-x-hidden">
-            <Sidebar />
-
+            
             <div className="flex-1 flex flex-col ml-0 pt-[26px] pb-[40px] pl-[28px] pr-[28px] min-w-0 overflow-x-hidden">
                 <div className="flex-1 flex flex-col w-full max-w-[1180px]">
                     <div className="w-full flex items-center py-8 gap-[24px]">
@@ -528,11 +526,10 @@ const ActivityHistory = () => {
                             onClick={() =>
                                 setIsFilterOpen((current) => !current)
                             }
-                            className={`min-w-[120px] text-center border p-2 rounded-[50px] border-gray-400 cursor-pointer text-[#4B4B4B] bg-transparent ${
-                                activeFilterCount > 0
-                                    ? 'bg-[#EEF3E9] border-[#739072]'
-                                    : ''
-                            }`}
+                            className={`min-w-[120px] text-center border p-2 rounded-[50px] border-gray-400 cursor-pointer text-[#4B4B4B] bg-transparent ${activeFilterCount > 0
+                                ? 'bg-[#EEF3E9] border-[#739072]'
+                                : ''
+                                }`}
                         >
                             <span>
                                 Filter
@@ -625,11 +622,10 @@ const ActivityHistory = () => {
                                     {tableHeaders.map((header) => (
                                         <th
                                             key={header.label}
-                                            className={`px-6 py-4 border-r border-gray-200 text-center whitespace-nowrap ${header.width} ${
-                                                !header.hasBorder
-                                                    ? 'border-r-0'
-                                                    : ''
-                                            }`}
+                                            className={`px-6 py-4 border-r border-gray-200 text-center whitespace-nowrap ${header.width} ${!header.hasBorder
+                                                ? 'border-r-0'
+                                                : ''
+                                                }`}
                                         >
                                             {header.label}
                                         </th>
@@ -666,31 +662,30 @@ const ActivityHistory = () => {
                                                 const rawValue =
                                                     header.key === 'date_time'
                                                         ? formatDateTime(
-                                                              log.date_time,
-                                                          )
+                                                            log.date_time,
+                                                        )
                                                         : log[header.key];
 
                                                 return (
                                                     <td
                                                         key={header.key}
-                                                        className={`px-6 py-4 ${
-                                                            header.hasBorder
-                                                                ? 'border-r border-gray-100'
-                                                                : ''
-                                                        }`}
+                                                        className={`px-6 py-4 ${header.hasBorder
+                                                            ? 'border-r border-gray-100'
+                                                            : ''
+                                                            }`}
                                                         title={rawValue || '-'}
                                                     >
                                                         <div className="truncate">
                                                             {header.key ===
                                                                 'old_value' ||
-                                                            header.key ===
+                                                                header.key ===
                                                                 'new_value'
                                                                 ? truncateValue(
-                                                                      rawValue,
-                                                                      70,
-                                                                  )
+                                                                    rawValue,
+                                                                    70,
+                                                                )
                                                                 : rawValue ||
-                                                                  '-'}
+                                                                '-'}
                                                         </div>
                                                     </td>
                                                 );
