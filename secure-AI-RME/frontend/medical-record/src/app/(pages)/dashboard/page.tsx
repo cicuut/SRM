@@ -4,6 +4,19 @@ import Image from "next/image";
 import Cookies from "js-cookie";
 import api from "@/utils/app";
 import LoadingOverlay from "@/components/loading";
+import {
+  SERVICE_COLORS,
+  ServiceSeries,
+  VisitorChart,
+} from "@/components/dashboard/visitor-chart";
+
+const FALLBACK_SERVICE_COLORS = [
+  "#2563EB",
+  "#DC2626",
+  "#7C3AED",
+  "#EA580C",
+  "#0891B2",
+];
 
 interface DateLabelProps {
   className?: string;
@@ -39,6 +52,30 @@ interface CurrentUser {
   role: string;
 }
 
+interface ChartPoint {
+  date: string;
+  count: number;
+}
+
+interface ForecastResponse {
+  month: string;
+  monthly_actual: number;
+  monthly_forecast: number;
+  history: ChartPoint[];
+  forecast: ChartPoint[];
+  by_service: Record<
+    string,
+    {
+      actual_month_to_date: number;
+      forecast_remaining_month: number;
+      forecast_month_total: number;
+      history: ChartPoint[];
+      forecast: ChartPoint[];
+      has_model?: boolean;
+    }
+  >;
+}
+
 function formatDisplayRole(role: string): string {
   if (!role.trim()) return "";
   return role
@@ -47,30 +84,77 @@ function formatDisplayRole(role: string): string {
     .join(" ");
 }
 
+function formatNumber(value: number) {
+  return new Intl.NumberFormat("id-ID").format(value);
+}
+
 const Dashboard = () => {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [forecastData, setForecastData] = useState<ForecastResponse | null>(
+    null,
+  );
+  const [forecastError, setForecastError] = useState<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
     const token = Cookies.get("access_token");
     if (!token) {
-    setLoading(false);
-    return;
-  }
+      setLoading(false);
+      return;
+    }
 
     (async () => {
       try {
-        const { data } = await api.get<{ user: CurrentUser }>("/auth/me", {
+        const userResponse = await api.get<{ user: CurrentUser }>("/auth/me", {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (!cancelled) setCurrentUser(data.user);
+        if (!cancelled) {
+          setCurrentUser(userResponse.data.user);
+        }
       } catch (err) {
         console.error("Failed to load current user:", err);
-      } finally {
-      if (!cancelled) {
-        setLoading(false);
       }
-    }
+
+      try {
+        const forecastResponse =
+          await api.get<ForecastResponse>("/forecast/visitors");
+        if (!cancelled) {
+          setForecastData(forecastResponse.data);
+          setForecastError(null);
+        }
+      } catch (err: unknown) {
+        console.error("Failed to load forecast data:", err);
+        if (!cancelled) {
+          const apiMessage =
+            typeof err === "object" &&
+            err !== null &&
+            "response" in err &&
+            typeof (err as { response?: { data?: { msg?: string; error?: string } } })
+              .response?.data?.msg === "string"
+              ? (err as { response: { data: { msg: string; error?: string } } })
+                  .response.data.msg
+              : null;
+          const apiDetail =
+            typeof err === "object" &&
+            err !== null &&
+            "response" in err &&
+            typeof (err as { response?: { data?: { error?: string } } }).response
+              ?.data?.error === "string"
+              ? (err as { response: { data: { error: string } } }).response.data
+                  .error
+              : null;
+          setForecastError(
+            apiDetail
+              ? `${apiMessage ?? "Gagal memuat data perkiraan pengunjung"}: ${apiDetail}`
+              : apiMessage ?? "Gagal memuat data perkiraan pengunjung",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
     })();
 
     return () => {
@@ -83,14 +167,29 @@ const Dashboard = () => {
     ? formatDisplayRole(currentUser.role)
     : "";
 
+  const forecastServices = forecastData
+    ? Object.entries(forecastData.by_service)
+    : [];
+
+  const visitorChartSeries: ServiceSeries[] = forecastData
+    ? Object.entries(forecastData.by_service)
+        .filter(([, data]) => data.has_model !== false)
+        .map(([name, data]) => ({
+          name,
+          history: data.history,
+          forecast: data.forecast,
+          color: "",
+        }))
+    : [];
+
   return (
     <div>
-      <div className="flex-1 flex flex-col  w-full ">
+      <div className="flex w-full flex-1 flex-col">
         {loading && <LoadingOverlay />}
         <div className="ml-5 mt-5 flex flex-col gap-y-[25px]">
-          <div className="flex gap-x-[20px] w-full">
-            <div className="flex  flex-row bg-[#739072] text-white py-5 px-8 pb-[0] rounded-[30px] flex-1 gap-x-[30]">
-              <div className="flex flex-col flex-1 gap-y-[10] w-sm">
+          <div className="flex w-full gap-x-[20px]">
+            <div className="flex w-sm flex-1 flex-row gap-x-[30] rounded-[30px] bg-[#739072] px-8 py-5 pb-[0] text-white">
+              <div className="flex w-sm flex-1 flex-col gap-y-[10]">
                 <h1 className="text-[25px] font-bold">
                   {displayName ? `Hi, ${displayName}!` : "Hi!"}
                 </h1>
@@ -109,7 +208,7 @@ const Dashboard = () => {
                 />
               </div>
             </div>
-            <div className="bg-[#739072] text-[15px] text-white py-5 px-8 pb-[0] rounded-[30px] w-md flex flex-col items-center gap-y-[5px]">
+            <div className="w-md flex flex-col items-center gap-y-[5px] rounded-[30px] bg-[#739072] px-8 py-5 pb-[0] text-[15px] text-white">
               <Image
                 src="/user.png"
                 alt="img"
@@ -122,33 +221,120 @@ const Dashboard = () => {
             </div>
           </div>
           <div className="flex gap-x-[40px]">
-            <div className="bg-[#FFFFFF] drop-shadow-lg py-6 px-7 rounded-[10px] text-center flex-1">
+            <div className="flex-1 rounded-[10px] bg-[#FFFFFF] px-7 py-6 text-center drop-shadow-lg">
               <h3 className="text-[20px]">Total Pengunjung Bulanan</h3>
-              <p className="font-bold text-[20px]">300 Kunjungan</p>
+              <p className="text-[20px] font-bold">
+                {forecastData
+                  ? `${formatNumber(forecastData.monthly_actual)} Kunjungan`
+                  : forecastError || "Memuat..."}
+              </p>
+              {forecastData && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Perkiraan akhir bulan:{" "}
+                  <span className="font-medium text-gray-600">
+                    {formatNumber(forecastData.monthly_forecast)} kunjungan
+                  </span>
+                </p>
+              )}
             </div>
-            <div className=" bg-[#FFFFFF] drop-shadow-lg py-6 px-7 rounded-[10px] text-center flex-1">
+            <div className="flex-1 rounded-[10px] bg-[#FFFFFF] px-7 py-6 text-center drop-shadow-lg">
               <h3 className="text-[20px]">Pemasukan Bulanan</h3>
-              <p className="font-bold text-[20px]">Rp. 500.000</p>
+              <p className="text-[20px] font-bold">Rp. 500.000</p>
             </div>
-            <div className=" bg-[#FFFFFF] drop-shadow-lg py-6 px-7 rounded-[10px] text-center flex-1">
+            <div className="flex-1 rounded-[10px] bg-[#FFFFFF] px-7 py-6 text-center drop-shadow-lg">
               <h3 className="text-[20px]">Pengeluaran Bulanan</h3>
-              <p className="font-bold text-[20px]">Rp. 100.000</p>
+              <p className="text-[20px] font-bold">Rp. 100.000</p>
             </div>
           </div>
-          <div className="flex flex-row gap-6 mt-6 w-full">
-            <div className="flex-[1.5] flex flex-col gap-y-[40px]">
-              <div className="bg-[#FFFFFF] drop-shadow-lg h-130 rounded-[10px] text-center px-5 py-6">
-                <h1 className="text-xl">Grafik Pengunjung Bulanan</h1>
+
+          <div className="mt-6 flex w-full flex-row gap-6">
+            <div className="flex flex-[1.5] flex-col gap-y-[40px]">
+              <div className="min-h-[300px] rounded-[10px] bg-[#FFFFFF] px-5 py-6 drop-shadow-lg">
+                <VisitorChart
+                  title="Grafik Pengunjung Bulanan"
+                  series={visitorChartSeries}
+                  emptyMessage={
+                    forecastError ||
+                    "Belum ada data kunjungan untuk layanan yang dimodelkan"
+                  }
+                />
               </div>
-              <div className="bg-[#FFFFFF] drop-shadow-lg h-130 rounded-[10px] text-center px-5 py-6">
+
+              <div className="rounded-[10px] bg-[#FFFFFF] px-5 py-6 drop-shadow-lg">
+                <h2 className="text-xl font-semibold text-[#4F6F52]">
+                  Perkiraan Pengunjung Bulanan
+                </h2>
+                {forecastError && (
+                  <p className="mt-4 text-sm text-red-500">{forecastError}</p>
+                )}
+                {!forecastError && forecastServices.length === 0 && !loading && (
+                  <p className="mt-4 text-sm text-gray-500">
+                    Belum ada data untuk menghitung perkiraan.
+                  </p>
+                )}
+                <div className="mt-5 flex flex-wrap gap-4">
+                  {forecastServices.map(([service, stats], index) => {
+                    const accentColor =
+                      SERVICE_COLORS[service] ??
+                      FALLBACK_SERVICE_COLORS[
+                        index % FALLBACK_SERVICE_COLORS.length
+                      ];
+
+                    return (
+                      <div
+                        key={service}
+                        className="min-w-[200px] flex-[1_1_220px] rounded-lg border border-[#E6EDE5] bg-[#FDFEF9] px-4 py-3 text-left"
+                        style={{ borderLeftWidth: 4, borderLeftColor: accentColor }}
+                      >
+                        <p
+                          className="text-sm font-semibold"
+                          style={{ color: accentColor }}
+                        >
+                          {service}
+                        </p>
+                        <p className="mt-2 text-xs text-gray-500">
+                          Aktual: {formatNumber(stats.actual_month_to_date)}
+                        </p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          Sisa bulan:{" "}
+                          {formatNumber(stats.forecast_remaining_month)}
+                        </p>
+                        {stats.has_model === false ? (
+                          <p className="mt-2 text-xs text-gray-500">
+                            Belum ada model prediksi
+                          </p>
+                        ) : (
+                          <p className="mt-2 text-xs text-gray-600">
+                            Total perkiraan:{" "}
+                            <span
+                              className="font-medium"
+                              style={{ color: accentColor }}
+                            >
+                              {formatNumber(stats.forecast_month_total)}
+                            </span>
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {forecastData && (
+                  <p className="mt-5 w-full border-t border-[#E6EDE5] pt-4 text-xs text-gray-600">
+                    Total semua layanan:{" "}
+                    <span className="font-medium text-[#4F6F52]">
+                      {formatNumber(forecastData.monthly_forecast)} kunjungan
+                    </span>
+                  </p>
+                )}
+              </div>
+
+              <div className="h-130 rounded-[10px] bg-[#FFFFFF] px-5 py-6 text-center drop-shadow-lg">
                 <h1 className="text-xl">Grafik Keuangan Bulanan</h1>
               </div>
             </div>
-            <div className="flex-[1] flex flex-col gap-y-[40px]">
-              <div className="h-80 bg-[#FFFFFF] drop-shadow-lg rounded-[10px] text-center px-5 py-6">
-                <h1 className="text-xl">Perkiraan Pengunjung Bulanan</h1>
-              </div>
-              <div className="flex-1 bg-[#FFFFFF] drop-shadow-lg rounded-[10px] text-center px-5 py-6">
+
+            <div className="flex flex-1 flex-col gap-y-[40px]">
+              <div className="min-h-[320px] flex-1 rounded-[10px] bg-[#FFFFFF] px-5 py-6 text-center drop-shadow-lg">
                 <h1 className="text-xl">Top 5 Diagnosa Bulanan</h1>
               </div>
             </div>

@@ -11,3 +11,8 @@ Werkzeug==3.1.6
 PyJWT==2.12.1
 pycryptodome==3.23.0
 pytz
+pandas==2.2.3
+numpy==2.2.3
+joblib==1.4.2
+xgboost==2.1.4
+holidays==0.67
