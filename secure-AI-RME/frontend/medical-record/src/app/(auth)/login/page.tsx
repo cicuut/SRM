@@ -246,7 +246,7 @@ const Login = () => {
                             priority
                         />
                         <div className={styles.logoText}>
-                            <h2>Clinic Yanto</h2>
+                            <h2>Clinic Nadi</h2>
                             <p>Clinic Management System</p>
                         </div>
                     </div>
