@@ -44,7 +44,7 @@ const FamilyInformation = () => {
         fetchPatientData();
     }, [uuid]);
 
-    if (loading) return <div className="p-8 text-center text-blue-600 animate-pulse">Sedang mengambil data medis...</div>;
+    if (loading) return <div className="p-8 text-center text-blue-600 animate-pulse">Sedang mengambil data</div>;
     if (error) return <div className="p-8 text-center text-red-500">Error: {error}</div>;
     return (
         <div className="w-full">

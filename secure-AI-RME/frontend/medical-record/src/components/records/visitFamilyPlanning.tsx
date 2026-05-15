@@ -128,7 +128,7 @@ const VisitFamilyPlanningAccordition = () => {
           </Accordion>
         ))
       ) : (
-        <div className="text-center p-10 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+       <div className="text-center p-10" >
           <p className="text-gray-500 font-medium">
             Belum ada riwayat kunjungan untuk pasien ini.
           </p>

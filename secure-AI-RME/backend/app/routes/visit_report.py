@@ -62,7 +62,8 @@ def get_all_records():
         results = db.session.query(VisitMaster, MedicalRecord, Patient, User).\
             join(MedicalRecord, VisitMaster.record_id == MedicalRecord.record_id).\
             join(Patient, MedicalRecord.patient_id == Patient.patient_id).\
-            join(User, VisitMaster.user_id == User.user_id).\
+            join(User, VisitMaster.user_id == User.user_id)\
+            .order_by(VisitMaster.visit_date.desc(), VisitMaster.visit_time.desc()).\
             all()
 
         record_list = []
@@ -447,3 +448,110 @@ def get_general_visit(uuid):
 
     except Exception as e:
         return jsonify({"msg": "Server error", "error": str(e)}), 500
+
+@visit_report_bp.route('/search-visit', methods=['GET'])
+@jwt_required()
+def search_visit():
+    try:
+        search_query = request.args.get('query', '').lower()
+        
+        results = db.session.query(VisitMaster, MedicalRecord, Patient, User).\
+            join(MedicalRecord, VisitMaster.record_id == MedicalRecord.record_id).\
+            join(Patient, MedicalRecord.patient_id == Patient.patient_id).\
+            join(User, VisitMaster.user_id == User.user_id).\
+            all()
+        matched_records = []
+
+        for visit, medical_record, patient, user in results:
+            raw_name = decrypt_data(patient.patient_name)
+            raw_nik = decrypt_data(patient.national_id)
+            
+            decrypted_name = str(raw_name).lower() if raw_name else ""
+            decrypted_nik = str(raw_nik).lower() if raw_nik else ""
+            record_number = str(medical_record.record_number).lower()
+            visit_number = str(visit.visit_number).lower()
+            
+         
+            if (search_query in decrypted_name or 
+                search_query in decrypted_nik or 
+                search_query in record_number or
+                search_query in visit_number):
+                
+                matched_records.append({
+                    "visit_id": visit.visit_id,
+                    "visit_date": f"{format_date(visit.visit_date)} {visit.visit_time.strftime('%H:%M')}",
+                    "visit_number": visit.visit_number,
+                    "record_number": medical_record.record_number,
+                    "patient_name": decrypted_name.title(),
+                    "nik": decrypted_nik,
+                    "record_type": medical_record.record_type,
+                    "made_by": user.fullname 
+                })
+
+        return jsonify(matched_records), 200
+
+    except Exception as e:
+        print(f"Search Error: {str(e)}")
+        return jsonify({"msg": "Server error", "error": str(e)}), 500
+
+@visit_report_bp.route('/filter-all', methods=['GET'])
+def filter_all_visits():
+    try:
+        search_query = request.args.get('search', '').strip()
+        rm_type = request.args.get('type', 'All')
+        start_date = request.args.get('start_date', '')
+        end_date = request.args.get('end_date', '')
+
+        query = db.session.query(VisitMaster, MedicalRecord, Patient, User).\
+            join(MedicalRecord, VisitMaster.record_id == MedicalRecord.record_id).\
+            join(Patient, MedicalRecord.patient_id == Patient.patient_id).\
+            join(User, VisitMaster.user_id == User.user_id)
+        if search_query:
+            query = query.filter(
+                or_(
+                    MedicalRecord.patient_name.ilike(f"%{search_query}%"),
+                    MedicalRecord.nik.ilike(f"%{search_query}%")
+                )
+            )
+
+        # 4. Filter Tipe Rekam Medis
+        if rm_type != 'All':
+            query = query.filter(MedicalRecord.record_type == rm_type)
+
+        # 5. Filter Rentang Tanggal Kunjungan
+        if start_date and end_date:
+            # Menggunakan .between() untuk filter dari tgl A sampai tgl B
+            query = query.filter(VisitMaster.visit_date.between(start_date, end_date))
+
+        # 6. Eksekusi Query dengan Pengurutan Terkini (Descending)
+        results = query.order_by(
+            VisitMaster.visit_date.desc(), 
+            VisitMaster.visit_time.desc()
+        ).all()
+
+        # 7. Format Data ke dalam JSON
+        visit_list = []
+        for visit, medical_record, patient, user in results:
+           
+            decrypted_name = decrypt_data(patient.patient_name)
+            decrypted_nik = decrypt_data(patient.national_id)
+
+            visit_list.append({
+                "visit_id": visit.visit_id,
+                "visit_date": f"{format_date(visit.visit_date)} {visit.visit_time.strftime('%H:%M')}",
+                "visit_number": visit.visit_number,
+                "record_number": medical_record.record_number,
+                "patient_name": str(decrypted_name).title() if decrypted_name else "Unknown",
+                "nik": decrypted_nik if decrypted_nik else "-",
+                "record_type": medical_record.record_type,
+                "made_by": user.fullname
+            })
+
+        return jsonify(visit_list), 200
+
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return jsonify({
+            "msg": "Gagal mengambil data kunjungan terfilter",
+            "error": str(e)
+        }), 500

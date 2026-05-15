@@ -231,129 +231,81 @@ const Login = () => {
     };
 
     return (
-        <main className={styles.page}>
-            <section className={styles.leftPanel}>
-                <div className={styles.overlay} />
+        <div className="container bg-[#D2E3C8]">
+            <div className="flex w-1/2 flex-col items-center justify-center gap-4">
+                <Image src="/icon-1.png" alt="Icon" width={300} height={300} />
 
-                <div className={styles.logoArea}>
-                    <div className={styles.logoBox}>
-                        <Image
-                            src="/Logo-Clinic.jpeg"
-                            alt="Logo Clinic"
-                            width={42}
-                            height={42}
-                            className={styles.logoImage}
-                            priority
-                        />
-                        <div className={styles.logoText}>
-                            <h2>Clinic Yanto</h2>
-                            <p>Clinic Management System</p>
-                        </div>
-                    </div>
+                <h1 className="font-poppins text-6xl font-bold text-[#FFF] drop-shadow-lg">
+                    NADI
+                </h1>
+
+                <div className="w-1/2 text-center">
+                    <p className="text-4xl text-[#739072]">
+                        The Digital Heartbeat of Your Clinic.
+                    </p>
                 </div>
+            </div>
 
-                <div className={styles.leftContent}>
-                    <div className={styles.heroText}>
-                        <p className={styles.badge}>Sistem Klinik Digital</p>
+            <div className="flex w-1/2 flex-col items-center justify-center gap-4 rounded-bl-[10%] rounded-tl-[10%] bg-[#FFF]">
+                <form
+                    onSubmit={handleLogin}
+                    className={styles['regist-input-wrapper']}
+                >
+                    <h1 className="text-center text-2xl font-bold text-[#4F6F52]">
+                        Welcome Back
+                    </h1>
 
-                        <h1>Clinic Management</h1>
+                    <p className="max-w-[360px] text-center text-[12px] leading-5 text-[#766E6E]">
+                        Akun hanya dapat dibuat oleh admin melalui Management
+                        Setting.
+                    </p>
 
-                        <p className={styles.description}>
-                            Sistem yang membantu klinik mengelola data pasien,
-                            aktivitas layanan, rekam medis, laporan, serta
-                            operasional harian agar lebih rapi, aman, dan
-                            efisien.
-                        </p>
-                    </div>
-                </div>
-            </section>
+                    <div className="w-full">
+                        <h3>Email</h3>
 
-            <section className={styles.rightPanel}>
-                <div className={styles.formCard}>
-                    <div className={styles.formHeader}>
-                        <h2>Masuk</h2>
-                        <p>
-                            Silakan masuk menggunakan akun yang sudah diberikan
-                            oleh admin klinik.
-                        </p>
-                    </div>
-
-                    <form onSubmit={handleLogin} className={styles.form}>
-                        <div className={styles.inputGroup}>
-                            <label htmlFor="email">Email</label>
-                            <input
-                                id="email"
-                                type="email"
-                                value={email}
-                                onChange={(event) =>
-                                    setEmail(event.target.value)
-                                }
-                                disabled={loading}
-                                required
-                                autoComplete="email"
-                                placeholder="Masukkan email"
-                            />
-                        </div>
-
-                        <div className={styles.inputGroup}>
-                            <label htmlFor="password">Kata Sandi</label>
-
-                            <div className={styles.passwordWrapper}>
-                                <input
-                                    id="password"
-                                    type={showPassword ? 'text' : 'password'}
-                                    value={password}
-                                    onChange={(event) =>
-                                        setPassword(event.target.value)
-                                    }
-                                    disabled={loading}
-                                    required
-                                    autoComplete="current-password"
-                                    placeholder="Masukkan kata sandi"
-                                />
-
-                                <button
-                                    type="button"
-                                    className={styles.eyeButton}
-                                    onClick={() =>
-                                        setShowPassword((prev) => !prev)
-                                    }
-                                    disabled={loading}
-                                    aria-label={
-                                        showPassword
-                                            ? 'Sembunyikan kata sandi'
-                                            : 'Tampilkan kata sandi'
-                                    }
-                                >
-                                    {showPassword ? (
-                                        <EyeOpenIcon />
-                                    ) : (
-                                        <EyeClosedIcon />
-                                    )}
-                                </button>
-                            </div>
-                        </div>
-
-                        {error && (
-                            <div className={styles.errorBox}>{error}</div>
-                        )}
-
-                        <button
-                            type="submit"
+                        <input
+                            type="email"
+                            value={email}
+                            onChange={(event) =>
+                                setEmail(event.target.value)
+                            }
                             disabled={loading}
-                            className={styles.loginButton}
-                        >
-                            {loading ? 'Sedang Masuk...' : 'Masuk'}
-                        </button>
+                            required
+                            autoComplete="email"
+                        />
+                    </div>
 
-                        <p className={styles.bottomInfo}>
-                            Akun dibuat oleh admin melalui menu pengaturan
-                            manajemen.
+                    <div className="w-full">
+                        <h3>Password</h3>
+
+                        <input
+                            type="password"
+                            value={password}
+                            onChange={(event) =>
+                                setPassword(event.target.value)
+                            }
+                            disabled={loading}
+                            required
+                            autoComplete="current-password"
+                        />
+                    </div>
+
+                    {error && (
+                        <p className="w-full rounded-[6px] bg-red-50 px-3 py-2 text-center text-[12px] text-red-600">
+                            {error}
                         </p>
-                    </form>
-                </div>
-            </section>
-        </main>
+                    )}
+
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="min-w-30 cursor-pointer rounded-[30px] bg-[#739072] px-4 py-2 font-poppins font-bold text-[#FFF] transition-all hover:bg-[#5F785F] disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                        {loading ? 'Logging...' : 'Log In'}
+                    </button>
+                </form>
+            </div>
+        </div>
     );
 };
 

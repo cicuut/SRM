@@ -6,8 +6,6 @@ from app.utils import encrypt_data, decrypt_data
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.types import TypeDecorator, Text
 from sqlalchemy import text
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-
 
 class EncryptedText(TypeDecorator):
     impl = Text
@@ -29,9 +27,9 @@ def generate_uuid():
 
 
 class Clinic(db.Model):
-    __tablename__ = "clinic"
-
-    clinic_id = db.Column(PG_UUID(as_uuid=False), primary_key=True, default=generate_uuid)
+    __tablename__ = 'clinic'
+    
+    clinic_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     clinic_name = db.Column(db.String(255), nullable=False)
     license_number = db.Column(EncryptedText, nullable=False)
     clinic_email = db.Column(db.String(255), nullable=False)
@@ -40,16 +38,12 @@ class Clinic(db.Model):
 
 
 class User(db.Model):
-    __tablename__ = "users"
-
-    user_id = db.Column(PG_UUID(as_uuid=False), primary_key=True, default=generate_uuid)
-    clinic_id = db.Column(
-        PG_UUID(as_uuid=False),
-        db.ForeignKey("clinic.clinic_id"),
-        nullable=True,
-    )
-    fullname = db.Column(db.String(255), nullable=False)
-    password_hash = db.Column(db.String(255), nullable=False)
+    __tablename__ = 'users'
+    
+    user_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    clinic_id = db.Column(db.String(36), db.ForeignKey('clinic.clinic_id'), nullable=True)
+    fullname = db.Column(db.String(50), nullable=False)
+    password_hash = db.Column(db.String(128), nullable=False)
     user_role = db.Column(db.String(20), nullable=False)
     strnumber = db.Column(EncryptedText, nullable=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
@@ -69,21 +63,13 @@ class User(db.Model):
 
 
 class Patient(db.Model):
-    __tablename__ = "patient"
-
-    patient_id = db.Column(PG_UUID(as_uuid=False), primary_key=True, default=generate_uuid)
-    clinic_id = db.Column(
-        PG_UUID(as_uuid=False),
-        db.ForeignKey("clinic.clinic_id"),
-        nullable=False,
-    )
-    family_link_id = db.Column(
-        PG_UUID(as_uuid=False),
-        db.ForeignKey("patient.patient_id"),
-        nullable=True,
-    )
-
-    patient_name = db.Column(EncryptedText, nullable=True)
+    __tablename__ = 'patient'
+    patient_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    clinic_id = db.Column(db.String(36), db.ForeignKey('clinic.clinic_id'), nullable=True)
+    family_link_id = db.Column(db.String(36), db.ForeignKey('patient.patient_id'), nullable=True)
+    patient_name = db.Column(EncryptedText, nullable=False)
+    birth_date = db.Column(db.Date, nullable=False)
+    role = db.Column(db.String(20), default='self')
     national_id = db.Column(EncryptedText, nullable=True)
     birth_date = db.Column(db.Date, nullable=True)
     gender = db.Column(db.String(20), nullable=False)
@@ -118,15 +104,11 @@ class Patient(db.Model):
 
 
 class MedicalRecord(db.Model):
-    __tablename__ = "medical_record"
-
-    record_id = db.Column(PG_UUID(as_uuid=False), primary_key=True, default=generate_uuid)
-    patient_id = db.Column(
-        PG_UUID(as_uuid=False),
-        db.ForeignKey("patient.patient_id"),
-        nullable=True,
-    )
-    record_number = db.Column(db.String(50), unique=True, nullable=False)
+    __tablename__ = 'medical_record'
+    
+    record_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    patient_id = db.Column(db.String(36), db.ForeignKey('patient.patient_id'), nullable=False)
+    record_number = db.Column(db.String(20), unique=True, nullable=False)
     record_type = db.Column(db.String(50), nullable=False)
     status = db.Column(db.String(20), nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -147,14 +129,10 @@ class MedicalRecord(db.Model):
 
 
 class PregnancyRecord(db.Model):
-    __tablename__ = "pregnancy_record"
-
-    pr_id = db.Column(PG_UUID(as_uuid=False), primary_key=True, default=generate_uuid)
-    record_id = db.Column(
-        PG_UUID(as_uuid=False),
-        db.ForeignKey("medical_record.record_id"),
-        nullable=False,
-    )
+    __tablename__ = 'pregnancy_record'
+    
+    pr_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    record_id = db.Column(db.String(36), db.ForeignKey('medical_record.record_id'), nullable=False)
     contraceptive_history = db.Column(EncryptedText, nullable=True)
     family_med_history = db.Column(EncryptedText, nullable=True)
     last_menstrual_period = db.Column(db.Date, nullable=True)
@@ -171,14 +149,10 @@ class PregnancyRecord(db.Model):
 
 
 class ObstetricHistory(db.Model):
-    __tablename__ = "obstetric_history"
-
-    history_id = db.Column(PG_UUID(as_uuid=False), primary_key=True, default=generate_uuid)
-    pr_id = db.Column(
-        PG_UUID(as_uuid=False),
-        db.ForeignKey("pregnancy_record.pr_id"),
-        nullable=False,
-    )
+    __tablename__ = 'obstetric_history'
+    
+    history_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    pr_id = db.Column(db.String(36), db.ForeignKey('pregnancy_record.pr_id'), nullable=False)
     pregnancy_no = db.Column(db.Integer, nullable=True)
     gestational_age = db.Column(db.String(50), nullable=True)
     pregnancy_complications = db.Column(EncryptedText, nullable=True)
@@ -192,40 +166,27 @@ class ObstetricHistory(db.Model):
 
 
 class FamilyPlanningRecord(db.Model):
-    __tablename__ = "kb_record"
-
-    kb_id = db.Column(PG_UUID(as_uuid=False), primary_key=True, default=generate_uuid)
-    record_id = db.Column(
-        PG_UUID(as_uuid=False),
-        db.ForeignKey("medical_record.record_id"),
-        nullable=False,
-    )
-    number_of_children = db.Column(db.Integer, nullable=True)
-    youngest_child_age = db.Column(db.String(20), nullable=True)
+    __tablename__ = 'kb_record'
+    
+    kb_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    record_id = db.Column(db.String(36), db.ForeignKey('medical_record.record_id'), nullable=False)
+    number_of_children= db.Column(db.Integer, nullable=True)
+    youngest_child_age= db.Column(db.Text, nullable=True)
     family_med_history = db.Column(EncryptedText, nullable=True)
 
 
 class GeneralRecord(db.Model):
-    __tablename__ = "general_record"
-
-    gr_id = db.Column(PG_UUID(as_uuid=False), primary_key=True, default=generate_uuid)
-    record_id = db.Column(
-        PG_UUID(as_uuid=False),
-        db.ForeignKey("medical_record.record_id"),
-        nullable=False,
-    )
-
+    __tablename__ = 'general_record'
+    
+    gr_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    record_id = db.Column(db.String(36), db.ForeignKey('medical_record.record_id'), nullable=False)
 
 class DeliveryRecord(db.Model):
-    __tablename__ = "delivery_record"
-
-    dr_id = db.Column(PG_UUID(as_uuid=False), primary_key=True, default=generate_uuid)
-    record_id = db.Column(
-        PG_UUID(as_uuid=False),
-        db.ForeignKey("medical_record.record_id"),
-        nullable=False,
-    )
-    delivery_date = db.Column(db.DateTime, nullable=True)
+    __tablename__ = 'delivery_record'
+    
+    dr_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    record_id = db.Column(db.String(36), db.ForeignKey('medical_record.record_id'), nullable=False)
+    delivery_date = db.Column(db.Date, nullable=True)
     delivery_type = db.Column(db.String(100), nullable=True)
     deliver_complications = db.Column(EncryptedText, nullable=True)
     baby_gender = db.Column(db.String(20), nullable=True)
@@ -240,14 +201,10 @@ class DeliveryRecord(db.Model):
 
 
 class ImmunizationRecord(db.Model):
-    __tablename__ = "immunization_record"
-
-    ir_id = db.Column(PG_UUID(as_uuid=False), primary_key=True, default=generate_uuid)
-    record_id = db.Column(
-        PG_UUID(as_uuid=False),
-        db.ForeignKey("medical_record.record_id"),
-        nullable=False,
-    )
+    __tablename__ = 'immunization_record'
+    
+    ir_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    record_id = db.Column(db.String(36), db.ForeignKey('medical_record.record_id'), nullable=False)
     hbo_1 = db.Column(db.Date, nullable=True)
     bcg_1 = db.Column(db.Date, nullable=True)
     polio_1 = db.Column(db.Date, nullable=True)
@@ -271,43 +228,38 @@ class ImmunizationRecord(db.Model):
 
 
 class VisitMaster(db.Model):
-    __tablename__ = "visit_master"
-
-    visit_id = db.Column(PG_UUID(as_uuid=False), primary_key=True, default=generate_uuid)
-    record_id = db.Column(
-        PG_UUID(as_uuid=False),
-        db.ForeignKey("medical_record.record_id"),
-        nullable=False,
-    )
-    user_id = db.Column(
-        PG_UUID(as_uuid=False),
-        db.ForeignKey("users.user_id"),
-        nullable=False,
-    )
-    visit_date = db.Column(db.DateTime, nullable=True, default=datetime.utcnow)
-    visit_number = db.Column(db.String(50), nullable=False)
-    visit_time = db.Column(db.Time(timezone=True), nullable=True)
-
-
+    __tablename__ = 'visit_master'
+    
+    visit_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    record_id = db.Column(db.String(36), db.ForeignKey('medical_record.record_id'), nullable=False)
+    user_id = db.Column(db.String(36), db.ForeignKey('users.user_id'), nullable=False)
+    visit_number = db.Column(db.String(20), unique=True, nullable=False)
+    visit_date = db.Column(db.Date, default=datetime.utcnow) 
+    visit_time = db.Column(db.DateTime(timezone=True), default=datetime.utcnow)
+    
 class VisitPregnancy(db.Model):
-    __tablename__ = "pregnancy_visit"
-
-    visit_anc_id = db.Column(PG_UUID(as_uuid=False), primary_key=True, default=generate_uuid)
-    visit_id = db.Column(
-        PG_UUID(as_uuid=False),
-        db.ForeignKey("visit_master.visit_id"),
-        nullable=False,
-    )
-    pr_id = db.Column(
-        PG_UUID(as_uuid=False),
-        db.ForeignKey("pregnancy_record.pr_id"),
-        nullable=False,
-    )
-    subjective = db.Column(EncryptedText, nullable=True)
+    __tablename__ = 'pregnancy_visit'
+    
+    visit_anc_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    visit_id = db.Column(db.String(36), db.ForeignKey('visit_master.visit_id'), nullable=False)
+    pr_id = db.Column(db.String(36), db.ForeignKey('pregnancy_record.pr_id'), nullable=False)
+    blood_pressure = db.Column(db.String(10), nullable=True)
+    weight_kg = db.Column(db.Float, nullable=True)
+    height_cm = db.Column(db.Float, nullable=True)
+    body_temperature = db.Column(db.Float, nullable=True)
+    respiratory_rate = db.Column(db.Float, nullable=True)
+    heart_rate = db.Column(db.Float, nullable=True)
+    subjective= db.Column(EncryptedText, nullable=True)
     objective = db.Column(EncryptedText, nullable=True)
     assessment = db.Column(EncryptedText, nullable=True)
     plan = db.Column(EncryptedText, nullable=True)
-    body_temperature = db.Column(db.Float, nullable=True)
+
+class VisitFamilyPlanning(db.Model):
+    __tablename__ = 'kb_visit'
+    
+    visit_kb_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    visit_id = db.Column(db.String(36), db.ForeignKey('visit_master.visit_id'), nullable=False)
+    kb_id = db.Column(db.String(36), db.ForeignKey('pregnancy_record.pr_id'), nullable=False)
     weight_kg = db.Column(db.Float, nullable=True)
     respiratory_rate = db.Column(db.Integer, nullable=True)
     blood_pressure = db.Column(db.String(10), nullable=True)
@@ -337,43 +289,26 @@ class VisitFamilyPlanning(db.Model):
 
 
 class VisitImunization(db.Model):
-    __tablename__ = "immunization_visit"
-
-    visit_imun_id = db.Column(PG_UUID(as_uuid=False), primary_key=True, default=generate_uuid)
-    visit_id = db.Column(
-        PG_UUID(as_uuid=False),
-        db.ForeignKey("visit_master.visit_id"),
-        nullable=False,
-    )
-    ir_id = db.Column(
-        PG_UUID(as_uuid=False),
-        db.ForeignKey("immunization_record.ir_id"),
-        nullable=False,
-    )
-    vaccine_given = db.Column(db.String(100), nullable=True)
-    body_temp = db.Column(db.Float, nullable=True)
-    baby_weight = db.Column(db.Float, nullable=True)
-    baby_height = db.Column(db.Float, nullable=True)
-    head_circumference = db.Column(db.Float, nullable=True)
-    abdominal_circumference = db.Column(db.Float, nullable=True)
+    __tablename__ = 'immunization_visit'
+    
+    visit_imun_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    visit_id = db.Column(db.String(36), db.ForeignKey('visit_master.visit_id'), nullable=False)
+    ir_id = db.Column(db.String(36), db.ForeignKey('immunization_record.ir_id'), nullable=False)
+    baby_weight = db.Column(db.String(20), nullable=True)
+    baby_height = db.Column(db.String(20), nullable=True)
+    body_temp = db.Column(db.String(20), nullable=True)
+    head_circumference = db.Column(db.String(20), nullable=True)
+    abdominal_circumference = db.Column(db.String(20), nullable=True)
     dosage_given = db.Column(db.String(50), nullable=True)
 
 
 class VisitGeneral(db.Model):
-    __tablename__ = "general_visit"
-
-    visit_gen_id = db.Column(PG_UUID(as_uuid=False), primary_key=True, default=generate_uuid)
-    visit_id = db.Column(
-        PG_UUID(as_uuid=False),
-        db.ForeignKey("visit_master.visit_id"),
-        nullable=False,
-    )
-    gr_id = db.Column(
-        PG_UUID(as_uuid=False),
-        db.ForeignKey("general_record.gr_id"),
-        nullable=False,
-    )
-    subjective = db.Column(EncryptedText, nullable=True)
+    __tablename__ = 'general_visit'
+    
+    visit_gen_id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    visit_id = db.Column(db.String(36), db.ForeignKey('visit_master.visit_id'), nullable=False)
+    gr_id = db.Column(db.String(36), db.ForeignKey('general_record.gr_id'), nullable=False)
+    subjective= db.Column(EncryptedText, nullable=True)
     objective = db.Column(EncryptedText, nullable=True)
     assessment = db.Column(EncryptedText, nullable=True)
     plan = db.Column(EncryptedText, nullable=True)

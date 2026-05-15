@@ -3,7 +3,7 @@ import os
 import base64
 from Crypto.Cipher import AES
 from dotenv import load_dotenv
-
+import uuid
 
 def get_latest_record_count(record_type):
     from app.models import MedicalRecord
@@ -34,16 +34,10 @@ def generate_record_number(record_type, latest_count):
     return f"{prefix}-{year}-{sequence}"
 
 
-def get_latest_visits_count(record_id):
-    from app.models import VisitMaster
-    from app.models import MedicalRecord
-
-    count = (
-        VisitMaster.query.join(MedicalRecord)
-        .filter(MedicalRecord.record_id == record_id)
-        .count()
-    )
-
+def get_latest_visits_count():
+    from app.models import VisitMaster 
+    
+    count = VisitMaster.query.count()
     return count
 
 
@@ -117,6 +111,16 @@ def format_date(date_obj):
         return date_obj.strftime('%d %B %Y')
     return None
 
+def parse_date(date_str):
+    if not date_str:
+        return None
+    for fmt in ('%Y-%m-%d', '%d/%m/%Y'): 
+        try:
+            return datetime.strptime(date_str.strip(), fmt).date()
+        except (ValueError, TypeError):
+            continue
+    return None
+
 def make_audit_number():
     import uuid
 
@@ -162,11 +166,13 @@ def write_audit_log(user_id, action, old_values=None, new_values=None):
     import json
     from sqlalchemy import text
     from app import db
-
+    
+    
     db.session.execute(
         text(
             """
             INSERT INTO audit (
+                log_id,
                 user_id,
                 audit_number,
                 times,
@@ -175,6 +181,7 @@ def write_audit_log(user_id, action, old_values=None, new_values=None):
                 new_values
             )
             VALUES (
+                :log_id,
                 CAST(:user_id AS uuid),
                 :audit_number,
                 :times,
@@ -185,6 +192,7 @@ def write_audit_log(user_id, action, old_values=None, new_values=None):
             """
         ),
         {
+            "log_id": str(uuid.uuid4()),
             "user_id": str(user_id),
             "audit_number": make_audit_number(),
             "times": datetime.utcnow(),
