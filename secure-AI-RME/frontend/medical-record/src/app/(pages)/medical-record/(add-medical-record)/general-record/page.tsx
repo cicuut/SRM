@@ -2,6 +2,7 @@
 import React from "react";
 import { useState, useEffect } from "react";
 import { emit } from "process";
+import Sidebar from "@/components/sidebar";
 import { useSearchParams, useRouter } from "next/navigation";
 import axios from "axios";
 import { request } from "http";
@@ -25,7 +26,7 @@ const GeneralRecord = () => {
 
     const fetchRmNumber = async () => {
         try {
-            const response = await api.get(
+        const response = await api.get(
                 `/medical-record/rm-number?type=${recordType}`);
             setRmNumber(response.data.next_rm_number);
         } catch (error) {
@@ -39,7 +40,6 @@ const GeneralRecord = () => {
     }, [recordType]);
 
     const handleSubmit = async (e: React.FormEvent) => {
-        if (loading) return;
         e.preventDefault();
         setError("");
         setLoading(true);
@@ -96,21 +96,15 @@ const GeneralRecord = () => {
                 <FamilyInformation
                     onDataChange={handleFamilyUpdate}
                 />
+
+
                 <div className="flex justify-center gap-4 mt-10">
                     <button
                         onClick={handleSubmit}
                         type="submit"
-                        disabled={loading}
                         className="px-8 py-2 bg-[#739072] text-white rounded-full hover:bg-[#4F6F52] shadow-lg transition font-bold cursor-pointer"
                     >
-                        {loading ? (
-                            <div className="flex items-center gap-2">
-                                <div className="spinner"></div>
-                                <span>Memproses...</span>
-                            </div>
-                        ) : (
-                            "Simpan"
-                        )}
+                        Save Record
                     </button>
                 </div>
             </div>

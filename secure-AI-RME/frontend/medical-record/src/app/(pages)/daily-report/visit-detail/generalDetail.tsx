@@ -1,11 +1,12 @@
 "use client";
-import { useEffect } from "react";
+import React, { useEffect } from "react";
 import { useState } from "react";
+import { emit } from "process";
 import VisitInformation from "@/components/visit/visit-information";
 import { useParams } from "next/dist/client/components/navigation";
+import Cookies from "js-cookie";
 import api from "@/utils/app";
 
-// Data shape for general visit details
 interface VisitGeneralDetailProps {
   subjective?: string;
   objective?: string;
@@ -13,7 +14,6 @@ interface VisitGeneralDetailProps {
   plan?: string;
 }
 const visitGeneralDetail = () => {
-  // Local state for visit details and loading/error status
   const [visitGeneralDetail, setVisitGeneralDetail] =
     useState<VisitGeneralDetailProps | null>(null);
   const [error, setError] = useState("");
@@ -21,7 +21,6 @@ const visitGeneralDetail = () => {
   const params = useParams();
   const uuid = params.id;
 
-  // Fetch visit details when the page loads or ID changes
   useEffect(() => {
     const fetchPatientData = async () => {
       if (!uuid) return;
@@ -57,7 +56,6 @@ const visitGeneralDetail = () => {
           Catatan Medis
         </p>
       </div>
-        {/* Display general visit details */}
       <div className="flex-1 flex flex-col py-5 gap-6">
         <div className="flex flex-col text-sm gap-2">
           <label className="block mb-1 font-bold text-black">Subjective</label>

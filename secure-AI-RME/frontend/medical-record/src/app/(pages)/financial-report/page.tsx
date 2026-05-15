@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
+import Sidebar from '@/components/sidebar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
     faCalendarDays,
@@ -11,7 +12,6 @@ import {
     faPlus,
     faSearch,
 } from '@fortawesome/free-solid-svg-icons';
-import LoadingOverlay from '@/components/loading'
 
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
@@ -246,7 +246,7 @@ const FinancialReport = () => {
 
     const [hasAccess, setHasAccess] = useState(false);
     const [isCheckingAccess, setIsCheckingAccess] = useState(true);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
 
     const formattedSelectedDate = useMemo(() => {
@@ -629,8 +629,8 @@ const FinancialReport = () => {
     if (isCheckingAccess) {
         return (
             <div className="min-h-dvh w-full max-w-full overflow-x-hidden bg-[#FDFEF9]">
-                {isLoading && <LoadingOverlay />}
                 <div className="flex min-h-dvh w-full max-w-full overflow-x-hidden">
+                    <Sidebar />
 
                     <main className="box-border flex min-w-0 flex-1 items-center justify-center overflow-x-hidden bg-[#FDFEF9] pb-[40px] pl-4 pr-0 pt-[26px] sm:pl-[28px] sm:pr-0">
                         <p className="text-[14px] font-bold text-[#5F785F]">
@@ -645,6 +645,7 @@ const FinancialReport = () => {
     return (
         <div className="min-h-dvh w-full max-w-full overflow-x-hidden bg-[#FDFEF9]">
             <div className="flex min-h-dvh w-full max-w-full overflow-x-hidden">
+                <Sidebar />
 
                 <main className="box-border flex min-w-0 flex-1 flex-col overflow-x-hidden bg-[#FDFEF9] pb-[44px] pl-4 pr-0 pt-[26px] sm:pl-[28px]">
                     <div className="box-border flex w-full min-w-0 flex-1 flex-col gap-[22px]">

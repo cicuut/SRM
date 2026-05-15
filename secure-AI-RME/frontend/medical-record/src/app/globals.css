@@ -1,9 +1,16 @@
-@import url("https://fonts.googleapis.com/css2?family=Alata&family=Lexend:wght@100..900&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
+@import url('https://fonts.googleapis.com/css2?family=Alata&family=Lexend:wght@100..900&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
 @import "tailwindcss";
 
 :root {
   --background: #ffffff;
   --foreground: #171717;
+}
+
+
+@theme {
+  --font-poppins: "Poppins", sans-serif;
+  --font-alata: "Alata", sans-serif;
+  --font-lexend: "Lexend", sans-serif;
 }
 
 #root {
@@ -17,93 +24,13 @@ body {
   color: var(--foreground);
   font-family: "Alata", sans-serif;
   font-size: 12px;
-  background-color: #fdfef9;
+  background-color: #FDFEF9 ;
 }
+
 .container {
   margin: 0 auto;
   min-width: 100vw;
   height: 100vh;
   padding: 0;
   display: flex;
-}
-
-.react-datepicker {
-  border: none !important;
-  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1) !important;
-  border-radius: 1rem !important;
-  font-family: inherit !important;
-}
-
-.react-datepicker__header {
-  background-color: #D2E3C8 !important;
-  border-bottom: none !important;
-  border-top-left-radius: 1rem !important;
-  border-top-right-radius: 1rem !important;
-  padding-top: 1rem !important;
-}
-
-.react-datepicker__day-name {
-  color: #4F6F52 !important;
-  font-weight: 700 !important;
-}
-
-.react-datepicker__day--selected,
-.react-datepicker__day--in-selecting-range,
-.react-datepicker__day--in-range {
-  background-color: #739072 !important;
-  color: white !important;
-  border-radius: 9999px !important;
-}
-
-.react-datepicker__day:hover {
-  background-color: #E9F0E8 !important;
-  border-radius: 9999px !important;
-}
-
-.react-datepicker__day--keyboard-selected {
-  background-color: transparent !important;
-  color: #739072 !important;
-  border: 1px solid #739072 !important;
-}
-
-.react-datepicker__navigation-icon::before {
-  border-color: #4F6F52 !important;
-}
-
-
-.react-datepicker__close-icon {
-  padding: 0 15px 0 0 !important;
-}
-
-.react-datepicker__close-icon::after {
-  background-color: #739072 !important; 
-  color: white !important;
-  font-size: 14px !important;
-  height: 18px !important;
-  width: 18px !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  border-radius: 50% !important;
-  padding: 0 !important;
-  content: "×" !important;
-}
-
-.react-datepicker__close-icon:hover::after {
-  background-color: #4f6f52 !important;
-  transform: scale(1.1);
-  transition: all 0.2s;
-}
-
-.spinner {
-  width: 20px;
-  height: 20px;
-  border: 3px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  border-top-color: #fff;
-  animation: spin 1s ease-in-out infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }

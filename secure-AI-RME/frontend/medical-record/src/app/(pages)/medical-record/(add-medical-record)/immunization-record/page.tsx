@@ -98,17 +98,9 @@ const ImmunizationRecord = () => {
                     <button
                         onClick={handleSubmit}
                         type="submit"
-                        disabled={loading}
                         className="px-8 py-2 bg-[#739072] text-white rounded-full hover:bg-[#4F6F52] shadow-lg transition font-bold cursor-pointer"
                     >
-                         {loading ? (
-                                <div className="flex items-center gap-2">
-                                    <div className="spinner"></div>
-                                    <span>Memproses...</span>
-                                </div>
-                            ) : (
-                                "Simpan"
-                            )}
+                        Save Record
                     </button>
                 </div>
             </div>

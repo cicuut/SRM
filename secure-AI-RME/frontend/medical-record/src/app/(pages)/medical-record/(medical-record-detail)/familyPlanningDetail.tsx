@@ -1,6 +1,8 @@
 'use client';
 import React from "react";
 import { useState } from "react";
+import { emit } from "process";
+import Sidebar from "@/components/sidebar";
 import PatientInformationDetail from "../../../../components/records/patientInformationDetail";
 import FamilyInformation from "../../../../components/records/familyInformationDetail";
 import ObstectricAndMedicalRecord from "@/components/records/obstetricAndMedicalHistory";

@@ -1,7 +1,22 @@
 from flask import Blueprint, request, jsonify
-from app.models import db, Patient, MedicalRecord, PregnancyRecord, ObstetricHistory, FamilyPlanningRecord, GeneralRecord, DeliveryRecord, ImmunizationRecord, VisitImunization, VisitMaster, VisitFamilyPlanning, VisitPregnancy, VisitGeneral
-from app.utils import generate_record_number, get_latest_record_count, decrypt_data, clean_float, format_date
-from datetime import datetime
+from app.models import (
+    db,
+    Patient,
+    MedicalRecord,
+    PregnancyRecord,
+    ObstetricHistory,
+    FamilyPlanningRecord,
+    GeneralRecord,
+    DeliveryRecord,
+    ImmunizationRecord,
+    VisitImunization,
+    VisitMaster,
+    VisitFamilyPlanning,
+    VisitPregnancy,
+    VisitGeneral,
+)
+from app.utils import generate_record_number, get_latest_record_count
+from datetime import datetime, date, time
 from flask_jwt_extended import jwt_required, get_jwt
 
 
@@ -370,21 +385,21 @@ def add_pregnancy_record():
 
         new_pregnancy_record = PregnancyRecord(
             record_id=new_record.record_id,
-            contraceptive_history=data.get('contraceptive_history'),
-            family_med_history=data.get('family_med_history'),
-            last_menstrual_period=clean_float(data.get('last_menstrual_period')),
-            expected_due_date=clean_float(data.get('expected_due_date')),
-            diagnosis=data.get('diagnosis'),
-            registration_date = clean_float(data.get('registration_date')),
-            height_cm=clean_float(data.get('height_cm')),
-            weight_kg=clean_float(data.get('weight_kg')),
-            muac_cm=clean_float(data.get('muac_cm')),
-            tt_screening=data.get('tt_screening'),
-            lab_results=data.get('lab_results'),
-            pre_preg_weight_kg=clean_float(data.get('pre_preg_weight_kg')),
-            pre_preg_muac_cm=clean_float(data.get('pre_preg_muac_cm')),
+            contraceptive_history=clean_text(data.get("contraceptive_history")),
+            family_med_history=clean_text(data.get("family_med_history")),
+            last_menstrual_period=parse_date(data.get("last_menstrual_period")),
+            expected_due_date=parse_date(data.get("expected_due_date")),
+            diagnosis=clean_text(data.get("diagnosis")),
+            registration_date=parse_date(data.get("registration_date")),
+            height_cm=to_float(data.get("height_cm")),
+            pre_preg_weight_kg=to_float(data.get("pre_preg_weight_kg")),
+            muac_cm=to_float(data.get("muac_cm")),
+            pre_preg_muac_cm=to_float(data.get("pre_preg_muac_cm")),
+            weight_kg=to_float(data.get("weight_kg")),
+            tt_screening=clean_text(data.get("tt_screening")),
+            lab_results=clean_text(data.get("lab_results")),
+        )
 
-        );
         db.session.add(new_pregnancy_record)
         db.session.flush()
 
@@ -694,9 +709,13 @@ def get_all_records():
         return error_response
 
     try:
-        results = db.session.query(MedicalRecord, Patient).\
-            join(Patient, MedicalRecord.patient_id == Patient.patient_id).\
-            all()
+        results = (
+            db.session.query(MedicalRecord, Patient)
+            .join(Patient, MedicalRecord.patient_id == Patient.patient_id)
+            .filter(Patient.clinic_id == clinic_id)
+            .order_by(MedicalRecord.created_at.desc())
+            .all()
+        )
 
         record_list = []
 
@@ -1187,47 +1206,30 @@ def search_patients():
         matched_records = []
 
         for record, patient in results:
-            decrypted_name = decrypt_data(patient.patient_name).lower()
-            decrypted_nik = decrypt_data(patient.national_id)
-            
-            decrypted_birthdate = decrypt_data(patient.birth_date)
-            
-            dob_searchable = ""
-            dob_display = "-"
-            
-            if decrypted_birthdate:
-                decrypted_str = str(decrypted_birthdate)
-                
-                try:
-                    dob_obj = datetime.strptime(decrypted_str, '%Y-%m-%d')
-                    
-                    #searchable birth of date format
-                    dob_searchable = f"{dob_obj.strftime('%d-%m-%Y')} {dob_obj.strftime('%d/%m/%Y')} {dob_obj.strftime('%Y-%m-%d')} {dob_obj.strftime('%d %B %Y')}".lower()
-                    #displayed birth of date
-                    dob_display = dob_obj.strftime('%d %B %Y')
-                    
-                except Exception:
-                    dob_searchable = decrypted_str
-                    dob_display = decrypted_str
-            
-            #logic only name, nik, dob
-            if (search_query in decrypted_name or 
-                search_query in decrypted_nik or 
-                search_query in dob_searchable):
-                
-                matched_records.append({
-                    "rm_id": record.record_id,
-                    "record_number": record.record_number,
-                    "record_type": record.record_type,
-                    "patient_name": decrypted_name.title(), 
-                    "nik": decrypted_nik,
-                    "birth_date": dob_display,
-                    "status": record.status
-                })
+            patient_name = str(patient.patient_name or "")
+            national_id = str(patient.national_id or "")
+            birth_date_text = format_date(patient.birth_date)
+
+            searchable_text = (
+                f"{patient_name} {national_id} {birth_date_text} "
+                f"{record.record_number} {record.record_type}"
+            ).lower()
+
+            if search_query in searchable_text:
+                matched_records.append(
+                    {
+                        "rm_id": str(record.record_id),
+                        "record_number": record.record_number,
+                        "record_type": record.record_type,
+                        "patient_name": patient_name.title(),
+                        "nik": national_id,
+                        "birth_date": birth_date_text,
+                        "status": record.status,
+                    }
+                )
 
         return jsonify(matched_records), 200
 
     except Exception as e:
         print(f"Search Error: {str(e)}")
         return jsonify({"msg": "Server error", "error": str(e)}), 500
-    

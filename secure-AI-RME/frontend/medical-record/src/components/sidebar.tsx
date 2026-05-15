@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import Cookies from 'js-cookie';
-import { House, UsersRound, HeartPulse, Wallet, UserCog, Settings, History    } from 'lucide-react';
 
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
@@ -15,7 +14,7 @@ type Role = 'admin' | 'midwife' | 'asisten' | '';
 type NavItem = {
     label: string;
     href: string;
-    icon: React.ElementType;
+    icon: string;
     roles: Role[];
 };
 
@@ -39,43 +38,43 @@ const navItems: NavItem[] = [
     {
         label: 'Dashboard',
         href: '/dashboard',
-        icon: House,
+        icon: '/dashboard-icon.svg',
         roles: ['admin', 'midwife', 'asisten'],
     },
     {
         label: 'Laporan Harian',
         href: '/daily-report',
-        icon: UsersRound,
+        icon: '/visit-icon.svg',
         roles: ['admin', 'midwife', 'asisten'],
     },
     {
         label: 'Rekam Medis',
         href: '/medical-record',
-        icon: HeartPulse,
+        icon: '/record-icon.svg',
         roles: ['admin', 'midwife', 'asisten'],
     },
     {
         label: 'Laporan Keuangan',
         href: '/financial-report',
-        icon: Wallet,
+        icon: '/financial-icon.svg',
         roles: ['admin', 'midwife'],
     },
     {
         label: 'Pengaturan Manajemen',
         href: '/management-setting',
-        icon: UserCog,
+        icon: '/management-icon.svg',
         roles: ['admin'],
     },
     {
         label: 'Pengaturan Akun',
         href: '/account-setting',
-        icon: Settings ,
+        icon: '/setting-icon.svg',
         roles: ['admin', 'midwife', 'asisten'],
     },
     {
         label: 'Riwayat Aktivitas',
         href: '/activity-history',
-        icon:History ,
+        icon: '/activity-icon.svg',
         roles: ['admin'],
     },
 ];
@@ -405,18 +404,30 @@ const Sidebar = () => {
                                         : 'text-[#2F3A2F] hover:bg-[#EEF3E9]'
                                 }`}
                             >
-                                <div className="relative z-10">
-                                    <Image
-                                        src={item.icon}
-                                        alt={item.label}
-                                        width={20}
-                                        height={20}
-                                        className={`h-5 w-5 transition-all ${
+                                {active && (
+                                    <span className="absolute left-0 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-white" />
+                                )}
+
+                                <div className="flex h-full w-[62px] items-center justify-center">
+                                    <div
+                                        className={`flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-[12px] transition-colors duration-300 ${
                                             active
-                                                ? 'brightness-0 invert'
-                                                : 'opacity-70'
+                                                ? 'bg-white/16'
+                                                : 'bg-white shadow-sm group-hover/item:bg-[#D2E3C8]'
                                         }`}
-                                    />
+                                    >
+                                        <Image
+                                            src={item.icon}
+                                            alt={item.label}
+                                            width={18}
+                                            height={18}
+                                            className={`h-[18px] w-[18px] transition-all duration-300 ${
+                                                active
+                                                    ? 'brightness-0 invert'
+                                                    : 'opacity-75'
+                                            }`}
+                                        />
+                                    </div>
                                 </div>
 
                                 <SidebarText mobile={mobile} className="pr-4">

@@ -2,6 +2,7 @@
 import React from "react";
 import { useState, useEffect } from "react";
 import { emit } from "process";
+import Sidebar from "@/components/sidebar";
 import { useSearchParams, useRouter } from "next/navigation";
 import axios from "axios";
 import { request } from "http";
@@ -30,8 +31,8 @@ const DeliveryRecord = () => {
     const [vitKAdministration, setVitKAdministation] = useState(false);
     const [apgarScore, setApgarScore] = useState("");
     const [newbornComplication, setNewbornComplication] = useState("");
-    const [eyeOintment, setEyeOintment] = useState(false);
-    const [imd, setImd] = useState(false);
+    const [eyeOintment,setEyeOintment]= useState(false);
+    const [imd,setImd]= useState(false);
     const handlePatientUpdate = (data: any) => setPatientData(data);
     const handleFamilyUpdate = (data: any) => setFamilyData(data);
 
@@ -39,7 +40,7 @@ const DeliveryRecord = () => {
     const fetchRmNumber = async () => {
         try {
             const response = await api.get(
-                `/medical-record/rm-number?type=${recordType}`
+               `/medical-record/rm-number?type=${recordType}`
             );
             setRmNumber(response.data.next_rm_number);
         } catch (error) {
@@ -71,16 +72,16 @@ const DeliveryRecord = () => {
                 vit_k_given: vitKAdministration,
                 hbo_given: hboAdministration,
                 eye_ointment: eyeOintment,
-                imd: imd
+                imd:imd
             };
-            const response = await api.post("/medical-record/add-delivery", payload);
+            const response = await api.post("/medical-record/add-delivery", payload );
             if (response.status === 201) {
                 await Swal.fire({
                     title: "Success",
                     text: "Rekam medis persalinan berhasil disimpan!",
                     icon: "success",
                     showConfirmButton: false,
-                    timer: 2000
+                timer: 2000
                 });
                 fetchRmNumber();
             } router.push('/medical-record');
@@ -97,8 +98,8 @@ const DeliveryRecord = () => {
             });
             setError(errorMessage);
         } finally {
-            setLoading(false);
-        }
+        setLoading(false); 
+    }
     };
     return (
         <div className="min-h-screen flex bg-[#FDFEF9]">
@@ -173,62 +174,62 @@ const DeliveryRecord = () => {
                             APGAR Score
                             <input type="text" name="apgarScore" value={apgarScore} onChange={(e) => setApgarScore(e.target.value)} id="apgarScore" className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2 p-2" />
                         </div>
-
-                        <div className="flex flex-col ">
-                            Pemberian Vitamin K
-                            <div className="flex gap-6 mt-1">
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input
-                                        type="radio"
-                                        name="vit_k_given"
-                                        value="true"
-                                        checked={vitKAdministration === true}
-                                        onChange={(e) => setVitKAdministation(e.target.value === 'true')}
-                                        className="w-4 h-4 accent-[#739072]"
-                                    />
-                                    <span>Sudah</span>
-                                </label>
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input
-                                        type="radio"
-                                        name="vit_k_given"
-                                        value="false"
-                                        checked={vitKAdministration === false}
-                                        onChange={(e) => setVitKAdministation(e.target.value === 'true')}
-                                        className="w-4 h-4 accent-[#739072]"
-                                    />
-                                    <span>Belum</span>
-                                </label>
+                        
+                            <div className="flex flex-col ">
+                                Pemberian Vitamin K
+                                <div className="flex gap-6 mt-1">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="vit_k_given"
+                                            value="true"
+                                            checked={vitKAdministration === true}
+                                            onChange={(e) => setVitKAdministation(e.target.value === 'true')}
+                                            className="w-4 h-4 accent-[#739072]"
+                                        />
+                                        <span>Sudah</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="vit_k_given"
+                                            value="false"
+                                            checked={vitKAdministration === false}
+                                            onChange={(e) => setVitKAdministation(e.target.value === 'true')}
+                                            className="w-4 h-4 accent-[#739072]"
+                                        />
+                                        <span>Belum</span>
+                                    </label>
+                                </div>
                             </div>
-                        </div>
-                        <div className="flex flex-col ">
-                            Salep Mata
-                            <div className="flex gap-6 mt-1">
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input
-                                        type="radio"
-                                        name="eye_ointment"
-                                        value="true"
-                                        checked={eyeOintment === true}
-                                        onChange={(e) => setEyeOintment(e.target.value === 'true')}
-                                        className="w-4 h-4 accent-[#739072]"
-                                    />
-                                    <span>Sudah</span>
-                                </label>
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input
-                                        type="radio"
-                                        name="eye_ointment"
-                                        value="false"
-                                        checked={eyeOintment === false}
-                                        onChange={(e) => setEyeOintment(e.target.value === 'true')}
-                                        className="w-4 h-4 accent-[#739072]"
-                                    />
-                                    <span>Belum</span>
-                                </label>
+                             <div className="flex flex-col ">
+                               Salep Mata
+                                <div className="flex gap-6 mt-1">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="eye_ointment"
+                                            value="true"
+                                            checked={eyeOintment === true}
+                                            onChange={(e) => setEyeOintment(e.target.value === 'true')}
+                                            className="w-4 h-4 accent-[#739072]"
+                                        />
+                                        <span>Sudah</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="eye_ointment"
+                                            value="false"
+                                            checked={eyeOintment === false}
+                                            onChange={(e) => setEyeOintment(e.target.value === 'true')}
+                                            className="w-4 h-4 accent-[#739072]"
+                                        />
+                                        <span>Belum</span>
+                                    </label>
+                                </div>
                             </div>
-                        </div>
-
+                      
                         <div className="flex flex-col">
                             Pemberian HBO
                             <div className="flex gap-6 mt-1">
@@ -256,34 +257,34 @@ const DeliveryRecord = () => {
                                 </label>
                             </div>
                         </div>
-                        <div className="flex flex-col  flex-1">
-                            IMD
-                            <div className="flex gap-6 mt-1">
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input
-                                        type="radio"
-                                        name="imd"
-                                        value="true"
-                                        checked={imd === true}
-                                        onChange={(e) => setImd(e.target.value === 'true')}
-                                        className="w-4 h-4 accent-[#739072]"
-                                    />
-                                    <span>Sudah</span>
-                                </label>
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input
-                                        type="radio"
-                                        name="imd"
-                                        value="false"
-                                        checked={imd === false}
-                                        onChange={(e) => setImd(e.target.value === 'true')}
-                                        className="w-4 h-4 accent-[#739072]"
-                                    />
-                                    <span>Belum</span>
-                                </label>
+                                <div className="flex flex-col  flex-1">
+                              IMD
+                                <div className="flex gap-6 mt-1">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="imd"
+                                            value="true"
+                                            checked={imd === true}
+                                            onChange={(e) => setImd(e.target.value === 'true')}
+                                            className="w-4 h-4 accent-[#739072]"
+                                        />
+                                        <span>Sudah</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="imd"
+                                            value="false"
+                                            checked={imd === false}
+                                            onChange={(e) => setImd(e.target.value === 'true')}
+                                            className="w-4 h-4 accent-[#739072]"
+                                        />
+                                        <span>Belum</span>
+                                    </label>
+                                </div>
                             </div>
-                        </div>
-
+                      
                     </div>
                     <div className="flex flex-row w-full gap-20 justify-between">
                         <div className="flex flex-col flex-1" >
@@ -297,18 +298,9 @@ const DeliveryRecord = () => {
                     <button
                         type="submit"
                         onClick={handleSubmit}
-                        disabled={loading}
                         className="px-8 py-2 bg-[#739072] text-white rounded-full hover:bg-[#4F6F52] shadow-lg transition font-bold cursor-pointer"
                     >
-                        {loading ? (
-                            <div className="flex items-center gap-2">
-                                {/* Langsung pakai nama class-nya, jangan pakai styles. */}
-                                <div className="spinner"></div>
-                                <span>Memproses...</span>
-                            </div>
-                        ) : (
-                            "Simpan"
-                        )}
+                        Save Record
                     </button>
                 </div>
             </div>

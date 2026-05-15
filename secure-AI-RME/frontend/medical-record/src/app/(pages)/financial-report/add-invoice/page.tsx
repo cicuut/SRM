@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
+import Sidebar from '@/components/sidebar';
 
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
@@ -412,7 +413,7 @@ const AddInvoice = () => {
     if (isCheckingAccess) {
         return (
             <div className="flex min-h-screen w-full overflow-x-auto bg-[#FDFEF9]">
-               
+                <Sidebar />
 
                 <main className="flex min-h-screen min-w-0 flex-1 items-center justify-center bg-[#FDFEF9] pb-[40px] pl-[28px] pr-[28px] pt-[26px]">
                     <p className="text-[14px] font-bold text-[#5F785F]">
@@ -425,6 +426,7 @@ const AddInvoice = () => {
 
     return (
         <div className="flex min-h-screen w-full overflow-x-auto bg-[#FDFEF9]">
+            <Sidebar />
 
             <main className="flex min-h-screen min-w-0 flex-1 flex-col bg-[#FDFEF9] pb-[40px] pl-[28px] pr-[28px] pt-[26px]">
                 <div className="w-full">

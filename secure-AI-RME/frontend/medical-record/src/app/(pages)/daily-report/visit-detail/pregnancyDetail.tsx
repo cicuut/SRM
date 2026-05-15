@@ -1,11 +1,12 @@
 "use client";
-import { useEffect } from "react";
+import React, { useEffect } from "react";
 import { useState } from "react";
+import { emit } from "process";
 import VisitInformation from "@/components/visit/visit-information";
 import { useParams } from "next/dist/client/components/navigation";
+import Cookies from "js-cookie";
 import api from "@/utils/app";
 
-// Data shape for pregnancy visit details
 interface VisitPregnancyDetailProps {
   subjective?: string;
   objective?: string;
@@ -19,8 +20,6 @@ interface VisitPregnancyDetailProps {
   respiratory_rate?: string;
 }
 const VisitPregnancyDetail = () => {
-  
-  // Local state for visit details and loading/error status
   const [visitPregnancyDetail, setVisitPregnancyDetail] =
     useState<VisitPregnancyDetailProps | null>(null);
   const [error, setError] = useState("");
