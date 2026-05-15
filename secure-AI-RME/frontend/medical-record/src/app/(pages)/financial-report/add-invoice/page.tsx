@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
-import Sidebar from '@/components/sidebar';
 
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
@@ -62,11 +61,23 @@ const readJson = async (response: Response) => {
     }
 };
 
+const formatRupiah = (value: string | number) => {
+    const numericValue = Number(value || 0);
+
+    return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        minimumFractionDigits: 0,
+    }).format(Number.isNaN(numericValue) ? 0 : numericValue);
+};
+
 const inputClassName =
-    'mt-[8px] h-[34px] w-full rounded-[4px] border border-transparent bg-white px-3 text-[13px] text-black shadow-md outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072]';
+    'mt-2 h-[42px] w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 disabled:cursor-not-allowed disabled:opacity-70';
 
 const selectClassName =
-    'mt-[8px] h-[34px] w-full rounded-[4px] border border-transparent bg-white px-3 text-[13px] text-black shadow-md outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072]';
+    'mt-2 h-[42px] w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 disabled:cursor-not-allowed disabled:opacity-70';
+
+const labelClassName = 'text-[12px] font-bold text-[#2F3A2F]';
 
 const AddInvoice = () => {
     const router = useRouter();
@@ -149,7 +160,7 @@ const AddInvoice = () => {
             }
 
             if (!response.ok || !data.user) {
-                throw new Error(data?.msg || 'Gagal mengecek akses user');
+                throw new Error(data?.msg || 'Gagal mengecek akses pengguna');
             }
 
             if (!FINANCIAL_ALLOWED_ROLES.includes(data.user.role)) {
@@ -186,7 +197,9 @@ const AddInvoice = () => {
             }
 
             const response = await fetch(
-                `${API_BASE_URL}/financial/transaction-number?date=${date}`,
+                `${API_BASE_URL}/financial/transaction-number?date=${encodeURIComponent(
+                    date,
+                )}`,
                 {
                     method: 'GET',
                     headers: {
@@ -216,7 +229,8 @@ const AddInvoice = () => {
 
             setTransactionNumber(data.transaction_number || '');
         } catch {
-            const year = date.split('-')[0];
+            const year = date.split('-')[0] || new Date().getFullYear();
+
             setTransactionNumber(`INV-${year}----`);
         }
     };
@@ -253,7 +267,7 @@ const AddInvoice = () => {
 
             if (!response.ok) {
                 throw new Error(
-                    data?.msg || 'Gagal mengambil data medical record',
+                    data?.msg || 'Gagal mengambil data rekam medis',
                 );
             }
 
@@ -262,7 +276,7 @@ const AddInvoice = () => {
             const message =
                 error instanceof Error
                     ? error.message
-                    : 'Terjadi kesalahan saat mengambil data medical record';
+                    : 'Terjadi kesalahan saat mengambil data rekam medis';
 
             setErrorMessage(message);
         } finally {
@@ -291,9 +305,9 @@ const AddInvoice = () => {
 
     const handleChange = (
         event:
-            | React.ChangeEvent<HTMLInputElement>
-            | React.ChangeEvent<HTMLSelectElement>
-            | React.ChangeEvent<HTMLTextAreaElement>,
+            | ChangeEvent<HTMLInputElement>
+            | ChangeEvent<HTMLSelectElement>
+            | ChangeEvent<HTMLTextAreaElement>,
     ) => {
         const { name, value } = event.target;
 
@@ -305,45 +319,45 @@ const AddInvoice = () => {
 
     const validateForm = () => {
         if (!formData.payment_date) {
-            return 'Date wajib diisi';
+            return 'Tanggal wajib diisi.';
         }
 
         if (!formData.visit_id) {
-            return 'Recorder wajib dipilih';
+            return 'Rekam medis wajib dipilih.';
         }
 
         if (!formData.trans_type) {
-            return 'Transaction type wajib dipilih';
+            return 'Tipe transaksi wajib dipilih.';
         }
 
         if (!['pemasukan', 'pengeluaran'].includes(formData.trans_type)) {
-            return 'Transaction type tidak valid';
+            return 'Tipe transaksi tidak valid.';
         }
 
         if (!formData.amount || Number(formData.amount) <= 0) {
-            return 'Total amount harus lebih dari 0';
+            return 'Nominal harus lebih dari 0.';
         }
 
         if (!formData.payment_method) {
-            return 'Payment method wajib dipilih';
+            return 'Metode pembayaran wajib dipilih.';
         }
 
         if (!['Transfer', 'QRIS', 'Cash'].includes(formData.payment_method)) {
-            return 'Payment method tidak valid';
+            return 'Metode pembayaran tidak valid.';
         }
 
         if (!formData.status) {
-            return 'Status wajib dipilih';
+            return 'Status pembayaran wajib dipilih.';
         }
 
         if (!['paid', 'unpaid'].includes(formData.status)) {
-            return 'Status tidak valid';
+            return 'Status pembayaran tidak valid.';
         }
 
         return '';
     };
 
-    const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
         try {
@@ -377,7 +391,7 @@ const AddInvoice = () => {
                     amount: Number(formData.amount),
                     payment_method: formData.payment_method,
                     status: formData.status,
-                    description: formData.description,
+                    description: formData.description.trim(),
                 }),
             });
 
@@ -412,210 +426,218 @@ const AddInvoice = () => {
 
     if (isCheckingAccess) {
         return (
-            <div className="flex min-h-screen w-full overflow-x-auto bg-[#FDFEF9]">
-                <Sidebar />
-
-                <main className="flex min-h-screen min-w-0 flex-1 items-center justify-center bg-[#FDFEF9] pb-[40px] pl-[28px] pr-[28px] pt-[26px]">
-                    <p className="text-[14px] font-bold text-[#5F785F]">
-                        Checking financial access...
-                    </p>
-                </main>
+            <div className="flex min-h-[calc(100dvh-150px)] w-full items-center justify-center">
+                <p className="text-[14px] font-bold text-[#5F785F]">
+                    Memeriksa akses laporan keuangan...
+                </p>
             </div>
         );
     }
 
     return (
-        <div className="flex min-h-screen w-full overflow-x-auto bg-[#FDFEF9]">
-            <Sidebar />
+        <div className="flex w-full min-w-0 flex-col gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-[#D2D8CF] bg-white px-5 py-4 shadow-sm">
+                <div>
+                    <h1 className="text-[20px] font-bold text-[#4F6F52]">
+                        Tambah Invoice
+                    </h1>
 
-            <main className="flex min-h-screen min-w-0 flex-1 flex-col bg-[#FDFEF9] pb-[40px] pl-[28px] pr-[28px] pt-[26px]">
-                <div className="w-full">
-                    <form
-                        onSubmit={handleSubmit}
-                        className="mt-[54px] w-full max-w-[980px]"
-                    >
-                        <div>
-                            <h1 className="text-[26px] font-bold leading-none text-[#5F785F]">
-                                {transactionNumber || 'INV----- ---'}
-                            </h1>
+                    <p className="mt-1 text-[12px] text-[#6B6B6B]">
+                        Isi data invoice baru untuk laporan keuangan klinik.
+                    </p>
+                </div>
 
-                            {errorMessage && (
-                                <p className="mt-5 text-[12px] font-medium text-red-600">
-                                    {errorMessage}
+                <div className="rounded-[10px] bg-[#F8FAF6] px-4 py-3 text-right">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#739072]">
+                        Nomor Invoice
+                    </p>
+
+                    <p className="mt-1 text-[14px] font-bold text-[#2F3A2F]">
+                        {transactionNumber || 'INV-----'}
+                    </p>
+                </div>
+            </div>
+
+            {errorMessage && (
+                <div className="rounded-[10px] border border-red-200 bg-red-50 px-4 py-3 text-[12px] text-red-700">
+                    {errorMessage}
+                </div>
+            )}
+
+            <form
+                onSubmit={handleSubmit}
+                className="rounded-[14px] border border-[#D2D8CF] bg-white shadow-sm"
+            >
+                <div className="grid grid-cols-1 gap-4 px-5 py-5 md:grid-cols-2">
+                    <label className="block">
+                        <span className={labelClassName}>Tanggal</span>
+
+                        <input
+                            type="date"
+                            name="payment_date"
+                            value={formData.payment_date}
+                            onChange={handleChange}
+                            required
+                            disabled={isSubmitting}
+                            className={inputClassName}
+                        />
+                    </label>
+
+                    <label className="block">
+                        <span className={labelClassName}>Rekam Medis</span>
+
+                        <select
+                            name="visit_id"
+                            value={formData.visit_id}
+                            onChange={handleChange}
+                            required
+                            disabled={isSubmitting || isLoadingRecords}
+                            className={selectClassName}
+                        >
+                            <option value="">
+                                {isLoadingRecords
+                                    ? 'Memuat data...'
+                                    : 'Pilih rekam medis'}
+                            </option>
+
+                            {medicalRecords.map((record) => (
+                                <option key={record.rm_id} value={record.rm_id}>
+                                    {record.patient_name} -{' '}
+                                    {record.record_number} ({record.record_type})
+                                </option>
+                            ))}
+                        </select>
+                    </label>
+
+                    <label className="block">
+                        <span className={labelClassName}>Tipe Transaksi</span>
+
+                        <select
+                            name="trans_type"
+                            value={formData.trans_type}
+                            onChange={handleChange}
+                            required
+                            disabled={isSubmitting}
+                            className={selectClassName}
+                        >
+                            <option value="pemasukan">Pemasukan</option>
+                            <option value="pengeluaran">Pengeluaran</option>
+                        </select>
+                    </label>
+
+                    <label className="block">
+                        <span className={labelClassName}>Nominal</span>
+
+                        <input
+                            type="number"
+                            name="amount"
+                            value={formData.amount}
+                            onChange={handleChange}
+                            min="0"
+                            required
+                            disabled={isSubmitting}
+                            placeholder="Masukkan nominal"
+                            className={inputClassName}
+                        />
+                    </label>
+
+                    <label className="block">
+                        <span className={labelClassName}>
+                            Metode Pembayaran
+                        </span>
+
+                        <select
+                            name="payment_method"
+                            value={formData.payment_method}
+                            onChange={handleChange}
+                            required
+                            disabled={isSubmitting}
+                            className={selectClassName}
+                        >
+                            <option value="Transfer">Transfer</option>
+                            <option value="QRIS">QRIS</option>
+                            <option value="Cash">Cash</option>
+                        </select>
+                    </label>
+
+                    <label className="block">
+                        <span className={labelClassName}>
+                            Status Pembayaran
+                        </span>
+
+                        <select
+                            name="status"
+                            value={formData.status}
+                            onChange={handleChange}
+                            required
+                            disabled={isSubmitting}
+                            className={selectClassName}
+                        >
+                            <option value="paid">Paid</option>
+                            <option value="unpaid">Unpaid</option>
+                        </select>
+                    </label>
+
+                    <label className="block md:col-span-2">
+                        <span className={labelClassName}>Deskripsi</span>
+
+                        <textarea
+                            name="description"
+                            value={formData.description}
+                            onChange={handleChange}
+                            rows={4}
+                            disabled={isSubmitting}
+                            placeholder="Tambahkan keterangan jika diperlukan"
+                            className="mt-2 w-full resize-y rounded-[10px] border border-[#D2D8CF] bg-white px-3 py-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 disabled:cursor-not-allowed disabled:opacity-70"
+                        />
+                    </label>
+
+                    <div className="rounded-[10px] border border-[#E4E8E1] bg-[#F8FAF6] px-4 py-3 md:col-span-2">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <p className="text-[11px] font-bold text-[#6B6B6B]">
+                                    Pasien
                                 </p>
-                            )}
-                        </div>
 
-                        <div className="mt-[26px] grid grid-cols-1 gap-x-[48px] gap-y-[20px] md:grid-cols-3">
-                            <label className="block">
-                                <span className="text-[14px] font-bold text-black">
-                                    Date
-                                </span>
-
-                                <input
-                                    type="date"
-                                    name="payment_date"
-                                    value={formData.payment_date}
-                                    onChange={handleChange}
-                                    required
-                                    className={inputClassName}
-                                />
-                            </label>
-
-                            <label className="block">
-                                <span className="text-[14px] font-bold text-black">
-                                    Recorder
-                                </span>
-
-                                <select
-                                    name="visit_id"
-                                    value={formData.visit_id}
-                                    onChange={handleChange}
-                                    required
-                                    className={selectClassName}
-                                >
-                                    <option value="">
-                                        {isLoadingRecords
-                                            ? 'Loading records...'
-                                            : 'Select recorder'}
-                                    </option>
-
-                                    {medicalRecords.map((record) => (
-                                        <option
-                                            key={record.rm_id}
-                                            value={record.rm_id}
-                                        >
-                                            {record.patient_name} -{' '}
-                                            {record.record_number}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-
-                            <label className="block">
-                                <span className="text-[14px] font-bold text-black">
-                                    Transaction Type
-                                </span>
-
-                                <select
-                                    name="trans_type"
-                                    value={formData.trans_type}
-                                    onChange={handleChange}
-                                    required
-                                    className={selectClassName}
-                                >
-                                    <option value="pemasukan">Pemasukan</option>
-                                    <option value="pengeluaran">
-                                        Pengeluaran
-                                    </option>
-                                </select>
-                            </label>
-
-                            <label className="block">
-                                <span className="text-[14px] font-bold text-black">
-                                    Total Amount
-                                </span>
-
-                                <input
-                                    type="number"
-                                    name="amount"
-                                    value={formData.amount}
-                                    onChange={handleChange}
-                                    min="0"
-                                    required
-                                    placeholder="150000"
-                                    className={inputClassName}
-                                />
-                            </label>
-
-                            <label className="block">
-                                <span className="text-[14px] font-bold text-black">
-                                    Payment Method
-                                </span>
-
-                                <select
-                                    name="payment_method"
-                                    value={formData.payment_method}
-                                    onChange={handleChange}
-                                    required
-                                    className={selectClassName}
-                                >
-                                    <option value="Transfer">Transfer</option>
-                                    <option value="QRIS">QRIS</option>
-                                    <option value="Cash">Cash</option>
-                                </select>
-                            </label>
-
-                            <label className="block">
-                                <span className="text-[14px] font-bold text-black">
-                                    Status
-                                </span>
-
-                                <select
-                                    name="status"
-                                    value={formData.status}
-                                    onChange={handleChange}
-                                    required
-                                    className={selectClassName}
-                                >
-                                    <option value="paid">Paid</option>
-                                    <option value="unpaid">Unpaid</option>
-                                </select>
-                            </label>
-                        </div>
-
-                        {selectedRecord && (
-                            <div className="mt-[24px] rounded-[12px] border border-[#D2D8CF] bg-[#EEF3E9] px-5 py-4 text-[12px] text-[#4B4B4B]">
-                                <p>
-                                    <span className="font-bold">Selected:</span>{' '}
-                                    {selectedRecord.patient_name} -{' '}
-                                    {selectedRecord.record_number}
-                                </p>
-
-                                <p className="mt-1">
-                                    <span className="font-bold">Type:</span>{' '}
-                                    {selectedRecord.record_type}
+                                <p className="mt-1 text-[13px] font-bold text-[#2F3A2F]">
+                                    {selectedRecord
+                                        ? `${selectedRecord.patient_name} - ${selectedRecord.record_number}`
+                                        : 'Belum dipilih'}
                                 </p>
                             </div>
-                        )}
 
-                        <div className="mt-[36px]">
-                            <label className="block">
-                                <span className="text-[14px] font-bold text-black">
-                                    Description
-                                </span>
+                            <div className="text-left sm:text-right">
+                                <p className="text-[11px] font-bold text-[#6B6B6B]">
+                                    Total
+                                </p>
 
-                                <textarea
-                                    name="description"
-                                    value={formData.description}
-                                    onChange={handleChange}
-                                    rows={7}
-                                    className="mt-[14px] w-full rounded-[4px] border border-transparent bg-white px-4 py-3 text-[13px] text-black shadow-md outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072]"
-                                />
-                            </label>
+                                <p className="mt-1 text-[16px] font-bold text-[#2F3A2F]">
+                                    {formatRupiah(formData.amount)}
+                                </p>
+                            </div>
                         </div>
-
-                        <div className="mt-[42px] flex flex-wrap items-center gap-[12px]">
-                            <button
-                                type="submit"
-                                disabled={isSubmitting}
-                                className="min-w-[120px] rounded-[50px] bg-[#86A789] px-6 py-2 text-[12px] font-semibold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                                {isSubmitting ? 'Saving...' : 'Add Record'}
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => router.push('/financial-report')}
-                                disabled={isSubmitting}
-                                className="min-w-[100px] rounded-[50px] border border-[#BFC7BB] bg-white px-6 py-2 text-[12px] font-semibold text-[#4B4B4B] shadow-sm transition-all hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    </form>
+                    </div>
                 </div>
-            </main>
+
+                <div className="flex flex-col-reverse gap-3 border-t border-[#E4E8E1] px-5 py-4 sm:flex-row sm:justify-end">
+                    <button
+                        type="button"
+                        onClick={() => router.push('/financial-report')}
+                        disabled={isSubmitting}
+                        className="h-[38px] rounded-[30px] border border-[#BFC7BB] bg-white px-5 text-[12px] font-bold text-[#4B4B4B] hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        Batal
+                    </button>
+
+                    <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="h-[38px] rounded-[30px] bg-[#739072] px-5 text-[12px] font-bold text-white hover:bg-[#5F785F] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        {isSubmitting ? 'Menyimpan...' : 'Simpan Invoice'}
+                    </button>
+                </div>
+            </form>
         </div>
     );
 };

@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
-import Sidebar from '@/components/sidebar';
 
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
@@ -718,324 +717,318 @@ const ManagementSetting = () => {
     };
 
     return (
-        <div className="min-h-dvh w-full max-w-full overflow-x-hidden bg-[#FDFEF9]">
-            <div className="flex min-h-dvh w-full max-w-full overflow-x-hidden">
-                <Sidebar />
+        <>
+            <div className="box-border w-full max-w-none min-w-0">
+                <div className="mt-[28px] box-border flex min-h-[118px] w-full max-w-full flex-col gap-[18px] rounded-l-[8px] bg-[#86A789] px-4 py-[24px] shadow-md sm:px-[38px] lg:flex-row lg:items-center lg:justify-between">
+                    <div className="min-w-0">
+                        <p className="text-[12px] font-semibold uppercase tracking-[0.2em] text-[#FDFEF9] opacity-90">
+                            Management Setting
+                        </p>
 
-                <main className="box-border flex min-w-0 flex-1 flex-col overflow-x-hidden pb-[40px] pl-4 pr-0 pt-[26px] sm:pl-[28px] sm:pr-0">
-                    <div className="box-border w-full max-w-none min-w-0">
-                        <div className="mt-[28px] box-border flex min-h-[118px] w-full max-w-full flex-col gap-[18px] rounded-l-[8px] bg-[#86A789] px-4 py-[24px] shadow-md sm:px-[38px] lg:flex-row lg:items-center lg:justify-between">
-                            <div className="min-w-0">
-                                <p className="text-[12px] font-semibold uppercase tracking-[0.2em] text-[#FDFEF9] opacity-90">
-                                    Management Setting
+                        <h1 className="mt-[10px] truncate text-[26px] font-bold leading-none text-white">
+                            {clinic?.clinic_name || 'Clinic Management'}
+                        </h1>
+
+                        <p className="mt-[10px] text-[12px] font-medium text-white">
+                            Manage clinic information, accounts, roles, and access.
+                        </p>
+                    </div>
+
+                    <div className="flex shrink-0 flex-wrap items-center gap-[12px]">
+                        <div className="rounded-[50px] bg-white px-[18px] py-[8px] text-[12px] font-bold text-[#5F785F] shadow-sm">
+                            {formatRole(currentUser?.role || 'admin')}
+                        </div>
+
+                        <div className="rounded-[50px] bg-[#D2E3C8] px-[18px] py-[8px] text-[12px] font-bold text-[#4F6F52] shadow-sm">
+                            {stats.total_employees} Users
+                        </div>
+                    </div>
+                </div>
+
+                {errorMessage && (
+                    <div className="mt-[18px] box-border w-full rounded-l-[6px] border border-red-200 bg-red-50 px-[16px] py-[10px] text-[12px] text-red-700">
+                        {errorMessage}
+                    </div>
+                )}
+
+                {successMessage && (
+                    <div className="mt-[18px] box-border w-full rounded-l-[6px] border border-green-200 bg-green-50 px-[16px] py-[10px] text-[12px] text-green-700">
+                        {successMessage}
+                    </div>
+                )}
+
+                {isLoading ? (
+                    <div className="mt-[26px] w-full rounded-l-[8px] border border-[#D2D8CF] bg-white px-[24px] py-[28px] text-[12px] text-black">
+                        Loading management setting...
+                    </div>
+                ) : (
+                    <>
+                        <div className="mt-[26px] grid w-full min-w-0 grid-cols-1 gap-[16px] md:grid-cols-2 xl:grid-cols-4">
+                            <div className="rounded-l-[8px] border border-[#D2D8CF] bg-white px-[22px] py-[18px] shadow-sm">
+                                <p className="text-[11px] font-semibold text-[#5F785F]">
+                                    Total User
                                 </p>
-
-                                <h1 className="mt-[10px] truncate text-[26px] font-bold leading-none text-white">
-                                    {clinic?.clinic_name || 'Clinic Management'}
-                                </h1>
-
-                                <p className="mt-[10px] text-[12px] font-medium text-white">
-                                    Manage clinic information, accounts, roles, and access.
-                                </p>
+                                <h2 className="mt-[8px] text-[26px] font-bold text-black">
+                                    {stats.total_employees}
+                                </h2>
                             </div>
 
-                            <div className="flex shrink-0 flex-wrap items-center gap-[12px]">
-                                <div className="rounded-[50px] bg-white px-[18px] py-[8px] text-[12px] font-bold text-[#5F785F] shadow-sm">
-                                    {formatRole(currentUser?.role || 'admin')}
-                                </div>
+                            <div className="rounded-[8px] border border-[#D2D8CF] bg-white px-[22px] py-[18px] shadow-sm">
+                                <p className="text-[11px] font-semibold text-[#5F785F]">
+                                    Active
+                                </p>
+                                <h2 className="mt-[8px] text-[26px] font-bold text-black">
+                                    {stats.active_employees}
+                                </h2>
+                            </div>
 
-                                <div className="rounded-[50px] bg-[#D2E3C8] px-[18px] py-[8px] text-[12px] font-bold text-[#4F6F52] shadow-sm">
-                                    {stats.total_employees} Users
-                                </div>
+                            <div className="rounded-[8px] border border-[#D2D8CF] bg-white px-[22px] py-[18px] shadow-sm">
+                                <p className="text-[11px] font-semibold text-[#5F785F]">
+                                    Midwife
+                                </p>
+                                <h2 className="mt-[8px] text-[26px] font-bold text-black">
+                                    {stats.midwives}
+                                </h2>
+                            </div>
+
+                            <div className="rounded-l-[8px] border border-r-0 border-[#D2D8CF] bg-white px-[22px] py-[18px] shadow-sm">
+                                <p className="text-[11px] font-semibold text-[#5F785F]">
+                                    Asisten
+                                </p>
+                                <h2 className="mt-[8px] text-[26px] font-bold text-black">
+                                    {stats.asistens}
+                                </h2>
                             </div>
                         </div>
 
-                        {errorMessage && (
-                            <div className="mt-[18px] box-border w-full rounded-l-[6px] border border-red-200 bg-red-50 px-[16px] py-[10px] text-[12px] text-red-700">
-                                {errorMessage}
+                        <section className="mt-[26px] box-border w-full rounded-l-[8px] border border-r-0 border-[#D2D8CF] bg-white px-4 py-[26px] shadow-sm sm:px-[30px]">
+                            <h2 className="text-[18px] font-bold leading-none text-black">
+                                User Access
+                            </h2>
+
+                            <p className="mt-[8px] text-[11px] text-black">
+                                Kelola akun admin, midwife, dan asisten yang terhubung ke klinik.
+                            </p>
+
+                            <div className="mt-[14px]">
+                                <button
+                                    type="button"
+                                    onClick={openAccountModal}
+                                    className="h-[34px] rounded-[50px] bg-[#86A789] px-[22px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-70"
+                                >
+                                    Add Account
+                                </button>
                             </div>
-                        )}
 
-                        {successMessage && (
-                            <div className="mt-[18px] box-border w-full rounded-l-[6px] border border-green-200 bg-green-50 px-[16px] py-[10px] text-[12px] text-green-700">
-                                {successMessage}
+                            <div className="mt-[22px] grid w-full min-w-0 grid-cols-1 gap-[12px] lg:grid-cols-[1fr_180px_180px]">
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(event) => setSearchQuery(event.target.value)}
+                                    placeholder="Search user by name, email, role, or STR..."
+                                    className={inputClassName}
+                                />
+
+                                <select
+                                    value={roleFilter}
+                                    onChange={(event) => setRoleFilter(event.target.value)}
+                                    className={inputClassName}
+                                >
+                                    <option value="all">All Roles</option>
+                                    {roleOptions.map((role) => (
+                                        <option key={role.value} value={role.value}>
+                                            {role.label}
+                                        </option>
+                                    ))}
+                                </select>
+
+                                <select
+                                    value={statusFilter}
+                                    onChange={(event) => setStatusFilter(event.target.value)}
+                                    className={inputClassName}
+                                >
+                                    <option value="all">All Status</option>
+                                    <option value="active">Active</option>
+                                    <option value="inactive">Inactive</option>
+                                </select>
                             </div>
-                        )}
 
-                        {isLoading ? (
-                            <div className="mt-[26px] w-full rounded-l-[8px] border border-[#D2D8CF] bg-white px-[24px] py-[28px] text-[12px] text-black">
-                                Loading management setting...
-                            </div>
-                        ) : (
-                            <>
-                                <div className="mt-[26px] grid w-full min-w-0 grid-cols-1 gap-[16px] md:grid-cols-2 xl:grid-cols-4">
-                                    <div className="rounded-l-[8px] border border-[#D2D8CF] bg-white px-[22px] py-[18px] shadow-sm">
-                                        <p className="text-[11px] font-semibold text-[#5F785F]">
-                                            Total User
-                                        </p>
-                                        <h2 className="mt-[8px] text-[26px] font-bold text-black">
-                                            {stats.total_employees}
-                                        </h2>
-                                    </div>
+                            <div className="mt-[20px] w-full overflow-x-auto rounded-l-[8px] border border-r-0 border-[#E4E8E1]">
+                                <table className="w-full min-w-[900px] divide-y divide-[#E4E8E1] text-[11px]">
+                                    <thead className="bg-[#D2E3C8] text-[#3F3F3F]">
+                                        <tr>
+                                            <th className="px-5 py-4 text-left">User</th>
+                                            <th className="px-5 py-4 text-left">Email</th>
+                                            <th className="px-5 py-4 text-center">Role</th>
+                                            <th className="px-5 py-4 text-center">Status</th>
+                                            <th className="px-5 py-4 text-center">Last Login</th>
+                                            <th className="px-5 py-4 text-center">Action</th>
+                                        </tr>
+                                    </thead>
 
-                                    <div className="rounded-[8px] border border-[#D2D8CF] bg-white px-[22px] py-[18px] shadow-sm">
-                                        <p className="text-[11px] font-semibold text-[#5F785F]">
-                                            Active
-                                        </p>
-                                        <h2 className="mt-[8px] text-[26px] font-bold text-black">
-                                            {stats.active_employees}
-                                        </h2>
-                                    </div>
+                                    <tbody className="divide-y divide-[#F0F2EE] bg-white">
+                                        {filteredEmployees.length === 0 ? (
+                                            <tr>
+                                                <td
+                                                    colSpan={6}
+                                                    className="px-5 py-8 text-center text-gray-500"
+                                                >
+                                                    No user found
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            filteredEmployees.map((employee) => (
+                                                <tr key={employee.id} className="text-black">
+                                                    <td className="px-5 py-4">
+                                                        <div className="flex min-w-0 items-center gap-[12px]">
+                                                            <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-[#D2E3C8] text-[12px] font-bold text-[#4F6F52]">
+                                                                {getInitials(employee.fullname)}
+                                                            </div>
 
-                                    <div className="rounded-[8px] border border-[#D2D8CF] bg-white px-[22px] py-[18px] shadow-sm">
-                                        <p className="text-[11px] font-semibold text-[#5F785F]">
-                                            Midwife
-                                        </p>
-                                        <h2 className="mt-[8px] text-[26px] font-bold text-black">
-                                            {stats.midwives}
-                                        </h2>
-                                    </div>
+                                                            <div className="min-w-0">
+                                                                <p className="truncate font-bold">
+                                                                    {employee.fullname}
+                                                                </p>
+                                                                <p className="mt-[3px] truncate text-[10px] text-gray-500">
+                                                                    STR: {employee.strnumber || '-'}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
 
-                                    <div className="rounded-l-[8px] border border-r-0 border-[#D2D8CF] bg-white px-[22px] py-[18px] shadow-sm">
-                                        <p className="text-[11px] font-semibold text-[#5F785F]">
-                                            Asisten
-                                        </p>
-                                        <h2 className="mt-[8px] text-[26px] font-bold text-black">
-                                            {stats.asistens}
-                                        </h2>
-                                    </div>
-                                </div>
+                                                    <td className="px-5 py-4">{employee.email}</td>
 
-                                <section className="mt-[26px] box-border w-full rounded-l-[8px] border border-r-0 border-[#D2D8CF] bg-white px-4 py-[26px] shadow-sm sm:px-[30px]">
-                                    <h2 className="text-[18px] font-bold leading-none text-black">
-                                        User Access
-                                    </h2>
-
-                                    <p className="mt-[8px] text-[11px] text-black">
-                                        Kelola akun admin, midwife, dan asisten yang terhubung ke klinik.
-                                    </p>
-
-                                    <div className="mt-[14px]">
-                                        <button
-                                            type="button"
-                                            onClick={openAccountModal}
-                                            className="h-[34px] rounded-[50px] bg-[#86A789] px-[22px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-70"
-                                        >
-                                            Add Account
-                                        </button>
-                                    </div>
-
-                                    <div className="mt-[22px] grid w-full min-w-0 grid-cols-1 gap-[12px] lg:grid-cols-[1fr_180px_180px]">
-                                        <input
-                                            type="text"
-                                            value={searchQuery}
-                                            onChange={(event) => setSearchQuery(event.target.value)}
-                                            placeholder="Search user by name, email, role, or STR..."
-                                            className={inputClassName}
-                                        />
-
-                                        <select
-                                            value={roleFilter}
-                                            onChange={(event) => setRoleFilter(event.target.value)}
-                                            className={inputClassName}
-                                        >
-                                            <option value="all">All Roles</option>
-                                            {roleOptions.map((role) => (
-                                                <option key={role.value} value={role.value}>
-                                                    {role.label}
-                                                </option>
-                                            ))}
-                                        </select>
-
-                                        <select
-                                            value={statusFilter}
-                                            onChange={(event) => setStatusFilter(event.target.value)}
-                                            className={inputClassName}
-                                        >
-                                            <option value="all">All Status</option>
-                                            <option value="active">Active</option>
-                                            <option value="inactive">Inactive</option>
-                                        </select>
-                                    </div>
-
-                                    <div className="mt-[20px] w-full overflow-x-auto rounded-l-[8px] border border-r-0 border-[#E4E8E1]">
-                                        <table className="w-full min-w-[900px] divide-y divide-[#E4E8E1] text-[11px]">
-                                            <thead className="bg-[#D2E3C8] text-[#3F3F3F]">
-                                                <tr>
-                                                    <th className="px-5 py-4 text-left">User</th>
-                                                    <th className="px-5 py-4 text-left">Email</th>
-                                                    <th className="px-5 py-4 text-center">Role</th>
-                                                    <th className="px-5 py-4 text-center">Status</th>
-                                                    <th className="px-5 py-4 text-center">Last Login</th>
-                                                    <th className="px-5 py-4 text-center">Action</th>
-                                                </tr>
-                                            </thead>
-
-                                            <tbody className="divide-y divide-[#F0F2EE] bg-white">
-                                                {filteredEmployees.length === 0 ? (
-                                                    <tr>
-                                                        <td
-                                                            colSpan={6}
-                                                            className="px-5 py-8 text-center text-gray-500"
+                                                    <td className="px-5 py-4 text-center">
+                                                        <span
+                                                            className={`inline-flex min-w-[78px] justify-center rounded-full px-3 py-1 text-[10px] font-bold ${getRoleBadgeClassName(employee.role)}`}
                                                         >
-                                                            No user found
-                                                        </td>
-                                                    </tr>
-                                                ) : (
-                                                    filteredEmployees.map((employee) => (
-                                                        <tr key={employee.id} className="text-black">
-                                                            <td className="px-5 py-4">
-                                                                <div className="flex min-w-0 items-center gap-[12px]">
-                                                                    <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-[#D2E3C8] text-[12px] font-bold text-[#4F6F52]">
-                                                                        {getInitials(employee.fullname)}
-                                                                    </div>
+                                                            {formatRole(employee.role)}
+                                                        </span>
+                                                    </td>
 
-                                                                    <div className="min-w-0">
-                                                                        <p className="truncate font-bold">
-                                                                            {employee.fullname}
-                                                                        </p>
-                                                                        <p className="mt-[3px] truncate text-[10px] text-gray-500">
-                                                                            STR: {employee.strnumber || '-'}
-                                                                        </p>
-                                                                    </div>
-                                                                </div>
-                                                            </td>
+                                                    <td className="px-5 py-4 text-center">
+                                                        <span
+                                                            className={`inline-flex min-w-[76px] justify-center rounded-full px-3 py-1 text-[10px] font-bold ${
+                                                                employee.is_active
+                                                                    ? 'bg-[#D2E3C8] text-[#4F6F52]'
+                                                                    : 'bg-[#F3E8C8] text-[#7A5A00]'
+                                                            }`}
+                                                        >
+                                                            {employee.is_active ? 'Active' : 'Inactive'}
+                                                        </span>
+                                                    </td>
 
-                                                            <td className="px-5 py-4">{employee.email}</td>
+                                                    <td className="px-5 py-4 text-center">
+                                                        {formatDateTime(employee.last_login)}
+                                                    </td>
 
-                                                            <td className="px-5 py-4 text-center">
-                                                                <span
-                                                                    className={`inline-flex min-w-[78px] justify-center rounded-full px-3 py-1 text-[10px] font-bold ${getRoleBadgeClassName(employee.role)}`}
-                                                                >
-                                                                    {formatRole(employee.role)}
-                                                                </span>
-                                                            </td>
+                                                    <td className="px-5 py-4 text-center">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openEmployeeDetail(employee)}
+                                                            className="rounded-[50px] bg-[#86A789] px-[18px] py-[7px] text-[11px] font-bold text-white shadow-sm transition-all hover:bg-[#739072]"
+                                                        >
+                                                            Detail
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </section>
 
-                                                            <td className="px-5 py-4 text-center">
-                                                                <span
-                                                                    className={`inline-flex min-w-[76px] justify-center rounded-full px-3 py-1 text-[10px] font-bold ${
-                                                                        employee.is_active
-                                                                            ? 'bg-[#D2E3C8] text-[#4F6F52]'
-                                                                            : 'bg-[#F3E8C8] text-[#7A5A00]'
-                                                                    }`}
-                                                                >
-                                                                    {employee.is_active ? 'Active' : 'Inactive'}
-                                                                </span>
-                                                            </td>
+                        <section className="mt-[26px] box-border w-full rounded-l-[8px] border border-r-0 border-[#D2D8CF] bg-white px-4 py-[26px] shadow-sm sm:px-[30px]">
+                            <h2 className="text-[18px] font-bold leading-none text-black">
+                                Edit Clinic Information
+                            </h2>
 
-                                                            <td className="px-5 py-4 text-center">
-                                                                {formatDateTime(employee.last_login)}
-                                                            </td>
+                            <p className="mt-[8px] text-[11px] text-black">
+                                Data ini bersifat global untuk semua user yang terhubung ke klinik.
+                            </p>
 
-                                                            <td className="px-5 py-4 text-center">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => openEmployeeDetail(employee)}
-                                                                    className="rounded-[50px] bg-[#86A789] px-[18px] py-[7px] text-[11px] font-bold text-white shadow-sm transition-all hover:bg-[#739072]"
-                                                                >
-                                                                    Detail
-                                                                </button>
-                                                            </td>
-                                                        </tr>
-                                                    ))
-                                                )}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </section>
+                            <form
+                                onSubmit={handleUpdateClinic}
+                                className="mt-[22px] grid w-full min-w-0 grid-cols-1 gap-x-[42px] gap-y-[14px] md:grid-cols-2"
+                            >
+                                <label className="block min-w-0">
+                                    <span className="text-[11px] font-bold text-black">
+                                        Clinic Name
+                                    </span>
+                                    <input
+                                        type="text"
+                                        name="clinicName"
+                                        value={clinicForm.clinicName}
+                                        onChange={handleClinicChange}
+                                        className={inputClassName}
+                                    />
+                                </label>
 
-                                <section className="mt-[26px] box-border w-full rounded-l-[8px] border border-r-0 border-[#D2D8CF] bg-white px-4 py-[26px] shadow-sm sm:px-[30px]">
-                                    <h2 className="text-[18px] font-bold leading-none text-black">
-                                        Edit Clinic Information
-                                    </h2>
+                                <label className="block min-w-0">
+                                    <span className="text-[11px] font-bold text-black">
+                                        SIPB No
+                                    </span>
+                                    <input
+                                        type="text"
+                                        name="sipbNo"
+                                        value={clinicForm.sipbNo}
+                                        onChange={handleClinicChange}
+                                        className={inputClassName}
+                                    />
+                                </label>
 
-                                    <p className="mt-[8px] text-[11px] text-black">
-                                        Data ini bersifat global untuk semua user yang terhubung ke klinik.
-                                    </p>
+                                <label className="block min-w-0">
+                                    <span className="text-[11px] font-bold text-black">
+                                        Clinic Email
+                                    </span>
+                                    <input
+                                        type="email"
+                                        name="clinicEmail"
+                                        value={clinicForm.clinicEmail}
+                                        onChange={handleClinicChange}
+                                        className={inputClassName}
+                                    />
+                                </label>
 
-                                    <form
-                                        onSubmit={handleUpdateClinic}
-                                        className="mt-[22px] grid w-full min-w-0 grid-cols-1 gap-x-[42px] gap-y-[14px] md:grid-cols-2"
+                                <label className="block min-w-0">
+                                    <span className="text-[11px] font-bold text-black">
+                                        Clinic Phone Number
+                                    </span>
+                                    <input
+                                        type="tel"
+                                        name="clinicPhoneNumber"
+                                        value={clinicForm.clinicPhoneNumber}
+                                        onChange={handleClinicChange}
+                                        className={inputClassName}
+                                    />
+                                </label>
+
+                                <label className="block min-w-0 md:col-span-2">
+                                    <span className="text-[11px] font-bold text-black">
+                                        Clinic Address
+                                    </span>
+                                    <textarea
+                                        name="clinicAddress"
+                                        value={clinicForm.clinicAddress}
+                                        onChange={handleClinicChange}
+                                        className={textAreaClassName}
+                                    />
+                                </label>
+
+                                <div>
+                                    <button
+                                        type="submit"
+                                        disabled={isSavingClinic}
+                                        className="h-[34px] rounded-[50px] bg-[#86A789] px-[22px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-70"
                                     >
-                                        <label className="block min-w-0">
-                                            <span className="text-[11px] font-bold text-black">
-                                                Clinic Name
-                                            </span>
-                                            <input
-                                                type="text"
-                                                name="clinicName"
-                                                value={clinicForm.clinicName}
-                                                onChange={handleClinicChange}
-                                                className={inputClassName}
-                                            />
-                                        </label>
-
-                                        <label className="block min-w-0">
-                                            <span className="text-[11px] font-bold text-black">
-                                                SIPB No
-                                            </span>
-                                            <input
-                                                type="text"
-                                                name="sipbNo"
-                                                value={clinicForm.sipbNo}
-                                                onChange={handleClinicChange}
-                                                className={inputClassName}
-                                            />
-                                        </label>
-
-                                        <label className="block min-w-0">
-                                            <span className="text-[11px] font-bold text-black">
-                                                Clinic Email
-                                            </span>
-                                            <input
-                                                type="email"
-                                                name="clinicEmail"
-                                                value={clinicForm.clinicEmail}
-                                                onChange={handleClinicChange}
-                                                className={inputClassName}
-                                            />
-                                        </label>
-
-                                        <label className="block min-w-0">
-                                            <span className="text-[11px] font-bold text-black">
-                                                Clinic Phone Number
-                                            </span>
-                                            <input
-                                                type="tel"
-                                                name="clinicPhoneNumber"
-                                                value={clinicForm.clinicPhoneNumber}
-                                                onChange={handleClinicChange}
-                                                className={inputClassName}
-                                            />
-                                        </label>
-
-                                        <label className="block min-w-0 md:col-span-2">
-                                            <span className="text-[11px] font-bold text-black">
-                                                Clinic Address
-                                            </span>
-                                            <textarea
-                                                name="clinicAddress"
-                                                value={clinicForm.clinicAddress}
-                                                onChange={handleClinicChange}
-                                                className={textAreaClassName}
-                                            />
-                                        </label>
-
-                                        <div>
-                                            <button
-                                                type="submit"
-                                                disabled={isSavingClinic}
-                                                className="h-[34px] rounded-[50px] bg-[#86A789] px-[22px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-70"
-                                            >
-                                                {isSavingClinic ? 'Saving...' : 'Save Clinic Changes'}
-                                            </button>
-                                        </div>
-                                    </form>
-                                </section>
-                            </>
-                        )}
-                    </div>
-                </main>
+                                        {isSavingClinic ? 'Saving...' : 'Save Clinic Changes'}
+                                    </button>
+                                </div>
+                            </form>
+                        </section>
+                    </>
+                )}
             </div>
 
             {isAccountModalOpen && (
@@ -1426,7 +1419,7 @@ const ManagementSetting = () => {
                     </div>
                 </div>
             )}
-        </div>
+        </>
     );
 };
 

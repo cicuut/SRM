@@ -108,44 +108,6 @@ const getInitials = (name: string) => {
     return initials || 'U';
 };
 
-const MenuIcon = () => {
-    return (
-        <svg
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            aria-hidden="true"
-        >
-            <path
-                d="M4 7H20M4 12H20M4 17H20"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-            />
-        </svg>
-    );
-};
-
-const CloseIcon = () => {
-    return (
-        <svg
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            aria-hidden="true"
-        >
-            <path
-                d="M6 6L18 18M18 6L6 18"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-            />
-        </svg>
-    );
-};
-
 const LogoutIcon = () => {
     return (
         <svg
@@ -187,7 +149,6 @@ const Sidebar = () => {
     const [role, setRole] = useState<Role>('');
     const [fullname, setFullname] = useState('');
     const [profilePhoto, setProfilePhoto] = useState('');
-    const [isMobileOpen, setIsMobileOpen] = useState(false);
 
     const initials = getInitials(fullname || 'User');
 
@@ -196,9 +157,17 @@ const Sidebar = () => {
         const savedFullname = localStorage.getItem('fullname') || '';
         const savedPhoto = localStorage.getItem('profile_photo') || '';
 
-        if (savedRole) setRole(savedRole);
-        if (savedFullname) setFullname(savedFullname);
-        if (savedPhoto) setProfilePhoto(savedPhoto);
+        if (savedRole) {
+            setRole(savedRole);
+        }
+
+        if (savedFullname) {
+            setFullname(savedFullname);
+        }
+
+        if (savedPhoto) {
+            setProfilePhoto(savedPhoto);
+        }
 
         const fetchCurrentUser = async () => {
             try {
@@ -238,7 +207,7 @@ const Sidebar = () => {
                     localStorage.setItem('profile_photo', nextPhoto);
                 }
             } catch {
-                // Gunakan data dari localStorage kalau request gagal
+                // fallback dari localStorage
             }
         };
 
@@ -257,10 +226,6 @@ const Sidebar = () => {
             );
         };
     }, []);
-
-    useEffect(() => {
-        setIsMobileOpen(false);
-    }, [pathname]);
 
     const visibleNavItems = useMemo(() => {
         if (!role) {
@@ -291,105 +256,67 @@ const Sidebar = () => {
         router.push('/login');
     };
 
-    const SidebarText = ({
-        children,
-        mobile,
-        className = '',
-    }: {
-        children: React.ReactNode;
-        mobile?: boolean;
-        className?: string;
-    }) => {
-        return (
-            <div
-                className={`min-w-0 overflow-hidden whitespace-nowrap transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-                    mobile
-                        ? 'opacity-100'
-                        : 'translate-x-[-6px] opacity-0 group-hover/sidebar:translate-x-0 group-hover/sidebar:opacity-100'
-                } ${className}`}
-            >
-                {children}
-            </div>
-        );
-    };
+    return (
+        <aside className="h-screen w-64 shrink-0">
+            <div className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-[#E5ECE1] bg-[#FDFEF9] shadow-[10px_0_30px_rgba(79,111,82,0.08)]">
+                <Link
+                    href="/dashboard"
+                    className="mx-5 mt-5 flex items-center gap-3 rounded-[22px] px-2 py-2 transition-all hover:bg-[#EEF3E9]"
+                >
+                    <div className="flex h-[58px] w-[58px] shrink-0 items-center justify-center overflow-hidden rounded-[18px] bg-white shadow-sm">
+                        <Image
+                            src="/IBI-logo.webp"
+                            alt="Logo NADI"
+                            width={52}
+                            height={52}
+                            className="object-contain"
+                        />
+                    </div>
 
-    const SidebarContent = ({ mobile = false }: { mobile?: boolean }) => {
-        return (
-            <div
-                className={`group/sidebar flex h-full flex-col overflow-hidden bg-[#FDFEF9] transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-                    mobile ? 'w-[300px]' : 'w-[88px] hover:w-[268px]'
-                }`}
-            >
-                <div className="pt-4">
-                    <Link
-                        href="/dashboard"
-                        className="grid h-[72px] grid-cols-[88px_1fr] items-center rounded-[22px] transition-colors duration-300 hover:bg-[#EEF3E9]"
-                    >
-                        <div className="flex h-full w-[88px] items-center justify-center">
-                            <div className="flex h-[62px] w-[62px] shrink-0 items-center justify-center overflow-hidden rounded-[20px] bg-white shadow-sm">
-                                <Image
-                                    src="/IBI-logo.webp"
-                                    alt="Logo NADI"
-                                    width={56}
-                                    height={56}
-                                    className="object-contain"
+                    <div className="min-w-0">
+                        <h1 className="text-[24px] font-extrabold leading-none text-[#4F6F52]">
+                            NADI
+                        </h1>
+
+                        <p className="mt-[5px] truncate text-[10px] font-bold uppercase tracking-[0.12em] text-[#739072]">
+                            Klinik Digital
+                        </p>
+                    </div>
+                </Link>
+
+                <div className="mx-5 mt-5 rounded-[24px] border border-[#DCE7D6] bg-gradient-to-br from-[#EEF3E9] to-white px-4 py-4 shadow-sm">
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-[48px] w-[48px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#86A789] text-[17px] font-extrabold text-white shadow-sm">
+                            {profilePhoto ? (
+                                <img
+                                    src={profilePhoto}
+                                    alt="Foto profil"
+                                    className="h-full w-full object-cover"
                                 />
-                            </div>
+                            ) : (
+                                <span>{initials}</span>
+                            )}
                         </div>
 
-                        <SidebarText mobile={mobile} className="pr-4">
-                            <h1 className="text-[25px] font-extrabold leading-none text-[#4F6F52]">
-                                NADI
-                            </h1>
-
-                            <p className="mt-[6px] truncate text-[11px] font-bold uppercase tracking-[0.12em] text-[#739072]">
-                                Klinik Digital
-                            </p>
-                        </SidebarText>
-                    </Link>
-                </div>
-
-                <div className="mx-3 mt-4 rounded-[24px] border border-[#DCE7D6] bg-gradient-to-br from-[#F1F6ED] to-white shadow-sm transition-[padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]">
-                    <div className="grid min-h-[76px] grid-cols-[62px_1fr] items-center">
-                        <div className="flex h-full w-[62px] items-center justify-center">
-                            <div className="flex h-[50px] w-[50px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#86A789] text-[17px] font-extrabold text-white shadow-sm">
-                                {profilePhoto ? (
-                                    <img
-                                        src={profilePhoto}
-                                        alt="Foto profil"
-                                        className="h-full w-full object-cover"
-                                    />
-                                ) : (
-                                    <span>{initials}</span>
-                                )}
-                            </div>
-                        </div>
-
-                        <SidebarText mobile={mobile} className="pr-3">
+                        <div className="min-w-0">
                             <p className="truncate text-[14px] font-extrabold text-[#2F3A2F]">
                                 {fullname || 'Pengguna'}
                             </p>
 
-                            <p className="mt-[7px] inline-flex rounded-full bg-[#D2E3C8] px-3 py-[4px] text-[10px] font-extrabold uppercase tracking-[0.1em] text-[#4F6F52]">
+                            <p className="mt-[6px] inline-flex rounded-full bg-[#D2E3C8] px-3 py-[4px] text-[10px] font-extrabold uppercase tracking-[0.1em] text-[#4F6F52]">
                                 {formatRole(role)}
                             </p>
-                        </SidebarText>
+                        </div>
                     </div>
                 </div>
 
-                <div className="mt-5 grid grid-cols-[88px_1fr] items-center">
-                    <div className="text-center text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#9AA89A] transition-opacity duration-300 group-hover/sidebar:opacity-0">
-                        Menu
-                    </div>
-
-                    <SidebarText mobile={mobile} className="pr-4">
-                        <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#9AA89A]">
-                            Menu Utama
-                        </p>
-                    </SidebarText>
+                <div className="mt-6 px-5">
+                    <p className="px-3 text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#9AA89A]">
+                        Menu Utama
+                    </p>
                 </div>
 
-                <nav className="mt-3 flex flex-1 flex-col gap-[7px] px-3 pb-3">
+                <nav className="mt-3 flex-1 space-y-2 px-5">
                     {visibleNavItems.map((item) => {
                         const active = isActive(item.href);
 
@@ -397,112 +324,56 @@ const Sidebar = () => {
                             <Link
                                 key={item.label}
                                 href={item.href}
-                                title={item.label}
-                                className={`group/item relative grid h-[45px] grid-cols-[62px_1fr] items-center overflow-hidden rounded-[18px] transition-colors duration-300 ${
+                                className={`group relative flex w-full items-center gap-3 overflow-hidden rounded-[18px] px-4 py-[13px] transition-all ${
                                     active
                                         ? 'bg-[#739072] text-white shadow-md shadow-[#739072]/20'
                                         : 'text-[#2F3A2F] hover:bg-[#EEF3E9]'
                                 }`}
                             >
                                 {active && (
-                                    <span className="absolute left-0 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-white" />
+                                    <span className="absolute left-0 top-1/2 h-8 w-1 -translate-y-1/2 rounded-r-full bg-white" />
                                 )}
 
-                                <div className="flex h-full w-[62px] items-center justify-center">
-                                    <div
-                                        className={`flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-[12px] transition-colors duration-300 ${
+                                <div
+                                    className={`flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-[12px] transition-all ${
+                                        active
+                                            ? 'bg-white/15'
+                                            : 'bg-white shadow-sm group-hover:bg-[#D2E3C8]'
+                                    }`}
+                                >
+                                    <Image
+                                        src={item.icon}
+                                        alt={item.label}
+                                        width={18}
+                                        height={18}
+                                        className={`h-[18px] w-[18px] transition-all ${
                                             active
-                                                ? 'bg-white/16'
-                                                : 'bg-white shadow-sm group-hover/item:bg-[#D2E3C8]'
+                                                ? 'brightness-0 invert'
+                                                : 'opacity-75'
                                         }`}
-                                    >
-                                        <Image
-                                            src={item.icon}
-                                            alt={item.label}
-                                            width={18}
-                                            height={18}
-                                            className={`h-[18px] w-[18px] transition-all duration-300 ${
-                                                active
-                                                    ? 'brightness-0 invert'
-                                                    : 'opacity-75'
-                                            }`}
-                                        />
-                                    </div>
+                                    />
                                 </div>
 
-                                <SidebarText mobile={mobile} className="pr-4">
-                                    <span className="truncate text-[13px] font-bold">
-                                        {item.label}
-                                    </span>
-                                </SidebarText>
+                                <span className="relative z-10 truncate text-[13px] font-bold">
+                                    {item.label}
+                                </span>
                             </Link>
                         );
                     })}
                 </nav>
 
-                <div className="border-t border-[#E5ECE1] px-3 py-3">
+                <div className="border-t border-[#E5ECE1] px-5 py-5">
                     <button
                         type="button"
                         onClick={handleLogout}
-                        title="Keluar"
-                        className="grid h-[44px] w-full grid-cols-[62px_1fr] items-center overflow-hidden rounded-[18px] border border-[#D2D8CF] bg-white text-[13px] font-extrabold text-[#4F6F52] shadow-sm transition-colors duration-300 hover:bg-[#EEF3E9]"
+                        className="flex w-full items-center justify-center gap-2 rounded-[18px] border border-[#D2D8CF] bg-white px-4 py-[12px] text-[13px] font-extrabold text-[#4F6F52] shadow-sm transition-all hover:bg-[#EEF3E9] hover:text-[#3F5F42]"
                     >
-                        <div className="flex h-full w-[62px] items-center justify-center">
-                            <LogoutIcon />
-                        </div>
-
-                        <SidebarText mobile={mobile} className="pr-4">
-                            <span>Keluar</span>
-                        </SidebarText>
+                        <LogoutIcon />
+                        <span>Keluar</span>
                     </button>
                 </div>
             </div>
-        );
-    };
-
-    return (
-        <>
-            <aside className="hidden h-screen w-[88px] shrink-0 lg:block">
-                <div className="fixed left-0 top-0 z-40 h-screen w-[88px] overflow-visible border-r border-[#E5ECE1] shadow-[10px_0_30px_rgba(79,111,82,0.08)] transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:w-[268px]">
-                    <SidebarContent />
-                </div>
-            </aside>
-
-            <div className="fixed left-4 top-4 z-50 lg:hidden">
-                <button
-                    type="button"
-                    onClick={() => setIsMobileOpen(true)}
-                    className="flex h-[44px] w-[44px] items-center justify-center rounded-[16px] bg-[#739072] text-white shadow-lg shadow-[#739072]/25"
-                    aria-label="Buka menu"
-                >
-                    <MenuIcon />
-                </button>
-            </div>
-
-            {isMobileOpen && (
-                <div className="fixed inset-0 z-[60] lg:hidden">
-                    <button
-                        type="button"
-                        aria-label="Tutup menu"
-                        className="absolute inset-0 bg-black/35"
-                        onClick={() => setIsMobileOpen(false)}
-                    />
-
-                    <div className="absolute left-0 top-0 h-full w-[300px] max-w-[86%] overflow-hidden shadow-2xl">
-                        <SidebarContent mobile />
-                    </div>
-
-                    <button
-                        type="button"
-                        onClick={() => setIsMobileOpen(false)}
-                        className="absolute right-4 top-4 flex h-[42px] w-[42px] items-center justify-center rounded-full bg-white text-[#4F6F52] shadow-lg"
-                        aria-label="Tutup menu"
-                    >
-                        <CloseIcon />
-                    </button>
-                </div>
-            )}
-        </>
+        </aside>
     );
 };
 
