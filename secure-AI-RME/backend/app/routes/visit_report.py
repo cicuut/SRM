@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
-from app.models import PregnancyRecord, User, db, Patient, MedicalRecord, VisitMaster, VisitPregnancy, VisitFamilyPlanning, ImmunizationRecord, VisitImunization, VisitGeneral, FamilyPlanningRecord
-from app.utils import generate_visit_number, get_latest_visits_count, decrypt_data, get_column_name, clean_float, format_date
+from app.models import PregnancyRecord, User, db, Patient, MedicalRecord, VisitMaster, VisitPregnancy, VisitFamilyPlanning, ImmunizationRecord, VisitImunization, VisitGeneral, FamilyPlanningRecord, Financial
+from app.utils import generate_visit_number, get_latest_visits_count, decrypt_data, get_column_name, clean_float, format_date, generate_financial_number, reserve_next_sequence
 from datetime import datetime
 from flask_jwt_extended import get_jwt_identity, jwt_required, get_jwt
 from sqlalchemy import or_
@@ -144,12 +144,21 @@ def get_patient_data(uuid):
 def add_visit_pregnancy():
     user_id = get_jwt_identity()
     data = request.get_json()
+    claims = get_jwt()
     record_id = data.get('record_id')
     jakarta_tz = pytz.timezone('Asia/Jakarta')
     now_jakarta = datetime.now(jakarta_tz)
+    current_year = now_jakarta.year
     pregnancy_record = PregnancyRecord.query.filter_by(record_id=record_id).first()
+    clinic_id = claims.get("clinic_id")
+
+    medical_record = MedicalRecord.query.get(record_id)
+    if not medical_record:
+        return jsonify({"msg": "Data rekam medis tidak ditemukan"}), 404
     
     try:
+        patient = Patient.query.get(medical_record.patient_id)
+        patient_name = patient.patient_name if patient else "Pasien"
        #Add visit master
         new_visit = VisitMaster(
             record_id=record_id,
@@ -179,6 +188,34 @@ def add_visit_pregnancy():
         
         db.session.add(new_pregnancy_visit)
         db.session.flush() 
+
+        auto_desc = f"Pemasukan dari kunjungan {medical_record.record_number} - {patient_name}"
+        final_description = data.get("payment_description") or auto_desc
+        
+        next_seq = reserve_next_sequence(current_year)
+        trx_number = generate_financial_number(current_year, next_seq)
+
+
+        count = Financial.query.filter(
+            Financial.clinic_id == clinic_id,
+            db.extract('year', Financial.payment_date) == current_year
+        ).count()
+        
+        trx_number = generate_financial_number(year=current_year, sequence_number=count + 1)
+        new_financial = Financial(
+            visit_id=new_visit.visit_id,
+            user_id=user_id,
+            patient_id=medical_record.patient_id,
+            transaction_number=trx_number, 
+            clinic_id=clinic_id,
+            trans_type='pemasukan', 
+            amount=clean_float(data.get("total")),
+            payment_method=data.get("payment_method"),
+            status=data.get("payment_status", "unpaid"), 
+            payment_date=now_jakarta,
+            description=final_description
+        )
+        db.session.add(new_financial)
         db.session.commit()
         
         
@@ -231,12 +268,20 @@ def get_pregnancy_visit(uuid):
 def add_visit_familyplanning():
     user_id = get_jwt_identity()
     data = request.get_json()
+    claims = get_jwt()
     record_id = data.get('record_id')
     jakarta_tz = pytz.timezone('Asia/Jakarta')
     now_jakarta = datetime.now(jakarta_tz)
+    current_year = now_jakarta.year
     kb_record = FamilyPlanningRecord.query.filter_by(record_id=record_id).first()
+    clinic_id = claims.get("clinic_id")
 
+    medical_record = MedicalRecord.query.get(record_id)
+    if not medical_record:
+        return jsonify({"msg": "Data rekam medis tidak ditemukan"}), 404
     try:
+        patient = Patient.query.get(medical_record.patient_id)
+        patient_name = patient.patient_name if patient else "Pasien"
        #Add visit master
         new_visit = VisitMaster(
             record_id=record_id,
@@ -260,7 +305,34 @@ def add_visit_familyplanning():
         )
         
         db.session.add(new_familyplanning_visit)
-        db.session.flush() 
+        db.session.flush()
+
+        auto_desc = f"Pemasukan dari kunjungan {medical_record.record_number} - {patient_name}"
+        final_description = data.get("payment_description") or auto_desc
+        
+        next_seq = reserve_next_sequence(current_year)
+        trx_number = generate_financial_number(current_year, next_seq)
+
+        count = Financial.query.filter(
+            Financial.clinic_id == clinic_id,
+            db.extract('year', Financial.payment_date) == current_year
+        ).count()
+        
+        trx_number = generate_financial_number(year=current_year, sequence_number=count + 1)
+        new_financial = Financial(
+            visit_id=new_visit.visit_id,
+            user_id=user_id,
+            patient_id=medical_record.patient_id,
+            transaction_number=trx_number, 
+            clinic_id=clinic_id,
+            trans_type='pemasukan', 
+            amount=clean_float(data.get("total")),
+            payment_method=data.get("payment_method"),
+            status=data.get("payment_status", "unpaid"), 
+            payment_date=now_jakarta,
+            description=final_description
+        )
+        db.session.add(new_financial)
         db.session.commit()
         
         
@@ -305,13 +377,23 @@ def get_familyplanning_visit(uuid):
 def add_visit_immunization():
     user_id = get_jwt_identity()
     data = request.get_json()
+    claims = get_jwt()
     record_id = data.get('record_id')
     vaccine_given = data.get('vaccine_given') 
     dosage_given = data.get('dosage_given')  
     jakarta_tz = pytz.timezone('Asia/Jakarta')
     now_jakarta = datetime.now(jakarta_tz)
+    visit_date = now_jakarta.date()
+    current_year = now_jakarta.year
+    clinic_id = claims.get("clinic_id")
+
+    medical_record = MedicalRecord.query.get(record_id)
+    if not medical_record:
+        return jsonify({"msg": "Data rekam medis tidak ditemukan"}), 404
     
     try:
+        patient = Patient.query.get(medical_record.patient_id)
+        patient_name = patient.patient_name if patient else "Pasien"
         imm_record = ImmunizationRecord.query.filter_by(record_id=record_id).first()
         if not imm_record:
             imm_record = ImmunizationRecord(record_id=record_id)
@@ -324,6 +406,8 @@ def add_visit_immunization():
                 setattr(imm_record, col_name, visit_date)
             else:
                return jsonify({"msg": f"Jenis vaksin '{vaccine_given}' tidak dikenali sistem"}), 400
+            
+       
         new_visit = VisitMaster(
             record_id=record_id,
             user_id=user_id,
@@ -333,6 +417,34 @@ def add_visit_immunization():
         )
         db.session.add(new_visit)
         db.session.flush()
+
+        auto_desc = f"Pemasukan dari kunjungan {medical_record.record_number} - {patient_name}"
+        final_description = data.get("payment_description") or auto_desc
+        
+        next_seq = reserve_next_sequence(current_year)
+        trx_number = generate_financial_number(current_year, next_seq)
+
+        count = Financial.query.filter(
+            Financial.clinic_id == clinic_id,
+            db.extract('year', Financial.payment_date) == current_year
+        ).count()
+        
+        trx_number = generate_financial_number(year=current_year, sequence_number=count + 1)
+        new_financial = Financial(
+            visit_id=new_visit.visit_id,
+            user_id=user_id,
+            patient_id=medical_record.patient_id,
+            transaction_number=trx_number, 
+            clinic_id=clinic_id,
+            trans_type='pemasukan', 
+            amount=clean_float(data.get("total")),
+            payment_method=data.get("payment_method"),
+            status=data.get("payment_status", "unpaid"), 
+            payment_date=now_jakarta,
+            description=final_description
+        )
+        db.session.add(new_financial)
+
         new_detail = VisitImunization(
             visit_id=new_visit.visit_id,
             ir_id=imm_record.ir_id,
@@ -383,10 +495,19 @@ def get_immunization_visit(uuid):
 def add_visit_general():
     user_id = get_jwt_identity()
     data = request.get_json()
+    claims = get_jwt()
     jakarta_tz = pytz.timezone('Asia/Jakarta')
     now_jakarta = datetime.now(jakarta_tz)
+    current_year = now_jakarta.year
+    clinic_id = claims.get("clinic_id")
+    record_id = data.get('record_id')
     
+    medical_record = MedicalRecord.query.get(record_id)
+    if not medical_record:
+        return jsonify({"msg": "Data rekam medis tidak ditemukan"}), 404
     try:
+        patient = Patient.query.get(medical_record.patient_id)
+        patient_name = patient.patient_name if patient else "Pasien"
        #Add visit master
         new_visit = VisitMaster(
             record_id=data.get('record_id'),
@@ -408,7 +529,34 @@ def add_visit_general():
         )
         
         db.session.add(new_general_visit)
-        db.session.flush() 
+        db.session.flush()
+    
+        auto_desc = f"Pemasukan dari kunjungan {medical_record.record_number} - {patient_name}"
+        final_description = data.get("payment_description") or auto_desc
+        
+        next_seq = reserve_next_sequence(current_year)
+        trx_number = generate_financial_number(current_year, next_seq)
+
+        count = Financial.query.filter(
+            Financial.clinic_id == clinic_id,
+            db.extract('year', Financial.payment_date) == current_year
+        ).count()
+        
+        trx_number = generate_financial_number(year=current_year, sequence_number=count + 1)
+        new_financial = Financial(
+            visit_id=new_visit.visit_id,
+            user_id=user_id,
+            patient_id=medical_record.patient_id,
+            transaction_number=trx_number, 
+            clinic_id=clinic_id,
+            trans_type='pemasukan', 
+            amount=clean_float(data.get("total")),
+            payment_method=data.get("payment_method"),
+            status=data.get("payment_status", "unpaid"), 
+            payment_date=now_jakarta,
+            description=final_description
+        )
+        db.session.add(new_financial) 
         db.session.commit()
         
         

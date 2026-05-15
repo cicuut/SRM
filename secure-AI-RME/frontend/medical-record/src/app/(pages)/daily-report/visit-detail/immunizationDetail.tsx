@@ -61,46 +61,37 @@ const VisitImmunizationDetail = () => {
       </div>
       {/* Display family planning visit details */}
       <div className=" flex flex-row py-5 gap-6">
-        <div className="flex flex-col text-sm gap-2 min-w-[200px]">
-          <label className="block mb-1 font-bold text-black">Berat Badan</label>
-          <div className="w-full  p-2 overflow-y-auto text-wrap rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-            {visitImmunizationDetail?.weight_kg}
-          </div>
-        </div>
-        <div className="flex flex-col text-sm gap-2 min-w-[200px]">
-          <label className="block mb-1 font-bold text-black">
-            Tinggi Badan
-          </label>
-          <div className="w-full  p-2 overflow-y-auto text-wrap rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-            {visitImmunizationDetail?.height_cm}
-          </div>
-        </div>
-        <div className="flex flex-col text-sm gap-2 min-w-[200px]">
-          <label className="block mb-1 font-bold text-black">Suhu Tubuh</label>
-          <div className="w-full  p-2 overflow-y-auto text-wrap rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-            {visitImmunizationDetail?.body_temperature}
-          </div>
-        </div>
+         <table className="w-full">
+          <tbody>
+            <tr>
+              <td className="w-[13%]">Berat</td>
+              <td className="w-[2%]">:</td>
+              <td>{visitImmunizationDetail?.weight_kg} kg</td>
+            </tr>
+            <tr>
+              <td>Tekanan Darah</td>
+              <td>:</td>
+              <td>{visitImmunizationDetail?.height_cm} cm</td>
+            </tr>
+             <tr>
+              <td>Suhu Tubuh</td>
+              <td>:</td>
+              <td>{visitImmunizationDetail?.body_temperature} °C</td>
+            </tr>
+             <tr>
+              <td>Lingkar Kepala</td>
+              <td>:</td>
+              <td>{visitImmunizationDetail?.head_circumference} cm</td>
+            </tr>
+             <tr>
+              <td>Lingkar Perut</td>
+              <td>:</td>
+              <td>{visitImmunizationDetail?.abdominal_circumference} cm</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-      <div className="flex flex-row py-5 gap-6">
-        <div className="flex flex-col text-sm gap-2 min-w-[200px] ">
-          <label className="block mb-1 font-bold text-black">
-            Lingkar Kepala
-          </label>
-          <div className="w-full p-2 rounded-md  overflow-y-auto text-wrap   bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-            {visitImmunizationDetail?.head_circumference}
-          </div>
-        </div>
-        <div className="flex flex-col text-sm gap-2 min-w-[200px]">
-          <label className="block mb-1 font-bold text-black">
-            Lingkar Perut
-          </label>
-          <div className="w-full  p-2 rounded-md  overflow-y-auto text-wrap bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-            {visitImmunizationDetail?.abdominal_circumference}
-          </div>
-        </div>
-      </div>
-      <div className="flex flex-col text-sm gap-2">
+      <div className="flex flex-row text-sm gap-2">
         <div className="flex flex-col text-sm gap-2 min-w-[200px]">
           <label className="block mb-1 font-bold text-black">Imunisasi</label>
           <div className="w-full  p-2 rounded-md  overflow-y-auto text-wrap bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">

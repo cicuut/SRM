@@ -277,4 +277,21 @@ class Audit(db.Model):
 
     def __repr__(self):
         return f"<Audit {self.audit_number} - {self.action}>"
-    
+
+
+class Financial(db.Model):
+    __tablename__ ='financial'
+
+    transaction_id =db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    visit_id = db.Column(UUID(as_uuid=True), db.ForeignKey('visit_master.visit_id'))
+    clinic_id = db.Column(UUID(as_uuid=True), db.ForeignKey('clinic.clinic_id'))
+    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.user_id'))
+    patient_id = db.Column(UUID(as_uuid=True), db.ForeignKey('patient.patient_id'))
+    transaction_number = db.Column(db.String(50), nullable=False)
+    trans_type = db.Column(db.String(20), nullable=False)
+    amount = db.Column(db.Float, nullable=True)
+    payment_method = db.Column(db.String(20), nullable=False)
+    status = db.Column(db.String(20), nullable=False)
+    payment_date =db.Column(db.Date, nullable=False)
+    description = db.Column(EncryptedText)   
+   

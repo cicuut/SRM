@@ -402,7 +402,7 @@ const AddInvoice = () => {
             <div className="flex min-h-screen w-full overflow-x-auto bg-[#FDFEF9]">
                
 
-                <main className="flex min-h-screen min-w-0 flex-1 items-center justify-center bg-[#FDFEF9] pb-[40px] pl-[28px] pr-[28px] pt-[26px]">
+                <main className="flex min-h-screen min-w-0 flex-1 items-center justify-center bg-[#FDFEF9]pb-10 pl-7 pr-7 pt-6.5">
                     <p className="text-[14px] font-bold text-[#5F785F]">
                         Checking financial access...
                     </p>
@@ -414,11 +414,11 @@ const AddInvoice = () => {
     return (
         <div className="flex min-h-screen w-full overflow-x-auto bg-[#FDFEF9]">
 
-            <main className="flex min-h-screen min-w-0 flex-1 flex-col bg-[#FDFEF9] pb-[40px] pl-[28px] pr-[28px] pt-[26px]">
+            <main className="flex min-h-screen min-w-0 flex-1 flex-col bg-[#FDFEF9]pb-10 pl-7 pr-7 pt-6.5">
                 <div className="w-full">
                     <form
                         onSubmit={handleSubmit}
-                        className="mt-[54px] w-full max-w-[980px]"
+                        className="mt-13.5 w-full max-w-245"
                     >
                         <div>
                             <h1 className="text-[26px] font-bold leading-none text-[#5F785F]">
@@ -432,7 +432,7 @@ const AddInvoice = () => {
                             )}
                         </div>
 
-                        <div className="mt-[26px] grid grid-cols-1 gap-x-[48px] gap-y-[20px] md:grid-cols-3">
+                        <div className="mt-6.5 grid grid-cols-1 gap-x-12 gap-y-5 md:grid-cols-3">
                             <label className="block">
                                 <span className="text-[14px] font-bold text-black">
                                     Date
@@ -550,7 +550,7 @@ const AddInvoice = () => {
                         </div>
 
                         {selectedRecord && (
-                            <div className="mt-[24px] rounded-[12px] border border-[#D2D8CF] bg-[#EEF3E9] px-5 py-4 text-[12px] text-[#4B4B4B]">
+                            <div className="mt-6 rounded-xl border border-[#D2D8CF] bg-[#EEF3E9] px-5 py-4 text-[12px] text-[#4B4B4B]">
                                 <p>
                                     <span className="font-bold">Selected:</span>{' '}
                                     {selectedRecord.patient_name} -{' '}
@@ -564,7 +564,7 @@ const AddInvoice = () => {
                             </div>
                         )}
 
-                        <div className="mt-[36px]">
+                        <div className="mt-9">
                             <label className="block">
                                 <span className="text-[14px] font-bold text-black">
                                     Description
@@ -575,16 +575,16 @@ const AddInvoice = () => {
                                     value={formData.description}
                                     onChange={handleChange}
                                     rows={7}
-                                    className="mt-[14px] w-full rounded-[4px] border border-transparent bg-white px-4 py-3 text-[13px] text-black shadow-md outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072]"
+                                    className="mt-3.5 w-full rounded-sm border border-transparent bg-white px-4 py-3 text-[13px] text-black shadow-md outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072]"
                                 />
                             </label>
                         </div>
 
-                        <div className="mt-[42px] flex flex-wrap items-center gap-[12px]">
+                        <div className="mt-10.5 flex flex-wrap items-center gap-3">
                             <button
                                 type="submit"
                                 disabled={isSubmitting}
-                                className="min-w-[120px] rounded-[50px] bg-[#86A789] px-6 py-2 text-[12px] font-semibold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+                                className="min-w-30 rounded-[50px] bg-[#86A789] px-6 py-2 text-[12px] font-semibold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
                             >
                                 {isSubmitting ? 'Saving...' : 'Add Record'}
                             </button>
@@ -593,7 +593,7 @@ const AddInvoice = () => {
                                 type="button"
                                 onClick={() => router.push('/financial-report')}
                                 disabled={isSubmitting}
-                                className="min-w-[100px] rounded-[50px] border border-[#BFC7BB] bg-white px-6 py-2 text-[12px] font-semibold text-[#4B4B4B] shadow-sm transition-all hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-60"
+                                className="min-w-25 rounded-[50px] border border-[#BFC7BB] bg-white px-6 py-2 text-[12px] font-semibold text-[#4B4B4B] shadow-sm transition-all hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-60"
                             >
                                 Cancel
                             </button>

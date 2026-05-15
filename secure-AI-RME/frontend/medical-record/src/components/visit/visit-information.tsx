@@ -1,8 +1,5 @@
 "use client";
-import React from "react";
 import { useState, useEffect } from "react";
-import { emit } from "process";
-import Cookies from "js-cookie";
 import { useParams } from "next/navigation";
 import api from "@/utils/app"
 

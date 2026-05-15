@@ -1,11 +1,7 @@
 "use client";
 import React from "react";
 import { useState, useEffect } from "react";
-import { emit } from "process";
 import { useSearchParams, useRouter } from "next/navigation";
-import axios from "axios";
-import { request } from "http";
-import Cookies from "js-cookie";
 import Swal from "sweetalert2";
 import PatientInformation from "@/components/add-records/patientInformation";
 import FamilyInformation from "@/components/add-records/familyInformation";
@@ -180,7 +176,7 @@ const PregnancyRecord = () => {
         />
         <FamilyInformation onDataChange={handleFamilyUpdate} />
         <div className="flex flex-col gap-0">
-          <h2 className="text-md text-[#4F6F52] mt-10 underline leading-none !font-lexend">
+          <h2 className="text-md text-[#4F6F52] mt-10 underline leading-none font-lexend!">
             Riwayat Obstetri Sebelumnya
           </h2>
           <hr className="mt-0"></hr>
@@ -433,7 +429,7 @@ const PregnancyRecord = () => {
             </div>
           )}
           <div className="flex flex-col gap-0">
-            <h2 className="text-md text-[#4F6F52] mt-10 underline leading-none !font-lexend">
+            <h2 className="text-md text-[#4F6F52] mt-10 underline leading-none font-lexend!">
               Kehamilan Saat Ini
             </h2>
             <hr className="mt-0"></hr>
@@ -478,7 +474,7 @@ const PregnancyRecord = () => {
             </div>
           </div>
           <div className="flex flex-col gap-0">
-            <h2 className="text-md text-[#4F6F52] mt-10 underline leading-none !font-lexend">
+            <h2 className="text-md text-[#4F6F52] mt-10 underline leading-none font-lexend!">
               Pemeriksaan Umum
             </h2>
             <hr className="mt-0"></hr>
