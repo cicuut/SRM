@@ -4,6 +4,8 @@ import base64
 from Crypto.Cipher import AES
 from dotenv import load_dotenv
 import uuid
+from . import db
+from sqlalchemy import text
 
 def get_latest_record_count(record_type):
     from app.models import MedicalRecord
@@ -52,6 +54,8 @@ def generate_visit_number(latest_count):
 def generate_financial_number(year, sequence_number):
     prefix = "INV"
     sequence = f"{int(sequence_number):04d}"
+
+    year = datetime.now().year
 
     return f"{prefix}-{int(year)}-{sequence}"
 
@@ -120,6 +124,71 @@ def parse_date(date_str):
         except (ValueError, TypeError):
             continue
     return None
+
+def get_max_existing_sequence(year):
+    result = db.session.execute(
+        text(
+            """
+            SELECT COALESCE(
+                MAX(CAST(split_part(transaction_number, '-', 3) AS INTEGER)),
+                0
+            ) AS max_number
+            FROM financial
+            WHERE transaction_number ~ :pattern
+            """
+        ),
+        {"pattern": f"^INV-{int(year)}-[0-9]+$"},
+    ).scalar()
+
+    return int(result or 0)
+
+
+def get_next_sequence_preview(year):
+    existing_max = get_max_existing_sequence(year)
+
+    sequence_row = db.session.execute(
+        text(
+            """
+            SELECT last_number
+            FROM financial_sequence
+            WHERE year = :year
+            """
+        ),
+        {"year": int(year)},
+    ).first()
+
+    sequence_number = int(sequence_row[0]) if sequence_row else 0
+    next_number = max(existing_max, sequence_number) + 1
+
+    return next_number
+
+
+def reserve_next_sequence(year):
+    existing_max = get_max_existing_sequence(year)
+
+    result = db.session.execute(
+        text(
+            """
+            INSERT INTO financial_sequence (year, last_number)
+            VALUES (:year, :next_number)
+            ON CONFLICT (year)
+            DO UPDATE SET last_number = GREATEST(
+                financial_sequence.last_number,
+                :existing_max
+            ) + 1
+            RETURNING last_number
+            """
+        ),
+        {
+            "year": int(year),
+            "existing_max": int(existing_max),
+            "next_number": int(existing_max) + 1,
+        },
+    )
+
+    return int(result.scalar_one())
+
+
 
 def make_audit_number():
     import uuid

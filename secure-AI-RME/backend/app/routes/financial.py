@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models import db, User
-from app.utils import decrypt_data, generate_financial_number, write_audit_log
+from app.utils import decrypt_data, generate_financial_number, write_audit_log, reserve_next_sequence, get_next_sequence_preview
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from sqlalchemy import text
@@ -252,14 +252,12 @@ def normalize_column_enum_value(table_name, column_name, value, allowed_fallback
         f"Invalid value '{raw_value}' for {column_name}. Allowed values: {allowed_values}"
     )
 
-
 def get_financial_enum_type_names():
     return {
         "trans_type": get_column_db_type_name("financial", "trans_type"),
         "payment_method": get_column_db_type_name("financial", "payment_method"),
         "status": get_column_db_type_name("financial", "status"),
     }
-
 
 def normalize_financial_input(data, include_required=True):
     required_fields = [
@@ -317,72 +315,6 @@ def normalize_financial_input(data, include_required=True):
         "description": description,
     }
 
-
-# -----------------------------------------------------------------------------
-# Invoice number helpers
-# -----------------------------------------------------------------------------
-def get_max_existing_sequence(year):
-    result = db.session.execute(
-        text(
-            """
-            SELECT COALESCE(
-                MAX(CAST(split_part(transaction_number, '-', 3) AS INTEGER)),
-                0
-            ) AS max_number
-            FROM financial
-            WHERE transaction_number ~ :pattern
-            """
-        ),
-        {"pattern": f"^INV-{int(year)}-[0-9]+$"},
-    ).scalar()
-
-    return int(result or 0)
-
-
-def get_next_sequence_preview(year):
-    existing_max = get_max_existing_sequence(year)
-
-    sequence_row = db.session.execute(
-        text(
-            """
-            SELECT last_number
-            FROM financial_sequence
-            WHERE year = :year
-            """
-        ),
-        {"year": int(year)},
-    ).first()
-
-    sequence_number = int(sequence_row[0]) if sequence_row else 0
-    next_number = max(existing_max, sequence_number) + 1
-
-    return next_number
-
-
-def reserve_next_sequence(year):
-    existing_max = get_max_existing_sequence(year)
-
-    result = db.session.execute(
-        text(
-            """
-            INSERT INTO financial_sequence (year, last_number)
-            VALUES (:year, :next_number)
-            ON CONFLICT (year)
-            DO UPDATE SET last_number = GREATEST(
-                financial_sequence.last_number,
-                :existing_max
-            ) + 1
-            RETURNING last_number
-            """
-        ),
-        {
-            "year": int(year),
-            "existing_max": int(existing_max),
-            "next_number": int(existing_max) + 1,
-        },
-    )
-
-    return int(result.scalar_one())
 
 
 # -----------------------------------------------------------------------------

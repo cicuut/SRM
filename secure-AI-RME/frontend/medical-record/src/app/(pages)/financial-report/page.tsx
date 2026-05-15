@@ -628,37 +628,6 @@ const FinancialReport = () => {
         <div className="relative flex w-full min-w-0 flex-col gap-5">
             {showLoadingOverlay && <LoadingOverlay />}
 
-            <section className="w-full rounded-[22px] bg-[#86A789] px-6 py-7 shadow-md sm:px-8">
-                <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-                    <div className="min-w-0">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/80">
-                            Financial Report
-                        </p>
-
-                        <h2 className="mt-[10px] text-[30px] font-extrabold leading-none text-white">
-                            Laporan Keuangan
-                        </h2>
-
-                        <p className="mt-[10px] max-w-[760px] text-[12px] font-medium leading-relaxed text-white/90">
-                            Pantau invoice, metode pembayaran, status
-                            transaksi, dan data pembayaran klinik dalam satu
-                            halaman.
-                        </p>
-                    </div>
-
-                    <button
-                        type="button"
-                        onClick={() =>
-                            router.push('/financial-report/add-invoice')
-                        }
-                        className="flex h-[40px] w-fit items-center justify-center gap-x-2 rounded-[50px] bg-white px-[20px] text-[12px] font-bold text-[#5F785F] shadow-sm transition-all hover:bg-[#F4F4F4]"
-                    >
-                        <FontAwesomeIcon icon={faPlus} className="w-4" />
-                        <span>Tambah Invoice</span>
-                    </button>
-                </div>
-            </section>
-
             <section className="w-full rounded-[22px] border border-[#D2D8CF] bg-white px-5 py-5 shadow-sm sm:px-6">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                     <div className="relative min-w-0 flex-1 rounded-[50px] border border-[#D2D8CF] bg-[#FDFEF9] px-5 py-[12px] shadow-sm transition-all focus-within:border-[#739072] xl:max-w-[680px]">
@@ -858,22 +827,17 @@ const FinancialReport = () => {
                         </p>
                     </div>
 
-                    <div className="flex w-full flex-col gap-[10px] sm:flex-row sm:items-center sm:justify-between lg:w-auto lg:justify-end">
-                        <div className="flex min-h-[38px] items-center justify-between rounded-[12px] border border-[#D2D8CF] bg-[#F8FAF6] px-[14px] py-[9px] sm:min-w-[156px]">
-                            <div>
-                                <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-[#5F785F]">
-                                    Records
-                                </p>
-
-                                <p className="mt-[3px] text-[17px] font-bold leading-none text-black">
-                                    {filteredTransactions.length}
-                                </p>
-                            </div>
-
-                            <p className="text-[10px] font-semibold text-[#6B6B6B]">
-                                Data
-                            </p>
-                        </div>
+                    <div className="flex w-full flex-col gap-[10px] sm:flex-row sm:items-center sm:justify-end lg:w-auto">
+                        <button
+                            type="button"
+                            onClick={() =>
+                                router.push('/financial-report/add-invoice')
+                            }
+                            className="flex min-h-[38px] items-center justify-center gap-x-2 rounded-[50px] bg-[#739072] px-[18px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#5F785F]"
+                        >
+                            <FontAwesomeIcon icon={faPlus} className="w-4" />
+                            <span>Tambah Invoice</span>
+                        </button>
 
                         <button
                             type="button"
