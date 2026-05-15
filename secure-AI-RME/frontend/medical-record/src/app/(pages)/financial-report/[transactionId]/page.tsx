@@ -26,6 +26,8 @@ type FinancialDetail = {
     visit_id: string | null;
     record_id?: string | null;
     patient_id?: string | null;
+    clinic_id?: string | null;
+    user_id?: string | null;
     transaction_number: string;
     trans_id?: string;
     payment_date: string;
@@ -36,6 +38,7 @@ type FinancialDetail = {
     description: string;
     visit_display?: string;
     visit_number?: string;
+    visit_date?: string;
     record_number: string;
     record_type: string;
     patient_name: string;
@@ -45,8 +48,6 @@ type FinancialDetail = {
 
 type DetailFormData = {
     transaction_number: string;
-    transaction_id: string;
-    visit_id: string;
     payment_date: string;
     trans_type: string;
     amount: string;
@@ -94,7 +95,7 @@ const formatRupiah = (value: string | number) => {
 };
 
 const formatDateDisplay = (value: string) => {
-    if (!value) return '-';
+    if (!value || value === '-') return '-';
 
     const normalizedDate = normalizeDateInput(value);
     const date = new Date(`${normalizedDate}T00:00:00`);
@@ -139,8 +140,6 @@ const getStatusBadgeClassName = (status: string) => {
 const createFormFromDetail = (invoice: FinancialDetail): DetailFormData => {
     return {
         transaction_number: invoice.transaction_number || '',
-        transaction_id: invoice.transaction_id || '',
-        visit_id: invoice.record_id || invoice.visit_id || '',
         payment_date: normalizeDateInput(invoice.payment_date || ''),
         trans_type: invoice.trans_type || 'pemasukan',
         amount: String(invoice.amount || ''),
@@ -159,8 +158,6 @@ const DetailInvoicePage = () => {
     const [detail, setDetail] = useState<FinancialDetail | null>(null);
     const [formData, setFormData] = useState<DetailFormData>({
         transaction_number: '',
-        transaction_id: '',
-        visit_id: '',
         payment_date: '',
         trans_type: 'pemasukan',
         amount: '',
@@ -276,7 +273,7 @@ const DetailInvoicePage = () => {
             setSuccessMessage('');
 
             if (!transactionId) {
-                throw new Error('Transaction ID tidak ditemukan.');
+                throw new Error('Invoice tidak ditemukan.');
             }
 
             const token = getToken();
@@ -421,7 +418,6 @@ const DetailInvoicePage = () => {
                     },
                     body: JSON.stringify({
                         payment_date: formData.payment_date,
-                        visit_id: formData.visit_id || null,
                         trans_type: formData.trans_type,
                         amount: Number(formData.amount),
                         payment_method: formData.payment_method,
@@ -541,8 +537,9 @@ const DetailInvoicePage = () => {
                         </h1>
 
                         <p className="mt-1 text-[12px] text-[#6B6B6B]">
-                            Edit data pembayaran invoice. Data pasien dan rekam
-                            medis tidak dapat diubah dari halaman ini.
+                            Edit data pembayaran invoice. Data pasien, rekam
+                            medis, dan kunjungan tidak dapat diubah dari halaman
+                            ini.
                         </p>
                     </div>
 
@@ -593,19 +590,6 @@ const DetailInvoicePage = () => {
                             <input
                                 type="text"
                                 value={formData.transaction_number || '-'}
-                                readOnly
-                                className={readonlyClassName}
-                            />
-                        </label>
-
-                        <label className="block">
-                            <span className={labelClassName}>
-                                Transaction ID
-                            </span>
-
-                            <input
-                                type="text"
-                                value={formData.transaction_id || '-'}
                                 readOnly
                                 className={readonlyClassName}
                             />
@@ -754,6 +738,19 @@ const DetailInvoicePage = () => {
 
                             <label className="block">
                                 <span className={labelClassName}>
+                                    No. Pasien
+                                </span>
+
+                                <input
+                                    type="text"
+                                    value={detail?.patient_number || '-'}
+                                    readOnly
+                                    className={readonlyClassName}
+                                />
+                            </label>
+
+                            <label className="block">
+                                <span className={labelClassName}>
                                     No. Rekam Medis
                                 </span>
 
@@ -767,7 +764,7 @@ const DetailInvoicePage = () => {
 
                             <label className="block">
                                 <span className={labelClassName}>
-                                    Jenis Record
+                                    Jenis Rekam Medis
                                 </span>
 
                                 <input
@@ -780,17 +777,31 @@ const DetailInvoicePage = () => {
 
                             <label className="block">
                                 <span className={labelClassName}>
-                                    Visit / Record
+                                    No. Kunjungan
                                 </span>
 
                                 <input
                                     type="text"
                                     value={
-                                        detail?.visit_display ||
                                         detail?.visit_number ||
-                                        detail?.record_number ||
+                                        detail?.visit_display ||
                                         '-'
                                     }
+                                    readOnly
+                                    className={readonlyClassName}
+                                />
+                            </label>
+
+                            <label className="block">
+                                <span className={labelClassName}>
+                                    Tanggal Kunjungan
+                                </span>
+
+                                <input
+                                    type="text"
+                                    value={formatDateDisplay(
+                                        detail?.visit_date || '',
+                                    )}
                                     readOnly
                                     className={readonlyClassName}
                                 />
@@ -809,29 +820,35 @@ const DetailInvoicePage = () => {
                                 />
                             </label>
 
-                            <label className="block">
+                            <label className="block md:col-span-2 xl:col-span-1">
                                 <span className={labelClassName}>
-                                    Patient ID
+                                    Referensi Invoice
                                 </span>
 
                                 <input
                                     type="text"
-                                    value={detail?.patient_id || '-'}
+                                    value={
+                                        detail?.visit_display ||
+                                        detail?.visit_number ||
+                                        detail?.record_number ||
+                                        '-'
+                                    }
                                     readOnly
                                     className={readonlyClassName}
                                 />
                             </label>
 
-                            <label className="block md:col-span-2">
+                            <label className="block md:col-span-2 xl:col-span-4">
                                 <span className={labelClassName}>
                                     Catatan
                                 </span>
 
                                 <div className="mt-2 rounded-[10px] border border-[#E4E8E1] bg-[#F8FAF6] px-3 py-3 text-[12px] leading-relaxed text-[#6B6B6B]">
-                                    Data pasien dan rekam medis tidak bisa
-                                    diubah dari detail invoice. Jika invoice
-                                    salah pasien atau salah record, hapus invoice
-                                    ini lalu buat invoice baru.
+                                    Data pasien, rekam medis, dan laporan
+                                    kunjungan tidak bisa diubah dari detail
+                                    invoice. Jika invoice salah pasien atau
+                                    salah kunjungan, hapus invoice ini lalu buat
+                                    invoice baru.
                                 </div>
                             </label>
                         </div>
