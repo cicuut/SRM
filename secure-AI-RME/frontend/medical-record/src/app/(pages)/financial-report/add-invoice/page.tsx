@@ -25,16 +25,15 @@ type MeResponse = {
     } | null;
 };
 
-type MedicalRecordOption = {
-    rm_id: string;
+type VisitReportOption = {
+    visit_id: string;
+    visit_date: string;
+    visit_number: string;
     record_number: string;
-    record_type: string;
     patient_name: string;
     nik: string;
-    birth_date: string;
-    status: string;
-    created_at: string;
-    updated_at: string;
+    record_type: string;
+    made_by: string;
 };
 
 type InvoiceFormData = {
@@ -84,9 +83,7 @@ const AddInvoice = () => {
     const router = useRouter();
 
     const [transactionNumber, setTransactionNumber] = useState('');
-    const [medicalRecords, setMedicalRecords] = useState<MedicalRecordOption[]>(
-        [],
-    );
+    const [visitReports, setVisitReports] = useState<VisitReportOption[]>([]);
 
     const [formData, setFormData] = useState<InvoiceFormData>({
         payment_date: getTodayInputValue(),
@@ -100,23 +97,50 @@ const AddInvoice = () => {
 
     const [hasAccess, setHasAccess] = useState(false);
     const [isCheckingAccess, setIsCheckingAccess] = useState(true);
-    const [isLoadingRecords, setIsLoadingRecords] = useState(false);
+    const [isLoadingVisits, setIsLoadingVisits] = useState(false);
     const [isLoadingTransactionNumber, setIsLoadingTransactionNumber] =
         useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
 
+    const [isVisitModalOpen, setIsVisitModalOpen] = useState(false);
+    const [searchKeyword, setSearchKeyword] = useState('');
+
     const showLoadingOverlay =
         isCheckingAccess ||
-        isLoadingRecords ||
+        isLoadingVisits ||
         isLoadingTransactionNumber ||
         isSubmitting;
 
-    const selectedRecord = useMemo(() => {
-        return medicalRecords.find(
-            (record) => record.rm_id === formData.visit_id,
+    const selectedVisit = useMemo(() => {
+        return visitReports.find(
+            (visit) => visit.visit_id === formData.visit_id,
         );
-    }, [medicalRecords, formData.visit_id]);
+    }, [visitReports, formData.visit_id]);
+
+    const normalizedSearchKeyword = searchKeyword.trim().toLowerCase();
+
+    const filteredVisitReports = useMemo(() => {
+        if (!normalizedSearchKeyword) {
+            return visitReports;
+        }
+
+        return visitReports.filter((visit) => {
+            const searchableText = [
+                visit.patient_name,
+                visit.nik,
+                visit.visit_number,
+                visit.record_number,
+                visit.record_type,
+                visit.visit_date,
+                visit.made_by,
+            ]
+                .join(' ')
+                .toLowerCase();
+
+            return searchableText.includes(normalizedSearchKeyword);
+        });
+    }, [visitReports, normalizedSearchKeyword]);
 
     const getToken = () => {
         return Cookies.get('access_token');
@@ -248,9 +272,9 @@ const AddInvoice = () => {
         }
     };
 
-    const fetchMedicalRecords = async () => {
+    const fetchVisitReports = async () => {
         try {
-            setIsLoadingRecords(true);
+            setIsLoadingVisits(true);
             setErrorMessage('');
 
             const token = getToken();
@@ -261,7 +285,7 @@ const AddInvoice = () => {
             }
 
             const response = await fetch(
-                `${API_BASE_URL}/medical-record/get-all-records`,
+                `${API_BASE_URL}/visit-report/get-all-visit`,
                 {
                     method: 'GET',
                     headers: {
@@ -280,20 +304,20 @@ const AddInvoice = () => {
 
             if (!response.ok) {
                 throw new Error(
-                    data?.msg || 'Gagal mengambil data rekam medis',
+                    data?.msg || 'Gagal mengambil data laporan kunjungan',
                 );
             }
 
-            setMedicalRecords(Array.isArray(data) ? data : []);
+            setVisitReports(Array.isArray(data) ? data : []);
         } catch (error) {
             const message =
                 error instanceof Error
                     ? error.message
-                    : 'Terjadi kesalahan saat mengambil data rekam medis';
+                    : 'Terjadi kesalahan saat mengambil data laporan kunjungan';
 
             setErrorMessage(message);
         } finally {
-            setIsLoadingRecords(false);
+            setIsLoadingVisits(false);
         }
     };
 
@@ -305,7 +329,7 @@ const AddInvoice = () => {
     useEffect(() => {
         if (!hasAccess) return;
 
-        fetchMedicalRecords();
+        fetchVisitReports();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [hasAccess]);
 
@@ -330,13 +354,36 @@ const AddInvoice = () => {
         }));
     };
 
+    const handleOpenVisitModal = () => {
+        setSearchKeyword('');
+        setIsVisitModalOpen(true);
+
+        if (!isLoadingVisits && visitReports.length === 0) {
+            fetchVisitReports();
+        }
+    };
+
+    const handleCloseVisitModal = () => {
+        setIsVisitModalOpen(false);
+    };
+
+    const handleSelectVisit = (visit: VisitReportOption) => {
+        setFormData((prevData) => ({
+            ...prevData,
+            visit_id: visit.visit_id,
+        }));
+
+        setIsVisitModalOpen(false);
+        setSearchKeyword('');
+    };
+
     const validateForm = () => {
         if (!formData.payment_date) {
             return 'Tanggal wajib diisi.';
         }
 
         if (!formData.visit_id) {
-            return 'Rekam medis wajib dipilih.';
+            return 'Laporan kunjungan wajib dipilih.';
         }
 
         if (!formData.trans_type) {
@@ -496,31 +543,30 @@ const AddInvoice = () => {
                         />
                     </label>
 
-                    <label className="block">
-                        <span className={labelClassName}>Rekam Medis</span>
+                    <div className="block">
+                        <span className={labelClassName}>
+                            Laporan Kunjungan
+                        </span>
 
-                        <select
-                            name="visit_id"
-                            value={formData.visit_id}
-                            onChange={handleChange}
-                            required
-                            disabled={isSubmitting || isLoadingRecords}
-                            className={selectClassName}
+                        <button
+                            type="button"
+                            onClick={handleOpenVisitModal}
+                            disabled={isSubmitting || isLoadingVisits}
+                            className="mt-2 flex min-h-[42px] w-full items-center justify-between gap-3 rounded-[10px] border border-[#D2D8CF] bg-white px-3 py-2 text-left text-[13px] text-black outline-none transition-all hover:border-[#739072] focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 disabled:cursor-not-allowed disabled:opacity-70"
                         >
-                            <option value="">
-                                {isLoadingRecords
-                                    ? 'Memuat data...'
-                                    : 'Pilih rekam medis'}
-                            </option>
+                            <span className="min-w-0 flex-1 truncate">
+                                {selectedVisit
+                                    ? `${selectedVisit.patient_name} - ${selectedVisit.visit_number}`
+                                    : isLoadingVisits
+                                      ? 'Memuat data...'
+                                      : 'Pilih laporan kunjungan'}
+                            </span>
 
-                            {medicalRecords.map((record) => (
-                                <option key={record.rm_id} value={record.rm_id}>
-                                    {record.patient_name} -{' '}
-                                    {record.record_number} ({record.record_type})
-                                </option>
-                            ))}
-                        </select>
-                    </label>
+                            <span className="shrink-0 rounded-full bg-[#F8FAF6] px-3 py-1 text-[11px] font-bold text-[#4F6F52]">
+                                Cari
+                            </span>
+                        </button>
+                    </div>
 
                     <label className="block">
                         <span className={labelClassName}>Tipe Transaksi</span>
@@ -609,14 +655,22 @@ const AddInvoice = () => {
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 <p className="text-[11px] font-bold text-[#6B6B6B]">
-                                    Pasien
+                                    Pasien / Kunjungan
                                 </p>
 
                                 <p className="mt-1 text-[13px] font-bold text-[#2F3A2F]">
-                                    {selectedRecord
-                                        ? `${selectedRecord.patient_name} - ${selectedRecord.record_number}`
+                                    {selectedVisit
+                                        ? `${selectedVisit.patient_name} - ${selectedVisit.visit_number}`
                                         : 'Belum dipilih'}
                                 </p>
+
+                                {selectedVisit && (
+                                    <p className="mt-1 text-[11px] text-[#6B6B6B]">
+                                        {selectedVisit.record_number} -{' '}
+                                        {selectedVisit.record_type} -{' '}
+                                        {selectedVisit.visit_date}
+                                    </p>
+                                )}
                             </div>
 
                             <div className="text-left sm:text-right">
@@ -651,6 +705,161 @@ const AddInvoice = () => {
                     </button>
                 </div>
             </form>
+
+            {isVisitModalOpen && (
+                <div
+                    className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 px-4 py-6"
+                    onClick={handleCloseVisitModal}
+                >
+                    <div
+                        className="flex max-h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-[16px] bg-white shadow-2xl"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="flex flex-col gap-3 border-b border-[#E4E8E1] px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                                <h2 className="text-[18px] font-bold text-[#4F6F52]">
+                                    Pilih Laporan Kunjungan
+                                </h2>
+
+                                <p className="mt-1 text-[12px] text-[#6B6B6B]">
+                                    Cari berdasarkan nama pasien, NIK, nomor RM,
+                                    nomor kunjungan, tipe rekam medis, tanggal,
+                                    atau pembuat laporan.
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={handleCloseVisitModal}
+                                className="h-[34px] rounded-[30px] border border-[#D2D8CF] bg-white px-4 text-[12px] font-bold text-[#4B4B4B] hover:bg-[#F4F4F4]"
+                            >
+                                Tutup
+                            </button>
+                        </div>
+
+                        <div className="border-b border-[#E4E8E1] px-5 py-4">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                                <input
+                                    type="text"
+                                    value={searchKeyword}
+                                    onChange={(event) =>
+                                        setSearchKeyword(event.target.value)
+                                    }
+                                    placeholder="Cari laporan kunjungan..."
+                                    className="h-[42px] flex-1 rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10"
+                                    autoFocus
+                                />
+
+                                {searchKeyword && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSearchKeyword('')}
+                                        className="h-[42px] rounded-[30px] border border-[#D2D8CF] bg-white px-4 text-[12px] font-bold text-[#4B4B4B] hover:bg-[#F4F4F4]"
+                                    >
+                                        Reset
+                                    </button>
+                                )}
+                            </div>
+
+                            <p className="mt-2 text-[11px] font-semibold text-[#6B6B6B]">
+                                Menampilkan {filteredVisitReports.length} dari{' '}
+                                {visitReports.length} laporan kunjungan
+                            </p>
+                        </div>
+
+                        <div className="max-h-[52dvh] overflow-y-auto px-5 py-4">
+                            {isLoadingVisits ? (
+                                <div className="rounded-[12px] border border-[#E4E8E1] bg-[#F8FAF6] px-4 py-8 text-center text-[13px] font-semibold text-[#4F6F52]">
+                                    Memuat data laporan kunjungan...
+                                </div>
+                            ) : filteredVisitReports.length === 0 ? (
+                                <div className="rounded-[12px] border border-[#E4E8E1] bg-[#F8FAF6] px-4 py-8 text-center">
+                                    <p className="text-[13px] font-bold text-[#2F3A2F]">
+                                        Data tidak ditemukan
+                                    </p>
+
+                                    <p className="mt-1 text-[12px] text-[#6B6B6B]">
+                                        Coba gunakan kata kunci lain.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 gap-3">
+                                    {filteredVisitReports.map((visit) => {
+                                        const isSelected =
+                                            visit.visit_id ===
+                                            formData.visit_id;
+
+                                        return (
+                                            <button
+                                                type="button"
+                                                key={visit.visit_id}
+                                                onClick={() =>
+                                                    handleSelectVisit(visit)
+                                                }
+                                                className={`rounded-[12px] border px-4 py-3 text-left transition-all hover:border-[#739072] hover:bg-[#F8FAF6] ${
+                                                    isSelected
+                                                        ? 'border-[#739072] bg-[#F8FAF6] ring-2 ring-[#739072]/10'
+                                                        : 'border-[#E4E8E1] bg-white'
+                                                }`}
+                                            >
+                                                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                                    <div className="min-w-0">
+                                                        <p className="truncate text-[14px] font-bold text-[#2F3A2F]">
+                                                            {visit.patient_name}
+                                                        </p>
+
+                                                        <p className="mt-1 text-[12px] text-[#6B6B6B]">
+                                                            NIK: {visit.nik} -
+                                                            RM:{' '}
+                                                            {
+                                                                visit.record_number
+                                                            }
+                                                        </p>
+
+                                                        <p className="mt-1 text-[12px] text-[#6B6B6B]">
+                                                            No. Kunjungan:{' '}
+                                                            {visit.visit_number}{' '}
+                                                            -{' '}
+                                                            {visit.record_type}
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="shrink-0 text-left sm:text-right">
+                                                        <p className="text-[12px] font-bold text-[#4F6F52]">
+                                                            {visit.visit_date}
+                                                        </p>
+
+                                                        <p className="mt-1 text-[11px] text-[#6B6B6B]">
+                                                            Dibuat oleh:{' '}
+                                                            {visit.made_by}
+                                                        </p>
+
+                                                        {isSelected && (
+                                                            <span className="mt-2 inline-flex rounded-full bg-[#739072] px-3 py-1 text-[10px] font-bold text-white">
+                                                                Dipilih
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex justify-end border-t border-[#E4E8E1] px-5 py-4">
+                            <button
+                                type="button"
+                                onClick={handleCloseVisitModal}
+                                className="h-[38px] rounded-[30px] bg-[#739072] px-5 text-[12px] font-bold text-white hover:bg-[#5F785F]"
+                            >
+                                Selesai
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

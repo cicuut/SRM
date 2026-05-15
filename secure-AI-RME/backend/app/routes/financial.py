@@ -13,26 +13,10 @@ financial_bp = Blueprint("financial", __name__)
 
 FINANCIAL_ALLOWED_ROLES = ["admin", "midwife"]
 
-ENUM_ALIASES = {
-    "transaction_type": {
-        "income": "pemasukan",
-        "pemasukan": "pemasukan",
-        "expense": "pengeluaran",
-        "outcome": "pengeluaran",
-        "pengeluaran": "pengeluaran",
-    },
-    "payment_type": {
-        "transfer": "Transfer",
-        "qris": "QRIS",
-        "cash": "Cash",
-    },
-    "payment_status": {
-        "paid": "paid",
-        "unpaid": "unpaid",
-    },
-}
 
-
+# -----------------------------------------------------------------------------
+# Basic helpers
+# -----------------------------------------------------------------------------
 def to_str(value):
     if value is None:
         return None
@@ -129,13 +113,36 @@ def format_date(value):
     return raw_value
 
 
+def parse_amount(value):
+    try:
+        amount = Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        raise ValueError("Amount must be a valid number")
+
+    if amount <= 0:
+        raise ValueError("Amount must be greater than 0")
+
+    return amount
+
+
+# -----------------------------------------------------------------------------
+# PostgreSQL enum helpers
+# Supabase exports USER-DEFINED for enum columns. The actual enum type name can
+# differ between local DB and Supabase, so this file reads the DB type directly
+# from the financial column before CAST-ing values.
+# -----------------------------------------------------------------------------
+def quote_identifier(identifier):
+    return '"' + str(identifier).replace('"', '""') + '"'
+
+
 def get_enum_labels(type_name):
     rows = db.session.execute(
         text(
             """
             SELECT e.enumlabel
             FROM pg_type t
-            JOIN pg_enum e ON t.oid = e.enumtypid
+            JOIN pg_enum e
+                ON t.oid = e.enumtypid
             WHERE t.typname = :type_name
             ORDER BY e.enumsortorder
             """
@@ -146,21 +153,87 @@ def get_enum_labels(type_name):
     return [row[0] for row in rows]
 
 
-def normalize_enum_value(type_name, value):
+def get_column_enum_labels(table_name, column_name, schema_name="public"):
+    rows = db.session.execute(
+        text(
+            """
+            SELECT e.enumlabel
+            FROM pg_attribute a
+            JOIN pg_class c
+                ON c.oid = a.attrelid
+            JOIN pg_namespace table_namespace
+                ON table_namespace.oid = c.relnamespace
+            JOIN pg_type t
+                ON t.oid = a.atttypid
+            JOIN pg_enum e
+                ON e.enumtypid = t.oid
+            WHERE table_namespace.nspname = :schema_name
+              AND c.relname = :table_name
+              AND a.attname = :column_name
+              AND a.attnum > 0
+              AND NOT a.attisdropped
+            ORDER BY e.enumsortorder
+            """
+        ),
+        {
+            "schema_name": schema_name,
+            "table_name": table_name,
+            "column_name": column_name,
+        },
+    ).all()
+
+    return [row[0] for row in rows]
+
+
+def get_column_db_type_name(table_name, column_name, schema_name="public"):
+    row = db.session.execute(
+        text(
+            """
+            SELECT
+                type_namespace.nspname AS type_schema,
+                column_type.typname AS type_name
+            FROM pg_attribute column_attribute
+            JOIN pg_class table_class
+                ON table_class.oid = column_attribute.attrelid
+            JOIN pg_namespace table_namespace
+                ON table_namespace.oid = table_class.relnamespace
+            JOIN pg_type column_type
+                ON column_type.oid = column_attribute.atttypid
+            JOIN pg_namespace type_namespace
+                ON type_namespace.oid = column_type.typnamespace
+            WHERE table_namespace.nspname = :schema_name
+              AND table_class.relname = :table_name
+              AND column_attribute.attname = :column_name
+              AND column_attribute.attnum > 0
+              AND NOT column_attribute.attisdropped
+            """
+        ),
+        {
+            "schema_name": schema_name,
+            "table_name": table_name,
+            "column_name": column_name,
+        },
+    ).mappings().first()
+
+    if not row:
+        raise ValueError(f"Column {schema_name}.{table_name}.{column_name} was not found")
+
+    return f"{quote_identifier(row['type_schema'])}.{quote_identifier(row['type_name'])}"
+
+
+def normalize_column_enum_value(table_name, column_name, value, allowed_fallback=None):
     if value is None:
-        raise ValueError(f"{type_name} is required")
+        raise ValueError(f"{column_name} is required")
 
     raw_value = str(value).strip()
 
     if not raw_value:
-        raise ValueError(f"{type_name} is required")
+        raise ValueError(f"{column_name} is required")
 
-    alias_value = ENUM_ALIASES.get(type_name, {}).get(raw_value.lower())
+    enum_labels = get_column_enum_labels(table_name, column_name)
 
-    if alias_value:
-        raw_value = alias_value
-
-    enum_labels = get_enum_labels(type_name)
+    if not enum_labels and allowed_fallback:
+        enum_labels = allowed_fallback
 
     if not enum_labels:
         return raw_value
@@ -176,10 +249,78 @@ def normalize_enum_value(type_name, value):
     allowed_values = ", ".join(enum_labels)
 
     raise ValueError(
-        f"Invalid value '{raw_value}' for {type_name}. Allowed values: {allowed_values}"
+        f"Invalid value '{raw_value}' for {column_name}. Allowed values: {allowed_values}"
     )
 
 
+def get_financial_enum_type_names():
+    return {
+        "trans_type": get_column_db_type_name("financial", "trans_type"),
+        "payment_method": get_column_db_type_name("financial", "payment_method"),
+        "status": get_column_db_type_name("financial", "status"),
+    }
+
+
+def normalize_financial_input(data, include_required=True):
+    required_fields = [
+        "payment_date",
+        "trans_type",
+        "amount",
+        "payment_method",
+        "status",
+    ]
+
+    if include_required:
+        missing_fields = [
+            field
+            for field in required_fields
+            if data.get(field) is None or data.get(field) == ""
+        ]
+
+        if missing_fields:
+            raise ValueError(
+                "All required data must be filled: " + ", ".join(missing_fields)
+            )
+
+    payment_date = parse_payment_date(data.get("payment_date"))
+
+    trans_type = normalize_column_enum_value(
+        "financial",
+        "trans_type",
+        data.get("trans_type"),
+        ["pemasukan", "pengeluaran"],
+    )
+
+    payment_method = normalize_column_enum_value(
+        "financial",
+        "payment_method",
+        data.get("payment_method"),
+        ["Transfer", "QRIS", "Cash"],
+    )
+
+    status = normalize_column_enum_value(
+        "financial",
+        "status",
+        data.get("status"),
+        ["paid", "unpaid"],
+    )
+
+    amount = parse_amount(data.get("amount"))
+    description = (data.get("description") or "").strip()
+
+    return {
+        "payment_date": payment_date,
+        "trans_type": trans_type,
+        "amount": amount,
+        "payment_method": payment_method,
+        "status": status,
+        "description": description,
+    }
+
+
+# -----------------------------------------------------------------------------
+# Invoice number helpers
+# -----------------------------------------------------------------------------
 def get_max_existing_sequence(year):
     result = db.session.execute(
         text(
@@ -244,6 +385,9 @@ def reserve_next_sequence(year):
     return int(result.scalar_one())
 
 
+# -----------------------------------------------------------------------------
+# Visit / record reference helpers
+# -----------------------------------------------------------------------------
 def resolve_visit_or_record_reference(reference_id, clinic_id):
     if not reference_id:
         return None
@@ -335,12 +479,16 @@ def resolve_visit_or_record_reference(reference_id, clinic_id):
     return resolved_row
 
 
+# -----------------------------------------------------------------------------
+# Shared select / serialization
+# -----------------------------------------------------------------------------
 FINANCIAL_SELECT_QUERY = """
     SELECT
         f.transaction_id::text AS transaction_id,
         f.visit_id::text AS visit_id,
         f.user_id::text AS user_id,
         f.patient_id::text AS patient_id,
+        f.clinic_id::text AS clinic_id,
         f.transaction_number,
         f.trans_type::text AS trans_type,
         f.amount,
@@ -350,6 +498,8 @@ FINANCIAL_SELECT_QUERY = """
         f.description,
 
         vm.visit_number,
+        vm.visit_date,
+        vm.visit_time,
         vm.record_id::text AS record_id,
 
         mr.record_number,
@@ -357,7 +507,7 @@ FINANCIAL_SELECT_QUERY = """
 
         p.patient_name,
         p.patient_number,
-        p.clinic_id::text AS clinic_id,
+        p.clinic_id::text AS patient_clinic_id,
 
         u.fullname AS user_name,
         u.clinic_id::text AS user_clinic_id
@@ -380,6 +530,9 @@ def serialize_financial_row(row):
     encrypted_patient_name = row.get("patient_name")
     patient_name = safe_decrypt(encrypted_patient_name) if encrypted_patient_name else "-"
 
+    encrypted_patient_number = row.get("patient_number")
+    patient_number = safe_decrypt(encrypted_patient_number) if encrypted_patient_number else "-"
+
     payment_date = format_date(row.get("payment_date"))
 
     visit_display = (
@@ -394,6 +547,7 @@ def serialize_financial_row(row):
         "visit_id": row.get("visit_id"),
         "user_id": row.get("user_id"),
         "patient_id": row.get("patient_id"),
+        "clinic_id": row.get("clinic_id") or row.get("patient_clinic_id") or row.get("user_clinic_id"),
         "transaction_number": row.get("transaction_number"),
         "trans_id": payment_date,
         "payment_date": payment_date,
@@ -404,72 +558,42 @@ def serialize_financial_row(row):
         "description": row.get("description") or "",
         "visit_display": visit_display,
         "visit_number": row.get("visit_number") or "-",
+        "visit_date": format_date(row.get("visit_date")),
         "record_id": row.get("record_id"),
         "record_number": row.get("record_number") or "-",
         "record_type": row.get("record_type") or "-",
         "patient_name": patient_name or "-",
-        "patient_number": row.get("patient_number") or "-",
+        "patient_number": patient_number or "-",
         "user_name": row.get("user_name") or "-",
     }
 
 
-def fetch_financial_by_transaction_id(transaction_id):
+def fetch_financial_by_transaction_id(transaction_id, clinic_id=None):
+    conditions = ["f.transaction_id::text = :transaction_id"]
+    params = {"transaction_id": str(transaction_id)}
+
+    if clinic_id:
+        conditions.append("f.clinic_id::text = :clinic_id")
+        params["clinic_id"] = str(clinic_id)
+
+    where_clause = "WHERE " + " AND ".join(conditions)
+
     row = db.session.execute(
         text(
             f"""
             {FINANCIAL_SELECT_QUERY}
-            WHERE f.transaction_id::text = :transaction_id
+            {where_clause}
             """
         ),
-        {"transaction_id": str(transaction_id)},
+        params,
     ).mappings().first()
 
     return row
 
 
-def fetch_financial_for_user(transaction_id, clinic_id):
-    row = db.session.execute(
-        text(
-            f"""
-            {FINANCIAL_SELECT_QUERY}
-            WHERE f.transaction_id::text = :transaction_id
-              AND (
-                    p.clinic_id::text = :clinic_id
-                    OR (
-                        p.patient_id IS NULL
-                        AND u.clinic_id::text = :clinic_id
-                    )
-              )
-            """
-        ),
-        {
-            "transaction_id": str(transaction_id),
-            "clinic_id": str(clinic_id),
-        },
-    ).mappings().first()
-
-    return row
-
-
-def row_to_audit_values(row):
-    serialized = serialize_financial_row(row)
-
-    return {
-        "module": "Financial",
-        "transaction_id": serialized.get("transaction_id"),
-        "transaction_number": serialized.get("transaction_number"),
-        "visit_id": serialized.get("visit_id"),
-        "record_id": serialized.get("record_id"),
-        "patient_id": serialized.get("patient_id"),
-        "trans_type": serialized.get("trans_type"),
-        "amount": str(serialized.get("amount")),
-        "payment_method": serialized.get("payment_method"),
-        "status": serialized.get("status"),
-        "payment_date": serialized.get("payment_date"),
-        "description": serialized.get("description"),
-    }
-
-
+# -----------------------------------------------------------------------------
+# Routes
+# -----------------------------------------------------------------------------
 @financial_bp.route("/transaction-number", methods=["GET"])
 @jwt_required()
 def get_transaction_number():
@@ -533,17 +657,7 @@ def get_all_financial_transactions():
         date_filter = request.args.get("date")
         search_query = request.args.get("search", "").strip()
 
-        conditions = [
-            """
-            (
-                p.clinic_id::text = :clinic_id
-                OR (
-                    p.patient_id IS NULL
-                    AND u.clinic_id::text = :clinic_id
-                )
-            )
-            """
-        ]
+        conditions = ["f.clinic_id::text = :clinic_id"]
 
         params = {
             "clinic_id": str(current_clinic_id),
@@ -602,34 +716,6 @@ def get_all_financial_transactions():
         )
 
 
-@financial_bp.route("/detail/<transaction_id>", methods=["GET"])
-@jwt_required()
-def get_financial_detail(transaction_id):
-    current_user, error_response = require_financial_access()
-
-    if error_response:
-        return error_response
-
-    try:
-        row = fetch_financial_for_user(transaction_id, current_user.clinic_id)
-
-        if not row:
-            return jsonify({"msg": "Financial transaction not found"}), 404
-
-        return jsonify({"data": serialize_financial_row(row)}), 200
-
-    except Exception as e:
-        return (
-            jsonify(
-                {
-                    "msg": "Failed to get financial detail",
-                    "error": str(e),
-                }
-            ),
-            500,
-        )
-
-
 @financial_bp.route("/add", methods=["POST"])
 @jwt_required()
 def add_financial_transaction():
@@ -670,33 +756,8 @@ def add_financial_transaction():
         )
 
     try:
-        payment_date = parse_payment_date(data.get("payment_date"))
         reference_id = str(data.get("visit_id")).strip()
-
-        trans_type = normalize_enum_value(
-            "transaction_type",
-            data.get("trans_type"),
-        )
-
-        payment_method = normalize_enum_value(
-            "payment_type",
-            data.get("payment_method"),
-        )
-
-        status = normalize_enum_value(
-            "payment_status",
-            data.get("status"),
-        )
-
-        description = (data.get("description") or "").strip()
-
-        try:
-            amount = Decimal(str(data.get("amount")))
-        except InvalidOperation:
-            return jsonify({"msg": "Amount must be a valid number"}), 400
-
-        if amount < 0:
-            return jsonify({"msg": "Amount cannot be negative"}), 400
+        normalized_data = normalize_financial_input(data)
 
         resolved_reference = resolve_visit_or_record_reference(
             reference_id,
@@ -709,19 +770,25 @@ def add_financial_transaction():
         visit_id = resolved_reference.get("visit_id")
         patient_id = resolved_reference.get("patient_id")
 
-        year = payment_date.year
+        if not visit_id:
+            return jsonify({"msg": "Selected medical record does not have a visit report"}), 400
+
+        year = normalized_data["payment_date"].year
         sequence_number = reserve_next_sequence(year)
         transaction_number = generate_financial_number(year, sequence_number)
         transaction_id = str(uuid.uuid4())
 
+        enum_types = get_financial_enum_type_names()
+
         db.session.execute(
             text(
-                """
+                f"""
                 INSERT INTO financial (
                     transaction_id,
                     visit_id,
                     user_id,
                     patient_id,
+                    clinic_id,
                     transaction_number,
                     trans_type,
                     amount,
@@ -735,11 +802,12 @@ def add_financial_transaction():
                     CAST(:visit_id AS uuid),
                     CAST(:user_id AS uuid),
                     CAST(:patient_id AS uuid),
+                    CAST(:clinic_id AS uuid),
                     :transaction_number,
-                    CAST(:trans_type AS transaction_type),
+                    CAST(:trans_type AS {enum_types['trans_type']}),
                     :amount,
-                    CAST(:payment_method AS payment_type),
-                    CAST(:status AS payment_status),
+                    CAST(:payment_method AS {enum_types['payment_method']}),
+                    CAST(:status AS {enum_types['status']}),
                     :payment_date,
                     :description
                 )
@@ -750,17 +818,19 @@ def add_financial_transaction():
                 "visit_id": visit_id,
                 "user_id": str(current_user_id),
                 "patient_id": patient_id,
+                "clinic_id": str(current_clinic_id),
                 "transaction_number": transaction_number,
-                "trans_type": trans_type,
-                "amount": amount,
-                "payment_method": payment_method,
-                "status": status,
-                "payment_date": payment_date,
-                "description": description,
+                "trans_type": normalized_data["trans_type"],
+                "amount": normalized_data["amount"],
+                "payment_method": normalized_data["payment_method"],
+                "status": normalized_data["status"],
+                "payment_date": normalized_data["payment_date"],
+                "description": normalized_data["description"],
             },
         )
 
-        saved_row = fetch_financial_by_transaction_id(transaction_id)
+        saved_row = fetch_financial_by_transaction_id(transaction_id, current_clinic_id)
+        saved_data = serialize_financial_row(saved_row)
 
         write_audit_log(
             user_id=current_user_id,
@@ -768,16 +838,7 @@ def add_financial_transaction():
             old_values={},
             new_values={
                 "module": "Financial",
-                "transaction_id": transaction_id,
-                "transaction_number": transaction_number,
-                "visit_id": visit_id,
-                "patient_id": str(patient_id),
-                "trans_type": trans_type,
-                "amount": str(amount),
-                "payment_method": payment_method,
-                "status": status,
-                "payment_date": str(payment_date),
-                "description": description,
+                **saved_data,
             },
         )
 
@@ -787,7 +848,7 @@ def add_financial_transaction():
             jsonify(
                 {
                     "msg": "Financial transaction added successfully",
-                    "data": serialize_financial_row(saved_row),
+                    "data": saved_data,
                 }
             ),
             201,
@@ -822,6 +883,34 @@ def add_financial_transaction():
         )
 
 
+@financial_bp.route("/detail/<transaction_id>", methods=["GET"])
+@jwt_required()
+def get_financial_detail(transaction_id):
+    current_user, error_response = require_financial_access()
+
+    if error_response:
+        return error_response
+
+    try:
+        row = fetch_financial_by_transaction_id(transaction_id, current_user.clinic_id)
+
+        if not row:
+            return jsonify({"msg": "Invoice not found"}), 404
+
+        return jsonify({"data": serialize_financial_row(row)}), 200
+
+    except Exception as e:
+        return (
+            jsonify(
+                {
+                    "msg": "Failed to get invoice detail",
+                    "error": str(e),
+                }
+            ),
+            500,
+        )
+
+
 @financial_bp.route("/detail/<transaction_id>", methods=["PATCH"])
 @jwt_required()
 def update_financial_detail(transaction_id):
@@ -830,120 +919,59 @@ def update_financial_detail(transaction_id):
     if error_response:
         return error_response
 
-    current_clinic_id = current_user.clinic_id
-    current_user_id = current_user.user_id
-
-    old_row = fetch_financial_for_user(transaction_id, current_clinic_id)
-
-    if not old_row:
-        return jsonify({"msg": "Financial transaction not found"}), 404
-
     data = request.get_json() or {}
 
-    required_fields = [
-        "payment_date",
-        "visit_id",
-        "trans_type",
-        "amount",
-        "payment_method",
-        "status",
-    ]
-
-    missing_fields = [
-        field
-        for field in required_fields
-        if data.get(field) is None or data.get(field) == ""
-    ]
-
-    if missing_fields:
-        return (
-            jsonify(
-                {
-                    "msg": "All required data must be filled",
-                    "missing_fields": missing_fields,
-                }
-            ),
-            400,
-        )
-
     try:
-        payment_date = parse_payment_date(data.get("payment_date"))
-        reference_id = str(data.get("visit_id")).strip()
+        current_row = fetch_financial_by_transaction_id(transaction_id, current_user.clinic_id)
 
-        trans_type = normalize_enum_value(
-            "transaction_type",
-            data.get("trans_type"),
-        )
+        if not current_row:
+            return jsonify({"msg": "Invoice not found"}), 404
 
-        payment_method = normalize_enum_value(
-            "payment_type",
-            data.get("payment_method"),
-        )
-
-        status = normalize_enum_value(
-            "payment_status",
-            data.get("status"),
-        )
-
-        description = (data.get("description") or "").strip()
-
-        try:
-            amount = Decimal(str(data.get("amount")))
-        except InvalidOperation:
-            return jsonify({"msg": "Amount must be a valid number"}), 400
-
-        if amount < 0:
-            return jsonify({"msg": "Amount cannot be negative"}), 400
-
-        resolved_reference = resolve_visit_or_record_reference(
-            reference_id,
-            current_clinic_id,
-        )
-
-        if not resolved_reference:
-            return jsonify({"msg": "Visit or medical record not found in your clinic"}), 404
-
-        visit_id = resolved_reference.get("visit_id")
-        patient_id = resolved_reference.get("patient_id")
-
-        old_values = row_to_audit_values(old_row)
+        old_data = serialize_financial_row(current_row)
+        normalized_data = normalize_financial_input(data)
+        enum_types = get_financial_enum_type_names()
 
         db.session.execute(
             text(
-                """
+                f"""
                 UPDATE financial
                 SET
-                    visit_id = CAST(:visit_id AS uuid),
-                    patient_id = CAST(:patient_id AS uuid),
-                    trans_type = CAST(:trans_type AS transaction_type),
-                    amount = :amount,
-                    payment_method = CAST(:payment_method AS payment_type),
-                    status = CAST(:status AS payment_status),
                     payment_date = :payment_date,
+                    trans_type = CAST(:trans_type AS {enum_types['trans_type']}),
+                    amount = :amount,
+                    payment_method = CAST(:payment_method AS {enum_types['payment_method']}),
+                    status = CAST(:status AS {enum_types['status']}),
                     description = :description
                 WHERE transaction_id::text = :transaction_id
+                  AND clinic_id::text = :clinic_id
                 """
             ),
             {
                 "transaction_id": str(transaction_id),
-                "visit_id": visit_id,
-                "patient_id": patient_id,
-                "trans_type": trans_type,
-                "amount": amount,
-                "payment_method": payment_method,
-                "status": status,
-                "payment_date": payment_date,
-                "description": description,
+                "clinic_id": str(current_user.clinic_id),
+                "payment_date": normalized_data["payment_date"],
+                "trans_type": normalized_data["trans_type"],
+                "amount": normalized_data["amount"],
+                "payment_method": normalized_data["payment_method"],
+                "status": normalized_data["status"],
+                "description": normalized_data["description"],
             },
         )
 
-        updated_row = fetch_financial_by_transaction_id(transaction_id)
+        updated_row = fetch_financial_by_transaction_id(transaction_id, current_user.clinic_id)
+        updated_data = serialize_financial_row(updated_row)
 
         write_audit_log(
-            user_id=current_user_id,
+            user_id=current_user.user_id,
             action="UPDATE_INVOICE",
-            old_values=old_values,
-            new_values=row_to_audit_values(updated_row),
+            old_values={
+                "module": "Financial",
+                **old_data,
+            },
+            new_values={
+                "module": "Financial",
+                **updated_data,
+            },
         )
 
         db.session.commit()
@@ -951,8 +979,8 @@ def update_financial_detail(transaction_id):
         return (
             jsonify(
                 {
-                    "msg": "Financial transaction updated successfully",
-                    "data": serialize_financial_row(updated_row),
+                    "msg": "Invoice updated successfully",
+                    "data": updated_data,
                 }
             ),
             200,
@@ -967,7 +995,7 @@ def update_financial_detail(transaction_id):
         return (
             jsonify(
                 {
-                    "msg": "Failed to update financial transaction",
+                    "msg": "Failed to update invoice",
                     "error": str(e),
                 }
             ),
@@ -983,36 +1011,36 @@ def delete_financial_detail(transaction_id):
     if error_response:
         return error_response
 
-    current_clinic_id = current_user.clinic_id
-    current_user_id = current_user.user_id
-
-    old_row = fetch_financial_for_user(transaction_id, current_clinic_id)
-
-    if not old_row:
-        return jsonify({"msg": "Financial transaction not found"}), 404
-
     try:
-        old_values = row_to_audit_values(old_row)
+        current_row = fetch_financial_by_transaction_id(transaction_id, current_user.clinic_id)
+
+        if not current_row:
+            return jsonify({"msg": "Invoice not found"}), 404
+
+        old_data = serialize_financial_row(current_row)
 
         db.session.execute(
             text(
                 """
                 DELETE FROM financial
                 WHERE transaction_id::text = :transaction_id
+                  AND clinic_id::text = :clinic_id
                 """
             ),
-            {"transaction_id": str(transaction_id)},
+            {
+                "transaction_id": str(transaction_id),
+                "clinic_id": str(current_user.clinic_id),
+            },
         )
 
         write_audit_log(
-            user_id=current_user_id,
+            user_id=current_user.user_id,
             action="DELETE_INVOICE",
-            old_values=old_values,
-            new_values={
+            old_values={
                 "module": "Financial",
-                "transaction_id": str(transaction_id),
-                "deleted": True,
+                **old_data,
             },
+            new_values={},
         )
 
         db.session.commit()
@@ -1020,8 +1048,8 @@ def delete_financial_detail(transaction_id):
         return (
             jsonify(
                 {
-                    "msg": "Financial transaction deleted successfully",
-                    "transaction_id": str(transaction_id),
+                    "msg": "Invoice deleted successfully",
+                    "data": old_data,
                 }
             ),
             200,
@@ -1032,7 +1060,7 @@ def delete_financial_detail(transaction_id):
         return (
             jsonify(
                 {
-                    "msg": "Failed to delete financial transaction",
+                    "msg": "Failed to delete invoice",
                     "error": str(e),
                 }
             ),
