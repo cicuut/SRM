@@ -119,6 +119,7 @@ const Dashboard = () => {
   const [monthlyExpense, setMonthlyExpense] = useState<number | null>(null);
   const [dailyIncome, setDailyIncome] = useState<FinancialChartPoint[]>([]);
   const [dailyExpense, setDailyExpense] = useState<FinancialChartPoint[]>([]);
+  const [financialError, setFinancialError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -185,14 +186,37 @@ const Dashboard = () => {
           setMonthlyExpense(financialResponse.data.monthly_expense);
           setDailyIncome(financialResponse.data.daily_income ?? []);
           setDailyExpense(financialResponse.data.daily_expense ?? []);
+          setFinancialError(null);
         }
-      } catch (err) {
+      } catch (err: unknown) {
         console.error("Failed to load monthly financial summary:", err);
         if (!cancelled) {
+          const apiMessage =
+            typeof err === "object" &&
+            err !== null &&
+            "response" in err &&
+            typeof (err as { response?: { data?: { msg?: string; error?: string } } })
+              .response?.data?.msg === "string"
+              ? (err as { response: { data: { msg: string; error?: string } } })
+                  .response.data.msg
+              : null;
+          const apiDetail =
+            typeof err === "object" &&
+            err !== null &&
+            "response" in err &&
+            typeof (err as { response?: { data?: { error?: string } } }).response
+              ?.data?.error === "string"
+              ? (err as { response: { data: { error: string } } }).response.data.error
+              : null;
           setMonthlyIncome(null);
           setMonthlyExpense(null);
           setDailyIncome([]);
           setDailyExpense([]);
+          setFinancialError(
+            apiDetail
+              ? `${apiMessage ?? "Gagal memuat grafik keuangan"}: ${apiDetail}`
+              : apiMessage ?? "Gagal memuat grafik keuangan",
+          );
         }
       } finally {
         if (!cancelled) {
@@ -381,6 +405,9 @@ const Dashboard = () => {
                   title="Grafik Keuangan Bulanan"
                   income={dailyIncome}
                   expense={dailyExpense}
+                  emptyMessage={
+                    financialError || "Belum ada data keuangan bulan ini"
+                  }
                 />
               </div>
             </div>
