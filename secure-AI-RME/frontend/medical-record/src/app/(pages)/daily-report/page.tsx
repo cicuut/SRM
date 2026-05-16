@@ -6,7 +6,8 @@ import {
   X,
   ChevronDown,
   FileDown,
-  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { useRouter } from "nextjs-toploader/app";
 import Swal from "sweetalert2";
@@ -50,6 +51,19 @@ const DailyReport = () => {
     null,
   ]);
   const [startDate, endDate] = dateRange;
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  const totalDataList =
+   visitSearch.length >= 3 ? filteredResults : visitReportList;
+
+  const totalPages = Math.ceil(totalDataList.length / itemsPerPage);
+
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+
+  const currentItems = totalDataList.slice(indexOfFirstItem, indexOfLastItem);
 
   // Handle form submission for record type selection
   const handleSubmitRecordType = (e: React.FormEvent) => {
@@ -183,22 +197,77 @@ const DailyReport = () => {
   const handleViewRecordDetail = (visitId: string) => {
     router.push(`/daily-report/${visitId}`);
   };
+  const getPageNumbers = () => {
+    const pageNumbers = [];
+
+    // Jika total halaman sedikit (misal <= 4), tampilkan semua tanpa titik-titik
+    if (totalPages <= 4) {
+      for (let i = 1; i <= totalPages; i++) {
+        pageNumbers.push(i);
+      }
+    } else {
+      // 1. Jika aktif di Halaman 1 atau 2 (Awal banget)
+      if (currentPage <= 2) {
+        pageNumbers.push(1);
+        pageNumbers.push(2);
+        if (currentPage === 2) pageNumbers.push(3); // Biar user tahu ada halaman berikutnya
+        pageNumbers.push("...");
+        pageNumbers.push(totalPages);
+      }
+      // 2. Jika aktif di Halaman 3 (Mencegah elipsis aneh antara angka 1 dan 2)
+      else if (currentPage === 3) {
+        pageNumbers.push(1);
+        pageNumbers.push(2);
+        pageNumbers.push(3);
+        pageNumbers.push(4);
+        pageNumbers.push("...");
+        pageNumbers.push(totalPages);
+      }
+      // 3. Jika aktif di Halaman Akhir-akhir (misal halaman 15 atau 16)
+      else if (currentPage >= totalPages - 1) {
+        pageNumbers.push(1);
+        pageNumbers.push("...");
+        if (currentPage === totalPages - 1) pageNumbers.push(totalPages - 2);
+        pageNumbers.push(totalPages - 1);
+        pageNumbers.push(totalPages);
+      }
+      // 4. Jika aktif di Halaman Batas Akhir (misal halaman 14 dari 16)
+      else if (currentPage === totalPages - 2) {
+        pageNumbers.push(1);
+        pageNumbers.push("...");
+        pageNumbers.push(totalPages - 3);
+        pageNumbers.push(totalPages - 2);
+        pageNumbers.push(totalPages - 1);
+        pageNumbers.push(totalPages);
+      }
+      // 5. Jika aktif di Tengah-tengah (True Middle)
+      else {
+        pageNumbers.push(1);
+        pageNumbers.push("...");
+        pageNumbers.push(currentPage - 1);
+        pageNumbers.push(currentPage);
+        pageNumbers.push(currentPage + 1);
+        pageNumbers.push("...");
+        pageNumbers.push(totalPages);
+      }
+    }
+
+    return pageNumbers;
+  };
 
   // Main render function
   return (
     <div>
-      <div className="flex-1 flex flex-col  w-full">
-           {loading && <LoadingOverlay />}
-        {/* Search bar and add visit button */}
-        <div className="w-full flex items-center py-6 gap-70  justify-between">
-          <div className="relative flex-1  outline-1 outline-gray-300 rounded-lg px-4 py-2 shadow-sm transition-all focus-within:border-[#739072]">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-gray-300" />
-            <form>
+      <div className="flex-1 flex flex-col  w-full  gap-5">
+        {loading && <LoadingOverlay />}
+        <section className="w-full rounded-[22px] border border-[#D2D8CF] bg-white px-5 py-5 shadow-sm sm:px-6">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="relative min-w-0 flex-1 rounded-[50px] border border-[#D2D8CF] bg-[#FDFEF9] px-5 py-[12px] shadow-sm transition-all focus-within:border-[#739072] xl:max-w-[680px]">
+              <Search className="absolute left-5 top-1/2 w-4 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Masukan Nama Pasien"
-                className="w-full focus:outline-none pl-8 text-gray-700 placeholder-gray-400"
                 value={visitSearch}
+                placeholder="Masukan Nama Pasien"
                 onChange={(e) => {
                   const val = e.target.value;
                   setVisitSearch(val);
@@ -209,121 +278,183 @@ const DailyReport = () => {
                     setFilteredResults([]);
                   }
                 }}
+                className="w-full bg-transparent pl-8 text-[13px] text-gray-700 outline-none placeholder-gray-400"
               />
-            </form>
-          </div>
-          <div className=" flex flex-row items-center gap-5 shrink-0">
-            <div
-              onClick={() => setIsModalVisitOpen(true)}
-              className="cursor-pointer flex flex-row items-center gap-x-[4]  rounded-[50px] px-5 py-2 bg-[#86A789] shadow-sm transition-all focus-within:border-[#739072]"
-            >
-              <Plus className="size-3" />
-              <span className="font-bold">Tambah Laporan Kunjungan</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-[10px]">
+              <div className="rounded-[50px] bg-[#D2E3C8] px-[20px] py-[11px] text-center text-[12px] font-bold text-black shadow-sm">
+                <DateLabel />
+              </div>
+
+              <div className="relative inline-block">
+                <DateRangeFilter
+                  onFilterDate={handleFilterDate}
+                  selectedStartDate={startDate}
+                  selectedEndDate={endDate}
+                />
+              </div>
+
+              <RMTypeFilter
+                onFilterChange={handleFilterChange}
+                currentLabel={selectedRMLabel}
+              />
             </div>
           </div>
-        </div>
-        {/* Filters section */}
-        <div className="w-full flex flex-row gap-x-5">
-          <div className="flex items-center justify-center min-w-37.5 text-center bg-[#D2E3C8] p-2  rounded-[50px] font-bold">
-            <DateLabel />
+        </section>
+        <section className="w-full overflow-hidden min-h-[600px] rounded-[22px] border border-[#D2D8CF] bg-white shadow-sm">
+          <div className="flex flex-col gap-[16px] border-b border-[#E4E8E1] px-5 py-[20px] lg:flex-row lg:items-center lg:justify-between sm:px-[26px]">
+            <div className="min-w-0">
+              <h2 className="text-[20px] font-extrabold leading-none text-[#5F785F]">
+                Daftar Kunjungan
+              </h2>
+
+            </div>
+
+            <div className="flex w-full flex-col gap-[10px] sm:flex-row sm:items-center sm:justify-between lg:w-auto lg:justify-end">
+              <button
+                type="button"
+                onClick={() => setIsModalVisitOpen(true)}
+                className="flex min-h-[38px] items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Plus className="w-4" />
+                <span>Tambah Kunjungan</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={loading || visitReportList.length === 0}
+                className="flex min-h-[38px] items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <FileDown className="w-4" />
+                <span>Download</span>
+              </button>
+            </div>
           </div>
-          <DateRangeFilter
-            onFilterDate={handleFilterDate}
-            selectedStartDate={startDate}
-            selectedEndDate={endDate}
-          />
-          <RMTypeFilter
-            onFilterChange={handleFilterChange}
-            currentLabel={selectedRMLabel}
-          />
-          <div className="flex items-center justify-center min-w-37.5 text-center border p-2 rounded-[50px] border-gray-400 cursor-pointer">
-            Download <FileDown className="ml-2.5 size-5" />
+          <div className="hidden w-full overflow-x-auto lg:block">
+            <table className="w-full border-separate border-spacing-0 text-[12px]">
+              <thead className="bg-[#FDFEF9] text-[#5F785F] uppercase text-[10px] font-bold">
+                <tr className="bg-[#D2E3C8] text-gray-700">
+                  <th className="px-6 py-4 text-center font-bold">
+                    Kunjungan ID
+                  </th>
+                  <th className="px-6 py-4 border-r border-gray-200 w-50">
+                    Waktu
+                  </th>
+                  <th className="px-6 py-4 border-r border-gray-200 w-50">
+                    RM ID
+                  </th>
+                  <th className="px-6 py-4 border-r border-gray-200">
+                    Name Pasien
+                  </th>
+                  <th className="px-6 py-4 border-r border-gray-200 w-50">
+                    Tipe Kunjungan
+                  </th>
+                  <th className="px-6 py-4 text-center font-bold">
+                    Dibuat Oleh
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {(() => {
+                  if (currentItems.length === 0) {
+                    return (
+                      <tr>
+                        <td
+                          colSpan={6}
+                          className="text-center py-20 text-gray-400"
+                        >
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <p className="text-sm">
+                              {visitSearch.length >= 3
+                                ? `Kunjungan tidak ditemukan.`
+                                : "Belum ada riwayat kunjungan."}
+                            </p>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }
+                  return currentItems.map((item, index) => (
+                    <tr
+                      key={item.visit_id || index}
+                      className={`cursor-pointer text-center text-black transition-all hover:bg-[#EEF3E9] ${
+                        index % 2 === 0 ? "bg-white" : "bg-[#FBFCF8]"
+                      }`}
+                      onClick={() => handleViewRecordDetail(item.visit_id)}
+                    >
+                      <td className="px-4 py-4 ">{item.visit_number}</td>
+                      <td className="px-4 py-4">{item.visit_date}</td>
+                      <td className="px-4 py-4 ">{item.record_number}</td>
+                      <td className="px-4 py-4 ">{item.patient_name}</td>
+                      <td className="px-4 py-4 ">{item.record_type}</td>
+                      <td className="px-6 py-4">{item.made_by}</td>
+                    </tr>
+                  ));
+                })()}
+              </tbody>
+            </table>
           </div>
-        </div>
-        {/* Visit reports table */}
-        <div className="mt-5">
-          <table className="min-w-full divide-y divide-gray-200 text-[11px]">
-            <thead className="bg-[#D2E3C8] text-gray-700 font-semibold drop-shadow-lg ">
-              <tr>
-                <th className="px-6 py-4 border-r border-gray-200 w-40">
-                  Kunjungan ID
-                </th>
-                <th className="px-6 py-4 border-r border-gray-200 w-50">
-                  Waktu
-                </th>
-                <th className="px-6 py-4 border-r border-gray-200 w-50">
-                  RM ID
-                </th>
-                <th className="px-6 py-4 border-r border-gray-200">
-                  Name Pasien
-                </th>
-                <th className="px-6 py-4 border-r border-gray-200 w-50">
-                  Tipe Kunjungan
-                </th>
-                <th className="px-6 py-4 border-r border-gray-200 w-40">
-                  Dibuat Oleh
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {(() => {
-                if (loading) {
-                  return (
-                    <tr>
-                      <td colSpan={6} className="py-20 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#739072] border-t-transparent"></div>
-                          <p className="text-sm font-bold text-[#739072]">
-                            Loading data...
-                          </p>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                }
-                const displayData =
-                  visitSearch.length >= 3 ? filteredResults : visitReportList;
-                if (displayData.length === 0) {
-                  return (
-                    <tr>
-                      <td
-                        colSpan={6}
-                        className="text-center py-20 text-gray-400"
-                      >
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <p className="text-sm">
-                            {visitSearch.length >= 3
-                              ? `Kunjungan tidak ditemukan.`
-                              : "Belum ada riwayat kunjungan."}
-                          </p>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                }
-                return displayData.map((item, index) => (
-                  <tr
-                    key={item.visit_id || index}
-                    className="hover:bg-gray-50 transition-colors text-gray-600 cursor-pointer"
-                    onClick={() => handleViewRecordDetail(item.visit_id)}
+        </section>
+        <div className="flex items-center justify-between border-t px-4 py-4 sm:px-6">
+          <div className="hidden sm:block">
+            <p className="text-[11px] text-gray-500">
+              Showing <span className="font-semibold text-black">1</span> to{" "}
+              <span className="font-semibold text-black">10</span> of{" "}
+              <span className="font-semibold text-black">
+                {visitReportList.length}
+              </span>{" "}
+              records
+            </p>
+          </div>
+
+          <div className="flex items-center gap-x-1.5">
+            <button
+              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="flex items-center gap-x-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-[12px] font-bold text-gray-600 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span>Previous</span>
+            </button>
+            {getPageNumbers().map((page, index) => {
+              // Jika item adalah titik-titik "...", render sebagai span biasa (tidak bisa diklik)
+              if (page === "...") {
+                return (
+                  <span
+                    key={`ellipsis-${index}`}
+                    className="w-8 h-8 flex items-center justify-center text-gray-400 text-[12px]"
                   >
-                    <td className="px-4 py-4 text-center">
-                      {item.visit_number}
-                    </td>
-                    <td className="px-4 py-4">{item.visit_date}</td>
-                    <td className="px-4 py-4 text-center">
-                      {item.record_number}
-                    </td>
-                    <td className="px-4 py-4 ">{item.patient_name}</td>
-                    <td className="px-4 py-4 text-center">
-                      {item.record_type}
-                    </td>
-                    <td className="px-6 py-4">{item.made_by}</td>
-                  </tr>
-                ));
-              })()}
-            </tbody>
-          </table>
+                    ...
+                  </span>
+                );
+              }
+
+              // Jika item adalah angka, render sebagai bubble button seperti biasa
+              return (
+                <button
+                  key={`page-${page}`}
+                  onClick={() => setCurrentPage(Number(page))}
+                  className={`w-8 h-8 text-[12px] font-bold rounded-full flex items-center justify-center transition-all ${
+                    currentPage === page
+                      ? "bg-[#739072] text-white shadow-md scale-105" // Bubble Aktif
+                      : "text-gray-600 bg-transparent hover:bg-[#EEF3E9] hover:text-[#4F6F52]" // Bubble Inaktif
+                  }`}
+                >
+                  {page}
+                </button>
+              );
+            })}
+            <button
+              onClick={() =>
+                setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+              }
+              disabled={currentPage === totalPages}
+              className="flex items-center gap-x-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-[12px] font-bold text-gray-600 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <span>Next</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
       {/* Modal for adding visit */}

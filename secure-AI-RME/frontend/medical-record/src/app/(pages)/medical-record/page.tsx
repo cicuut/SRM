@@ -2,10 +2,18 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "nextjs-toploader/app";
 import Swal from "sweetalert2";
-import { Plus, Search, X, ChevronDown } from "lucide-react";
+import {
+  Plus,
+  Search,
+  X,
+  ChevronDown,
+  Download,
+  ChevronRight,
+  ChevronLeft,
+} from "lucide-react";
 import api from "@/utils/app";
 import RMTypeFilter from "@/components/rm_type";
-import LoadingOverlay from '@/components/loading'
+import LoadingOverlay from "@/components/loading";
 
 // Interface for medical record data
 interface MedicalRecordList {
@@ -25,8 +33,6 @@ interface MedicalRecordList {
 // Main component for medical records page
 const MedicalRecord = () => {
   const [loading, setLoading] = useState(true);
-
-  // State variables for component
   const [error, setError] = useState(false);
   const [medicalRecordList, setMedicalRecordList] = useState<
     MedicalRecordList[]
@@ -41,6 +47,18 @@ const MedicalRecord = () => {
   const [selectedRMValue, setSelectedRMValue] = useState("All");
   const [selectedRMLabel, setSelectedRMLabel] = useState("Tipe RM");
   const router = useRouter();
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  const totalDataList =
+    medicalSearch.length >= 3 ? filteredResults : medicalRecordList;
+
+  const totalPages = Math.ceil(totalDataList.length / itemsPerPage);
+
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+
+  const currentItems = totalDataList.slice(indexOfFirstItem, indexOfLastItem);
 
   // Fetch all medical records on component mount
   useEffect(() => {
@@ -60,12 +78,11 @@ const MedicalRecord = () => {
     fetchMedicalRecord();
   }, []);
 
-
   // Error state display
   if (error)
     return <div className="p-8 text-center text-red-500">Error: {error}</div>;
 
-  // Handle form submission for record type 
+  // Handle form submission for record type
   const handleSubmitRecordType = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -128,7 +145,9 @@ const MedicalRecord = () => {
     setSelectedRMLabel(label);
     setLoading(true);
     try {
-      const response = await api.get(`/medical-record/filter-rm-type?type=${type}`);
+      const response = await api.get(
+        `/medical-record/filter-rm-type?type=${type}`,
+      );
       setMedicalRecordList(response.data);
     } catch (err) {
       console.error("Gagal filter", err);
@@ -136,22 +155,78 @@ const MedicalRecord = () => {
       setLoading(false);
     }
   };
+  const getPageNumbers = () => {
+    const pageNumbers = [];
+
+    // Jika total halaman sedikit (misal <= 4), tampilkan semua tanpa titik-titik
+    if (totalPages <= 4) {
+      for (let i = 1; i <= totalPages; i++) {
+        pageNumbers.push(i);
+      }
+    } else {
+      // 1. Jika aktif di Halaman 1 atau 2 (Awal banget)
+      if (currentPage <= 2) {
+        pageNumbers.push(1);
+        pageNumbers.push(2);
+        if (currentPage === 2) pageNumbers.push(3); // Biar user tahu ada halaman berikutnya
+        pageNumbers.push("...");
+        pageNumbers.push(totalPages);
+      }
+      // 2. Jika aktif di Halaman 3 (Mencegah elipsis aneh antara angka 1 dan 2)
+      else if (currentPage === 3) {
+        pageNumbers.push(1);
+        pageNumbers.push(2);
+        pageNumbers.push(3);
+        pageNumbers.push(4);
+        pageNumbers.push("...");
+        pageNumbers.push(totalPages);
+      }
+      // 3. Jika aktif di Halaman Akhir-akhir (misal halaman 15 atau 16)
+      else if (currentPage >= totalPages - 1) {
+        pageNumbers.push(1);
+        pageNumbers.push("...");
+        if (currentPage === totalPages - 1) pageNumbers.push(totalPages - 2);
+        pageNumbers.push(totalPages - 1);
+        pageNumbers.push(totalPages);
+      }
+      // 4. Jika aktif di Halaman Batas Akhir (misal halaman 14 dari 16)
+      else if (currentPage === totalPages - 2) {
+        pageNumbers.push(1);
+        pageNumbers.push("...");
+        pageNumbers.push(totalPages - 3);
+        pageNumbers.push(totalPages - 2);
+        pageNumbers.push(totalPages - 1);
+        pageNumbers.push(totalPages);
+      }
+      // 5. Jika aktif di Tengah-tengah (True Middle)
+      else {
+        pageNumbers.push(1);
+        pageNumbers.push("...");
+        pageNumbers.push(currentPage - 1);
+        pageNumbers.push(currentPage);
+        pageNumbers.push(currentPage + 1);
+        pageNumbers.push("...");
+        pageNumbers.push(totalPages);
+      }
+    }
+
+    return pageNumbers;
+  };
 
   // Main render function
   return (
     <div>
-      <div className="flex-1 flex flex-col  w-full">
+      <div className="flex-1 flex flex-col  w-full  gap-5">
         {loading && <LoadingOverlay />}
-        {/* Search bar and add medical record button */}
-        <div className="w-full flex items-center py-6 gap-70  justify-between">
-          <div className="relative flex-1  outline-1 outline-gray-300 rounded-lg px-4 py-2 shadow-sm transition-all focus-within:border-[#739072]">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 size-5" />
-            <form>
+
+        <section className="w-full rounded-[22px] border border-[#D2D8CF] bg-white px-5 py-5 shadow-sm sm:px-6">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="relative min-w-0 flex-1 rounded-[50px] border border-[#D2D8CF] bg-[#FDFEF9] px-5 py-[12px] shadow-sm transition-all focus-within:border-[#739072] xl:max-w-[680px]">
+              <Search className="absolute left-5 top-1/2 w-4 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search for a record"
-                className="w-full focus:outline-none pl-8 text-gray-700 placeholder-gray-400"
                 value={medicalSearch}
+                placeholder="Search for a record"
                 onChange={(e) => {
                   const val = e.target.value;
                   setMedicalSearch(val);
@@ -162,88 +237,151 @@ const MedicalRecord = () => {
                     setFilteredResults([]);
                   }
                 }}
+                className="w-full bg-transparent pl-8 text-[13px] text-gray-700 outline-none placeholder-gray-400"
               />
-            </form>
-          </div>
-          <div className=" flex flex-row items-center gap-5 shrink-0">
-            <RMTypeFilter
-              onFilterChange={handleFilterChange}
-              currentLabel={selectedRMLabel}
-            />
-            <div
-              onClick={() => setIsModalOpen(true)}
-              className="cursor-pointer flex flex-row items-center gap-x-[4]  rounded-[50px] px-5 py-2 bg-[#86A789] shadow-sm transition-all focus-within:border-[#739072]"
-            >
-              <Plus className="size-4" />
-              <span className="font-bold">Tambah Rekam Medis</span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-[10px]">
+              <RMTypeFilter
+                onFilterChange={handleFilterChange}
+                currentLabel={selectedRMLabel}
+              />
             </div>
           </div>
-        </div>
+        </section>
         {/* Medical records table */}
-        <div className="mt-5">
-          <table className="min-w-full divide-y divide-gray-200 text-[11px]">
-            <thead className="bg-[#D2E3C8] text-gray-700 font-semibold drop-shadow-lg ">
-              <tr>
-                <th className="px-6 py-4 border-r border-gray-200 w-40">
-                  RM ID
-                </th>
-                <th className="px-6 py-4 border-r border-gray-200 w-60">
-                  Record Type
-                </th>
-                <th className="px-6 py-4 border-r border-gray-200 w-60">
-                  Patient Name
-                </th>
-                <th className="px-6 py-4 border-r border-gray-200">NIK</th>
-                <th className="px-6 py-4 border-r border-gray-200 w-40">
-                  Birth Date
-                </th>
-                <th className="px-6 py-4 border-r border-gray-200 w-40">
-                  Case Status
-                </th>
-                <th className="px-6 py-4 border-r border-gray-200 w-40">
-                  Created At
-                </th>
-                <th className="px-6 py-4 w-40">Last Updated</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {(medicalSearch.length >= 3
-                ? filteredResults
-                : medicalRecordList
-              ).map((item, index) => (
-                <tr
-                  key={item.rm_id || index}
-                  className="hover:bg-gray-50 transition-colors text-gray-600 cursor-pointer"
-                  onClick={() => handleViewRecordDetail(item.rm_id)}
+        <section className="w-full overflow-hidden min-h-[600px] rounded-[22px] border border-[#D2D8CF] bg-white shadow-sm">
+          <div className="flex flex-col gap-[16px] border-b border-[#E4E8E1] px-5 py-[20px] lg:flex-row lg:items-center lg:justify-between sm:px-[26px]">
+            <div className="min-w-0">
+              <h2 className="text-[20px] font-extrabold leading-none text-[#5F785F]">
+                Daftar Rekam Medis
+              </h2>
+            </div>
+
+            <div className="flex w-full flex-col gap-[10px] sm:flex-row sm:items-center sm:justify-between lg:w-auto lg:justify-end">
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(true)}
+                className="flex min-h-[38px] items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Plus className="w-4" />
+                <span>Tambah Rekam Medis</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={loading || medicalRecordList.length === 0}
+                className="flex min-h-[38px] items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Download className="w-4" />
+                <span>Download</span>
+              </button>
+            </div>
+          </div>
+          <div className="hidden w-full overflow-x-auto lg:block">
+            <table className="w-full border-separate border-spacing-0 text-[12px]">
+              <thead className="bg-[#FDFEF9] text-[#5F785F] uppercase text-[10px] font-bold">
+                <tr className="bg-[#D2E3C8] text-gray-700">
+                  <th className="px-6 py-4 text-center font-bold ">No. RM</th>
+                  <th className="px-6 py-4 text-center font-bold">Tipe</th>
+                  <th className="px-6 py-4 text-center font-bold">
+                    Nama Pasien
+                  </th>
+                  <th className="px-6 py-4 text-center font-bold">NIK</th>
+                  <th className="px-6 py-4 text-center font-bold">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {currentItems.map((item, index) => (
+                  <tr
+                    key={item.rm_id}
+                    className={`cursor-pointer text-center text-black transition-all hover:bg-[#EEF3E9] ${
+                      index % 2 === 0 ? "bg-white" : "bg-[#FBFCF8]"
+                    }`}
+                    onClick={() => handleViewRecordDetail(item.rm_id)}
+                  >
+                    <td className="px-6 py-4">{item.record_number}</td>
+                    <td className="px-6 py-4">{item.record_type}</td>
+                    <td className="px-6 py-4">{item.patient_name}</td>
+                    <td className="px-6 py-4 text-center">{item.nik}</td>
+                    <td className="px-6 py-4 text-center">
+                      <span
+                        className={`px-3 py-1 rounded-full text-[10px] font-bold ${item.status === "Active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}
+                      >
+                        {item.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {medicalSearch.length >= 3 && filteredResults.length === 0 && (
+              <div className="p-10 text-center text-gray-400">
+                Pasien tidak ditemukan.
+              </div>
+            )}
+          </div>
+        </section>
+        <div className="flex items-center justify-between border-t px-4 py-4 sm:px-6">
+          <div className="hidden sm:block">
+            <p className="text-[11px] text-gray-500">
+              Showing <span className="font-semibold text-black">1</span> to{" "}
+              <span className="font-semibold text-black">10</span> of{" "}
+              <span className="font-semibold text-black">
+                {medicalRecordList.length}
+              </span>{" "}
+              records
+            </p>
+          </div>
+
+          <div className="flex items-center gap-x-1.5">
+            <button
+              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="flex items-center gap-x-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-[12px] font-bold text-gray-600 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span>Previous</span>
+            </button>
+            {getPageNumbers().map((page, index) => {
+              // Jika item adalah titik-titik "...", render sebagai span biasa (tidak bisa diklik)
+              if (page === "...") {
+                return (
+                  <span
+                    key={`ellipsis-${index}`}
+                    className="w-8 h-8 flex items-center justify-center text-gray-400 text-[12px]"
+                  >
+                    ...
+                  </span>
+                );
+              }
+
+              // Jika item adalah angka, render sebagai bubble button seperti biasa
+              return (
+                <button
+                  key={`page-${page}`}
+                  onClick={() => setCurrentPage(Number(page))}
+                  className={`w-8 h-8 text-[12px] font-bold rounded-full flex items-center justify-center transition-all ${
+                    currentPage === page
+                      ? "bg-[#739072] text-white shadow-md scale-105" // Bubble Aktif
+                      : "text-gray-600 bg-transparent hover:bg-[#EEF3E9] hover:text-[#4F6F52]" // Bubble Inaktif
+                  }`}
                 >
-                  <td className="px-4 py-4 ">{item.record_number}</td>
-                  <td className="px-4 py-4">{item.record_type}</td>
-                  <td className="px-4 py-4">{item.patient_name}</td>
-                  <td className="px-4 py-4 text-center">{item.nik}</td>
-                  <td className="px-4 py-4 text-center">{item.birth_date}</td>
-                  <td className="px-4 py-4 text-center">
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs ${item.status === "Active"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-gray-100 text-gray-700"
-                        }`}
-                    >
-                      {item.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">{item.created_at}</td>
-                  <td className="px-6 py-4">{item.updated_at}</td>
-                </tr>
-              ))}
-              {medicalSearch.length >= 3 && filteredResults.length === 0 && medicalRecordList.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="text-center py-10 text-gray-400">
-                    Data tidak ditemukan.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                  {page}
+                </button>
+              );
+            })}
+            <button
+              onClick={() =>
+                setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+              }
+              disabled={currentPage === totalPages}
+              className="flex items-center gap-x-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-[12px] font-bold text-gray-600 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <span>Next</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
       {/* Modal for selecting record type */}

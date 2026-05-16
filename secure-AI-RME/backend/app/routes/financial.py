@@ -252,6 +252,70 @@ def normalize_column_enum_value(table_name, column_name, value, allowed_fallback
         f"Invalid value '{raw_value}' for {column_name}. Allowed values: {allowed_values}"
     )
 
+def get_financial_enum_type_names():
+    return {
+        "trans_type": get_column_db_type_name("financial", "trans_type"),
+        "payment_method": get_column_db_type_name("financial", "payment_method"),
+        "status": get_column_db_type_name("financial", "status"),
+    }
+
+def normalize_financial_input(data, include_required=True):
+    required_fields = [
+        "payment_date",
+        "trans_type",
+        "amount",
+        "payment_method",
+        "status",
+    ]
+
+    if include_required:
+        missing_fields = [
+            field
+            for field in required_fields
+            if data.get(field) is None or data.get(field) == ""
+        ]
+
+        if missing_fields:
+            raise ValueError(
+                "All required data must be filled: " + ", ".join(missing_fields)
+            )
+
+    payment_date = parse_payment_date(data.get("payment_date"))
+
+    trans_type = normalize_column_enum_value(
+        "financial",
+        "trans_type",
+        data.get("trans_type"),
+        ["pemasukan", "pengeluaran"],
+    )
+
+    payment_method = normalize_column_enum_value(
+        "financial",
+        "payment_method",
+        data.get("payment_method"),
+        ["Transfer", "QRIS", "Cash"],
+    )
+
+    status = normalize_column_enum_value(
+        "financial",
+        "status",
+        data.get("status"),
+        ["paid", "unpaid"],
+    )
+
+    amount = parse_amount(data.get("amount"))
+    description = (data.get("description") or "").strip()
+
+    return {
+        "payment_date": payment_date,
+        "trans_type": trans_type,
+        "amount": amount,
+        "payment_method": payment_method,
+        "status": status,
+        "description": description,
+    }
+
+
 
 # -----------------------------------------------------------------------------
 # Visit / record reference helpers

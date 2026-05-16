@@ -1,38 +1,87 @@
 "use client";
-import { useEffect } from "react";
-import { useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import VisitInformation from "@/components/visit/visit-information";
-import { useParams } from "next/dist/client/components/navigation";
+import { useParams, useRouter } from "next/navigation"; // FIX: Gunakan useRouter App Router Next.js 13+
 import api from "@/utils/app";
+import Swal from "sweetalert2";
 
-// Data shape for general visit details
 interface VisitGeneralDetailProps {
   subjective?: string;
   objective?: string;
   assessment?: string;
   plan?: string;
+  visit_id?: string;
+  finance?: {
+    invoice_number?: string;
+    total_amount?: number;
+    payment_method?: string;
+    status?: string;
+  };
 }
-const visitGeneralDetail = () => {
-  // Local state for visit details and loading/error status
+
+interface SOAPFormData {
+  subjective: string;
+  objective: string;
+  assessment: string;
+  plan: string;
+}
+
+const VisitGeneralDetail = () => {
   const [visitGeneralDetail, setVisitGeneralDetail] =
     useState<VisitGeneralDetailProps | null>(null);
+
+  // FIX: Deklarasikan state formData dan originalFormData dengan interface yang jelas
+  const [formData, setFormData] = useState<SOAPFormData>({
+    subjective: "",
+    objective: "",
+    assessment: "",
+    plan: "",
+  });
+  const [originalFormData, setOriginalFormData] = useState<SOAPFormData | null>(
+    null,
+  );
+
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const params = useParams();
+  const router = useRouter(); 
   const uuid = params.id;
 
-  // Fetch visit details when the page loads or ID changes
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const isChanged = useMemo(() => {
+    if (!originalFormData) return false;
+    return JSON.stringify(originalFormData) !== JSON.stringify(formData);
+  }, [formData, originalFormData]);
+
   useEffect(() => {
     const fetchPatientData = async () => {
       if (!uuid) return;
       try {
+        setLoading(true);
         const response = await api.get(
           `/visit-report/get-visit-general/${uuid}`,
         );
         const data = response.data;
+
         setVisitGeneralDetail(data);
+
+        // Map data dari API ke dalam state form pengetikan
+        const initialFormValues = {
+          subjective: data?.subjective || "",
+          objective: data?.objective || "",
+          assessment: data?.assessment || "",
+          plan: data?.plan || "",
+        };
+
+        setFormData(initialFormValues);
+        setOriginalFormData(initialFormValues); // Kunci data awal sebagai baseline pembanding
       } catch (err: any) {
-        setError(err.message);
+        setError(
+          err.response?.data?.msg || err.message || "Gagal memuat rekam medis",
+        );
       } finally {
         setLoading(false);
       }
@@ -40,51 +89,244 @@ const visitGeneralDetail = () => {
     fetchPatientData();
   }, [uuid]);
 
+  // Handler melacak ketikan di textarea
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // Handler membatalkan semua perubahan data murni di frontend
+  const handleCancelChanges = () => {
+    if (originalFormData) {
+      setFormData(originalFormData);
+    }
+  };
+
+  // Handler mengirimkan seluruh pembaruan data ke backend Flask
+  const handleSaveAll = async () => {
+    if (!uuid) return;
+    try {
+      setIsSaving(true);
+      const response = await api.put(
+        `/visit-report/update-visit-general/${uuid}`,
+        formData,
+      );
+      if (response.status === 200) {
+        await Swal.fire({
+          title: "Berhasil Disimpan",
+          text: "Perubahan data berhasil disimpan!",
+          icon: "success",
+          timer: 1400,
+          showConfirmButton: false,
+          confirmButtonColor: "#739072",
+        });
+
+        setOriginalFormData(formData); // Amankan data baru sebagai baseline
+      }
+    } catch (err: any) {
+      alert(
+        err.response?.data?.msg || err.message || "Gagal menyimpan perubahan",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   if (loading)
     return (
-      <div className="p-8 text-center  text-[#739072]  animate-pulse">
+      <div className="p-8 text-center text-[#739072] font-bold animate-pulse">
         Sedang mengambil data medis...
       </div>
     );
+
   if (error)
-    return <div className="p-8 text-center text-red-500">Error: {error}</div>;
+    return (
+      <div className="p-8 text-center text-red-500 font-bold">
+        Error: {error}
+      </div>
+    );
+
   return (
-    <div className="min-h-screen mt-10 flex flex-col bg-[#FDFEF9] w-full">
+    <div className="min-h-screen mt-5 flex flex-col bg-[#FDFEF9] w-full">
       <VisitInformation />
 
-      <div className="flex border-b border-gray-200 gap-6 mt-10">
-        <p className="border-b-2 border-[#739072] text-[#739072] font-bold">
-          Catatan Medis
-        </p>
+      <div className="rounded-[14px] border border-[#D2D8CF] bg-white shadow-sm mt-5">
+        <div className="border-b border-[#E4E8E1] px-5 py-4">
+          <h2 className="text-[16px] font-bold text-[#4F6F52]">
+            Catatan Medis
+          </h2>
+          <p className="mt-1 text-[11px] text-[#6B6B6B]">
+            Informasi ini dapat diubah, silakan ketik untuk memperbarui catatan
+            medis pasien
+          </p>
+        </div>
+
+        {/* Form Input Medis SOAP (Berubah dari Input biasa ke Textarea agar ramah ketikan panjang) */}
+        <div className="flex-1 flex flex-col py-5 px-5 gap-6">
+          {/* SUBJECTIVE */}
+          <label className="flex flex-col text-sm gap-2">
+            <span className="text-[12px] font-bold text-[#2F3A2F]">
+              Subjective
+            </span>
+            <textarea
+              name="subjective"
+              value={formData.subjective}
+              onChange={handleInputChange}
+              rows={3}
+              className="mt-2 w-full resize-y rounded-[10px] border border-[#D2D8CF] bg-white px-3 py-3 text-[13px] leading-relaxed text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10"
+              placeholder="Masukkan data subjektif..."
+            />
+          </label>
+
+          {/* OBJECTIVE */}
+          <label className="flex flex-col text-sm gap-2">
+            <span className="text-[12px] font-bold text-[#2F3A2F]">
+              Objective
+            </span>
+            <textarea
+              name="objective"
+              value={formData.objective}
+              onChange={handleInputChange}
+              rows={3}
+              className="mt-2 w-full resize-y rounded-[10px] border border-[#D2D8CF] bg-white px-3 py-3 text-[13px] leading-relaxed text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10"
+              placeholder="Masukkan data objektif..."
+            />
+          </label>
+
+          {/* ASSESSMENT */}
+          <label className="flex flex-col text-sm gap-2">
+            <span className="text-[12px] font-bold text-[#2F3A2F]">
+              Assessment
+            </span>
+            <textarea
+              name="assessment"
+              value={formData.assessment}
+              onChange={handleInputChange}
+              rows={3}
+              className="mt-2 w-full resize-y rounded-[10px] border border-[#D2D8CF] bg-white px-3 py-3 text-[13px] leading-relaxed text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10"
+              placeholder="Masukkan assessment..."
+            />
+          </label>
+
+          {/* PLAN */}
+          <label className="flex flex-col text-sm gap-2">
+            <span className="text-[12px] font-bold text-[#2F3A2F]">Plan</span>
+            <textarea
+              name="plan"
+              value={formData.plan}
+              onChange={handleInputChange}
+              rows={3}
+              className="mt-2 w-full resize-y rounded-[10px] border border-[#D2D8CF] bg-white px-3 py-3 text-[13px] leading-relaxed text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10"
+              placeholder="Masukkan rencana tindakan..."
+            />
+          </label>
+        </div>
+
+        {/* Data Pembayaran (Read-Only) */}
+        <div className="border-t border-[#E4E8E1] px-5 py-4">
+          <h2 className="text-[16px] font-bold text-[#4F6F52]">
+            Data Pembayaran
+          </h2>
+          <p className="text-[12px] text-[#6B6B6B]">
+            Informasi pembayaran untuk kunjungan ini (tidak dapat diubah di
+            sini)
+          </p>
+          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <label className="flex flex-col text-sm gap-2">
+              <span className="text-[12px] font-bold text-[#2F3A2F]">
+                Nomor Transaksi
+              </span>
+              <input
+                type="text"
+                value={visitGeneralDetail?.finance?.invoice_number || ""}
+                readOnly
+                className="mt-2 h-[42px] w-full cursor-not-allowed rounded-[10px] border border-[#D2D8CF] bg-[#F8FAF6] px-3 text-[13px] text-[#5F5F5F] outline-none"
+              />
+            </label>
+            <label className="flex flex-col text-sm gap-2">
+              <span className="text-[12px] font-bold text-[#2F3A2F]">
+                Total Transaksi
+              </span>
+              <input
+                type="text"
+                value={
+                  visitGeneralDetail?.finance?.total_amount
+                    ? `Rp ${visitGeneralDetail.finance.total_amount.toLocaleString()}`
+                    : ""
+                }
+                readOnly
+                className="mt-2 h-[42px] w-full cursor-not-allowed rounded-[10px] border border-[#D2D8CF] bg-[#F8FAF6] px-3 text-[13px] text-[#5F5F5F] outline-none"
+              />
+            </label>
+            <label className="flex flex-col text-sm gap-2">
+              <span className="text-[12px] font-bold text-[#2F3A2F]">
+                Metode Pembayaran
+              </span>
+              <input
+                type="text"
+                value={visitGeneralDetail?.finance?.payment_method || ""}
+                readOnly
+                className="mt-2 h-[42px] w-full cursor-not-allowed rounded-[10px] border border-[#D2D8CF] bg-[#F8FAF6] px-3 text-[13px] text-[#5F5F5F] outline-none"
+              />
+            </label>
+            <label className="flex flex-col text-sm gap-2">
+              <span className="text-[12px] font-bold text-[#2F3A2F]">
+                Status Pembayaran
+              </span>
+              <input
+                type="text"
+                value={visitGeneralDetail?.finance?.status || ""}
+                readOnly
+                className="mt-2 h-[42px] w-full cursor-not-allowed rounded-[10px] border border-[#D2D8CF] bg-[#F8FAF6] px-3 text-[13px] text-[#5F5F5F] outline-none"
+              />
+            </label>
+          </div>
+        </div>
       </div>
-        {/* Display general visit details */}
-      <div className="flex-1 flex flex-col py-5 gap-6">
-        <div className="flex flex-col text-sm gap-2">
-          <label className="block mb-1 font-bold text-black">Subjective</label>
-          <div className="w-full h-30 p-2 overflow-y-auto text-wrap rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-            {visitGeneralDetail?.subjective}
-          </div>
-        </div>
-        <div className="flex flex-col text-sm gap-2">
-          <label className="block mb-1 font-bold text-black">Objective</label>
-          <div className="w-full h-30 p-2 rounded-md overflow-y-auto text-wrap  bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-            {visitGeneralDetail?.objective}
-          </div>
-        </div>
-        <div className="flex flex-col text-sm gap-2">
-          <label className="block mb-1 font-bold text-black">Assessment</label>
-          <div className="w-full h-30 p-2 rounded-md  overflow-y-auto text-wrap  bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-            {visitGeneralDetail?.assessment}
-          </div>
-        </div>
-        <div className="flex flex-col text-sm gap-2">
-          <label className="block mb-1 font-bold text-black">Plan</label>
-          <div className="w-full h-30 p-2 rounded-md  overflow-y-auto text-wrap  bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-            {visitGeneralDetail?.plan}
-          </div>
+
+      {/* FOOTER NAVIGASI DAN SUBMIT PERUBAHAN GLOBAL */}
+      <div className="flex flex-col-reverse gap-3 border-t border-[#E4E8E1] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <button
+          type="button"
+          onClick={() => setShowDeleteConfirm(true)}
+          disabled={isSaving || isDeleting}
+          className="h-[38px] rounded-[30px] border border-red-200 bg-white px-5 text-[12px] font-bold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Hapus Kunjungan
+        </button>
+
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          {/* Jika data berubah, tombol Kembali berubah peran menjadi tombol Batal Perubahan */}
+          {isChanged ? (
+            <button
+              type="button"
+              onClick={handleCancelChanges}
+              className="h-[38px] rounded-[30px] border border-gray-300 bg-white px-5 text-[12px] font-bold text-gray-600 hover:bg-gray-50 animate-in fade-in duration-200"
+            >
+              Batal Perubahan
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => router.push("/visit-report")}
+              disabled={isSaving || isDeleting}
+              className="h-[38px] rounded-[30px] border border-[#BFC7BB] bg-white px-5 text-[12px] font-bold text-[#4B4B4B] hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Kembali
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={handleSaveAll}
+            disabled={isSaving || isDeleting || !isChanged}
+            className="h-[38px] rounded-[30px] bg-[#739072] px-5 text-[12px] font-bold text-white hover:bg-[#5F785F] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+          >
+            {isSaving ? "Menyimpan..." : "Simpan Perubahan"}
+          </button>
         </div>
       </div>
     </div>
   );
-};
-export default visitGeneralDetail;
+}
+export default VisitGeneralDetail;

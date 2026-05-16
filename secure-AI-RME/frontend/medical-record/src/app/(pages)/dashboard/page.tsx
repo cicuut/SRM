@@ -87,9 +87,9 @@ const Dashboard = () => {
     <div>
       <div className="flex-1 flex flex-col  w-full ">
         {loading && <LoadingOverlay />}
-        <div className="ml-5 mt-5 flex flex-col gap-y-[25px]">
-          <div className="flex gap-x-[20px] w-full">
-            <div className="flex  flex-row bg-[#739072] text-white py-5 px-8 pb-[0] rounded-[30px] flex-1 gap-x-[30]">
+        <div className="ml-5 mt-5 flex flex-col gap-y-6.25">
+          <div className="flex gap-x-5 w-full">
+            <div className="flex  flex-row bg-[#739072] text-white py-5 px-8 pb-0 rounded-[30px] flex-1 gap-x-[30]">
               <div className="flex flex-col flex-1 gap-y-[10] w-sm">
                 <h1 className="text-[25px] font-bold">
                   {displayName ? `Hi, ${displayName}!` : "Hi!"}
@@ -109,7 +109,7 @@ const Dashboard = () => {
                 />
               </div>
             </div>
-            <div className="bg-[#739072] text-[15px] text-white py-5 px-8 pb-[0] rounded-[30px] w-md flex flex-col items-center gap-y-[5px]">
+            <div className="bg-[#739072] text-[15px] text-white py-5 px-8 pb-0 rounded-[30px] w-md flex flex-col items-center gap-y-1.25">
               <Image
                 src="/user.png"
                 alt="img"
@@ -121,7 +121,7 @@ const Dashboard = () => {
               <p>{displayRole || "\u00A0"}</p>
             </div>
           </div>
-          <div className="flex gap-x-[40px]">
+          <div className="flex gap-x-10">
             <div className="bg-[#FFFFFF] drop-shadow-lg py-6 px-7 rounded-[10px] text-center flex-1">
               <h3 className="text-[20px]">Total Pengunjung Bulanan</h3>
               <p className="font-bold text-[20px]">300 Kunjungan</p>
@@ -136,7 +136,7 @@ const Dashboard = () => {
             </div>
           </div>
           <div className="flex flex-row gap-6 mt-6 w-full">
-            <div className="flex-[1.5] flex flex-col gap-y-[40px]">
+            <div className="flex-[1.5] flex flex-col gap-y-10">
               <div className="bg-[#FFFFFF] drop-shadow-lg h-130 rounded-[10px] text-center px-5 py-6">
                 <h1 className="text-xl">Grafik Pengunjung Bulanan</h1>
               </div>
@@ -144,7 +144,7 @@ const Dashboard = () => {
                 <h1 className="text-xl">Grafik Keuangan Bulanan</h1>
               </div>
             </div>
-            <div className="flex-[1] flex flex-col gap-y-[40px]">
+            <div className="flex-1 flex flex-col gap-y-10">
               <div className="h-80 bg-[#FFFFFF] drop-shadow-lg rounded-[10px] text-center px-5 py-6">
                 <h1 className="text-xl">Perkiraan Pengunjung Bulanan</h1>
               </div>

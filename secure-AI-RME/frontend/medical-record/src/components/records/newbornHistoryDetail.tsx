@@ -59,7 +59,7 @@ const NewbornHistoryDetail = () => {
                        <tr className="h-5 align-center">
                         <td className="w-70">Berat Bayi</td>
                         <td className="w-4">:</td>
-                        <td className="w-50">{data?.baby_weight} gram</td>
+                        <td className="w-50">{data?.baby_weight} kg</td>
                         <td className=" w-40 ">Pemberian HBO</td>
                         <td className="w-4">:</td>
                         <td className="">{data?.hbo_given ? "Sudah" : "Belum"}</td>

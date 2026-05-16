@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from app.models import PregnancyRecord, User, db, Patient, MedicalRecord, VisitMaster, VisitPregnancy, VisitFamilyPlanning, ImmunizationRecord, VisitImunization, VisitGeneral, FamilyPlanningRecord, Financial
-from app.utils import generate_visit_number, get_latest_visits_count, decrypt_data, get_column_name, clean_float, format_date, generate_financial_number, reserve_next_sequence
+from app.utils import generate_visit_number, get_latest_visits_count, decrypt_data, get_column_name, clean_float, format_date, generate_financial_number, reserve_next_sequence, encrypt_data
 from datetime import datetime
 from flask_jwt_extended import get_jwt_identity, jwt_required, get_jwt
 from sqlalchemy import or_
@@ -263,6 +263,56 @@ def get_pregnancy_visit(uuid):
     except Exception as e:
         return jsonify({"msg": "Server error", "error": str(e)}), 500
 
+
+@visit_report_bp.route('/update-visit-pregnancy/<uuid>', methods=['PUT'])
+@jwt_required()
+def update_pregnancy_visit_report(uuid):
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"msg": "Payload data tidak boleh kosong"}), 400
+
+        current_pregnancy_visit = VisitPregnancy.query.filter_by(visit_id=uuid).first()
+        if not current_pregnancy_visit:
+            return jsonify({"msg": "Data Kehamilan tidak ditemukan"}), 404
+
+        new_weight = data.get('weight', '')
+        new_height = data.get('height', '')
+        new_body_temperature = data.get('body_temperature', '')
+        new_respiratory_rate = data.get('respiratory_rate', '')
+        new_heart_rate = data.get('heart_rate', '')
+        new_blood_pressure = data.get('blood_pressure', '')
+        new_subjective = data.get('subjective', '')
+        new_objective = data.get('objective', '')
+        new_assessment = data.get('assessment', '')
+        new_plan = data.get('plan', '')
+
+        current_pregnancy_visit.weight_kg = new_weight
+        current_pregnancy_visit.height_cm = new_height
+        current_pregnancy_visit.body_temperature = new_body_temperature
+        current_pregnancy_visit.respiratory_rate = new_respiratory_rate
+        current_pregnancy_visit.heart_rate = new_heart_rate
+        current_pregnancy_visit.blood_pressure = new_blood_pressure
+        current_pregnancy_visit.subjective = encrypt_data(new_subjective)
+        current_pregnancy_visit.objective = encrypt_data(new_objective)
+        current_pregnancy_visit.assessment = encrypt_data(new_assessment)
+        current_pregnancy_visit.plan = encrypt_data(new_plan)
+
+        db.session.commit()
+
+        return jsonify({
+            "msg": "Catatan medis berhasil diperbarui",
+            "visit_id": uuid
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "msg": "Terjadi kesalahan pada server", 
+            "error": str(e)
+        }), 500
+
+
 @visit_report_bp.route('/add-visit-family-planning', methods=['POST'])
 @jwt_required()
 def add_visit_familyplanning():
@@ -364,14 +414,50 @@ def get_familyplanning_visit(uuid):
         return jsonify({
             "complaint": decrypted_complaint,
             "weight_kg": clean_float(current_familyplanning_visit.weight_kg),
-            "blood_pressure": clean_float(current_familyplanning_visit.blood_pressure),
+            "blood_pressure": current_familyplanning_visit.blood_pressure,
             "contraceptive_method": current_familyplanning_visit.kb_method,
             "return_visit_date": format_date(current_familyplanning_visit.return_visit_date) if current_familyplanning_visit.return_visit_date else None
         }), 200
 
     except Exception as e:
         return jsonify({"msg": "Server error", "error": str(e)}), 500
-        
+
+@visit_report_bp.route('/update-visit-family-planning/<uuid>', methods=['PUT'])
+@jwt_required()
+def update_familyplanning_visit_report(uuid):
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"msg": "Payload data tidak boleh kosong"}), 400
+
+        current_familyplanning_visit = VisitFamilyPlanning.query.filter_by(visit_id=uuid).first()
+        if not current_familyplanning_visit:
+            return jsonify({"msg": "Data KB tidak ditemukan"}), 404
+
+        new_weight = data.get('weight_kg', '')
+        new_blood_pressure = data.get('blood_pressure', '')
+        new_contraceptive_method = data.get('contraceptive_method', '')
+        new_return_visit_date = data.get('return_visit_date', '')
+
+        current_familyplanning_visit.weight_kg = new_weight
+        current_familyplanning_visit.blood_pressure = new_blood_pressure
+        current_familyplanning_visit.kb_method = new_contraceptive_method
+        current_familyplanning_visit.return_visit_date = new_return_visit_date
+
+        db.session.commit()
+
+        return jsonify({
+            "msg": "Catatan medis SOAP berhasil diperbarui",
+            "visit_id": uuid
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "msg": "Terjadi kesalahan pada server", 
+            "error": str(e)
+        }), 500
+
 @visit_report_bp.route('/add-visit-immunization', methods=['POST'])
 @jwt_required()
 def add_visit_immunization():
@@ -406,7 +492,6 @@ def add_visit_immunization():
                 setattr(imm_record, col_name, visit_date)
             else:
                return jsonify({"msg": f"Jenis vaksin '{vaccine_given}' tidak dikenali sistem"}), 400
-            
        
         new_visit = VisitMaster(
             record_id=record_id,
@@ -582,6 +667,8 @@ def get_general_visit(uuid):
         if not current_general_visit:
             return jsonify({"msg": "Data Imunisasi tidak ditemukan"}), 404
         
+        visit_finance = Financial.query.filter_by(visit_id=uuid).first()
+
         decrypted_subjective = decrypt_data(current_general_visit.subjective)
         decrypted_objective = decrypt_data(current_general_visit.objective)
         decrypted_assessment = decrypt_data(current_general_visit.assessment)
@@ -592,10 +679,52 @@ def get_general_visit(uuid):
           "objective": decrypted_objective, 
           "assessment": decrypted_assessment,
           "plan": decrypted_plan,
+          "finance": {
+                "invoice_number": visit_finance.transaction_number,
+                "total_amount": visit_finance.amount,
+                "payment_method": visit_finance.payment_method,
+                "status": visit_finance.status 
+            } if visit_finance else None
         }), 200
 
     except Exception as e:
         return jsonify({"msg": "Server error", "error": str(e)}), 500
+
+@visit_report_bp.route('/update-visit-general/<uuid>', methods=['PUT'])
+@jwt_required()
+def update_general_visit_report(uuid):
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"msg": "Payload data tidak boleh kosong"}), 400
+
+        current_general_visit = VisitGeneral.query.filter_by(visit_id=uuid).first()
+        if not current_general_visit:
+            return jsonify({"msg": "Data kunjungan umum tidak ditemukan"}), 404
+
+        new_subjective = data.get('subjective', '')
+        new_objective = data.get('objective', '')
+        new_assessment = data.get('assessment', '')
+        new_plan = data.get('plan', '')
+
+        current_general_visit.subjective = encrypt_data(new_subjective)
+        current_general_visit.objective = encrypt_data(new_objective)
+        current_general_visit.assessment = encrypt_data(new_assessment)
+        current_general_visit.plan = encrypt_data(new_plan)
+
+        db.session.commit()
+
+        return jsonify({
+            "msg": "Catatan medis SOAP berhasil diperbarui",
+            "visit_id": uuid
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "msg": "Terjadi kesalahan pada server", 
+            "error": str(e)
+        }), 500
 
 @visit_report_bp.route('/search-visit', methods=['GET'])
 @jwt_required()
@@ -662,22 +791,17 @@ def filter_all_visits():
                 )
             )
 
-        # 4. Filter Tipe Rekam Medis
         if rm_type != 'All':
             query = query.filter(MedicalRecord.record_type == rm_type)
 
-        # 5. Filter Rentang Tanggal Kunjungan
         if start_date and end_date:
-            # Menggunakan .between() untuk filter dari tgl A sampai tgl B
             query = query.filter(VisitMaster.visit_date.between(start_date, end_date))
 
-        # 6. Eksekusi Query dengan Pengurutan Terkini (Descending)
         results = query.order_by(
             VisitMaster.visit_date.desc(), 
             VisitMaster.visit_time.desc()
         ).all()
 
-        # 7. Format Data ke dalam JSON
         visit_list = []
         for visit, medical_record, patient, user in results:
            

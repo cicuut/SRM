@@ -604,7 +604,7 @@ const FinancialReport = () => {
         if (key === 'status') {
             return (
                 <span
-                    className={`inline-flex min-w-[74px] justify-center rounded-full px-3 py-1 text-[10px] font-bold ${getStatusBadgeClassName(
+                    className={`inline-flex min-w-18.5 justify-center rounded-full px-3 py-1 text-[10px] font-bold ${getStatusBadgeClassName(
                         transaction.status,
                     )}`}
                 >
@@ -635,11 +635,11 @@ const FinancialReport = () => {
                             Financial Report
                         </p>
 
-                        <h2 className="mt-[10px] text-[30px] font-extrabold leading-none text-white">
+                        <h2 className="mt-2.5 text-[30px] font-extrabold leading-none text-white">
                             Laporan Keuangan
                         </h2>
 
-                        <p className="mt-[10px] max-w-[760px] text-[12px] font-medium leading-relaxed text-white/90">
+                        <p className="mt-2.5 max-w-190 text-[12px] font-medium leading-relaxed text-white/90">
                             Pantau invoice, metode pembayaran, status
                             transaksi, dan data pembayaran klinik dalam satu
                             halaman.
@@ -651,7 +651,7 @@ const FinancialReport = () => {
                         onClick={() =>
                             router.push('/financial-report/add-invoice')
                         }
-                        className="flex h-[40px] w-fit items-center justify-center gap-x-2 rounded-[50px] bg-white px-[20px] text-[12px] font-bold text-[#5F785F] shadow-sm transition-all hover:bg-[#F4F4F4]"
+                        className="flex h-10 w-fit items-center justify-center gap-x-2 rounded-[50px] bg-white px-5 text-[12px] font-bold text-[#5F785F] shadow-sm transition-all hover:bg-[#F4F4F4]"
                     >
                         <FontAwesomeIcon icon={faPlus} className="w-4" />
                         <span>Tambah Invoice</span>
@@ -661,7 +661,7 @@ const FinancialReport = () => {
 
             <section className="w-full rounded-[22px] border border-[#D2D8CF] bg-white px-5 py-5 shadow-sm sm:px-6">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                    <div className="relative min-w-0 flex-1 rounded-[50px] border border-[#D2D8CF] bg-[#FDFEF9] px-5 py-[12px] shadow-sm transition-all focus-within:border-[#739072] xl:max-w-[680px]">
+                    <div className="relative min-w-0 flex-1 rounded-[50px] border border-[#D2D8CF] bg-[#FDFEF9] px-5 py-3 shadow-sm transition-all focus-within:border-[#739072] xl:max-w-170">
                         <FontAwesomeIcon
                             icon={faSearch}
                             className="absolute left-5 top-1/2 w-4 -translate-y-1/2 text-gray-400"
@@ -678,8 +678,8 @@ const FinancialReport = () => {
                         />
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-[10px]">
-                        <div className="rounded-[50px] bg-[#D2E3C8] px-[20px] py-[11px] text-center text-[12px] font-bold text-black shadow-sm">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                        <div className="rounded-[50px] bg-[#D2E3C8] px-5 py-2.75 text-center text-[12px] font-bold text-black shadow-sm">
                             {formattedSelectedDate}
                         </div>
 
@@ -687,13 +687,13 @@ const FinancialReport = () => {
                             <button
                                 type="button"
                                 onClick={openDatePicker}
-                                className="rounded-[50px] border border-[#BFC7BB] bg-white px-[18px] py-[11px] text-[12px] font-bold text-[#4B4B4B] shadow-sm transition-all hover:border-[#739072] hover:bg-[#F9FBF7]"
+                                className="rounded-[50px] border border-[#BFC7BB] bg-white px-4.5 py-2.75 text-[12px] font-bold text-[#4B4B4B] shadow-sm transition-all hover:border-[#739072] hover:bg-[#F9FBF7]"
                             >
                                 <span>Pilih Tanggal</span>
 
                                 <FontAwesomeIcon
                                     icon={faCalendarDays}
-                                    className="ml-[10px] w-4 text-black"
+                                    className="ml-2.5 w-4 text-black"
                                 />
                             </button>
 
@@ -704,7 +704,7 @@ const FinancialReport = () => {
                                 onChange={(event) =>
                                     handleDateChange(event.target.value)
                                 }
-                                className="absolute left-1/2 top-1/2 h-[1px] w-[1px] -translate-x-1/2 -translate-y-1/2 opacity-0"
+                                className="absolute left-1/2 top-1/2 h-px w-px -translate-x-1/2 -translate-y-1/2 opacity-0"
                                 tabIndex={-1}
                                 aria-hidden="true"
                             />
@@ -715,7 +715,7 @@ const FinancialReport = () => {
                             onClick={() =>
                                 setIsFilterOpen((current) => !current)
                             }
-                            className={`rounded-[50px] border px-[18px] py-[11px] text-[12px] font-bold shadow-sm transition-all ${
+                            className={`rounded-[50px] border px-4.5 py-2.75ext-[12px] font-bold shadow-sm transition-all ${
                                 isFilterOpen || activeFilterCount > 0
                                     ? 'border-[#739072] bg-[#EEF3E9] text-[#4F6F52]'
                                     : 'border-[#BFC7BB] bg-white text-[#4B4B4B] hover:border-[#739072] hover:bg-[#F9FBF7]'
@@ -730,14 +730,14 @@ const FinancialReport = () => {
 
                             <FontAwesomeIcon
                                 icon={faFilter}
-                                className="ml-[10px] w-4 text-black"
+                                className="ml-2.5 w-4 text-black"
                             />
                         </button>
 
                         <button
                             type="button"
                             onClick={handleResetAll}
-                            className="rounded-[50px] border border-[#BFC7BB] bg-white px-[18px] py-[11px] text-[12px] font-bold text-[#4B4B4B] shadow-sm transition-all hover:bg-[#F4F4F4]"
+                            className="rounded-[50px] border border-[#BFC7BB] bg-white px-4.5 py-2.75 text-[12px] font-bold text-[#4B4B4B] shadow-sm transition-all hover:bg-[#F4F4F4]"
                         >
                             Reset
                         </button>
@@ -816,7 +816,7 @@ const FinancialReport = () => {
                             <button
                                 type="button"
                                 onClick={handleShowAllDates}
-                                className="h-[36px] rounded-[50px] border border-[#BFC7BB] bg-white px-[18px] text-[12px] font-bold text-[#4B4B4B] transition-all hover:bg-[#F4F4F4]"
+                                className="h-[36px] rounded-[50px] border border-[#BFC7BB] bg-white px-4.5 text-[12px] font-bold text-[#4B4B4B] transition-all hover:bg-[#F4F4F4]"
                             >
                                 Semua Tanggal
                             </button>
@@ -824,7 +824,7 @@ const FinancialReport = () => {
                             <button
                                 type="button"
                                 onClick={handleClearFilter}
-                                className="h-[36px] rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white transition-all hover:bg-[#739072]"
+                                className="h-[36px] rounded-[50px] bg-[#86A789] px-4.5 text-[12px] font-bold text-white transition-all hover:bg-[#739072]"
                             >
                                 Hapus Filter
                             </button>
@@ -881,7 +881,7 @@ const FinancialReport = () => {
                             disabled={
                                 isLoading || filteredTransactions.length === 0
                             }
-                            className="flex min-h-[38px] items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+                            className="flex min-h-[38px] items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-4.5 text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             <FontAwesomeIcon
                                 icon={faDownload}
