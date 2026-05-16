@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
-import LoadingOverlay from '@/components/loading'
+import LoadingOverlay from '@/components/loading';
 
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
@@ -318,6 +318,8 @@ const AccountSetting = () => {
     const displayName = formData.fullname || 'User';
     const displayRole = formatRole(formData.role);
     const initials = getInitials(displayName);
+
+    const showLoadingOverlay = isLoading || isSubmitting || isUpdatingPhoto;
 
     const getToken = () => {
         return Cookies.get('access_token');
@@ -651,122 +653,109 @@ const AccountSetting = () => {
     };
 
     return (
-        <div className="min-h-dvh w-full max-w-full overflow-x-hidden bg-[#FDFEF9]">
-            {isLoading && <LoadingOverlay />}
-            <div className="flex min-h-dvh w-full max-w-full overflow-x-hidden">
-                <main className="box-border flex min-w-0 flex-1 flex-col overflow-x-hidden pb-[40px] pl-4 pr-0 pt-[26px] sm:pl-[28px] sm:pr-0">
-                    <div className="box-border w-full max-w-none min-w-0">
-                        <div className="mt-[28px] box-border flex min-h-[104px] w-full max-w-full flex-col gap-[18px] rounded-l-[8px] bg-[#86A789] px-4 py-[22px] shadow-md sm:px-[38px] lg:flex-row lg:items-center lg:justify-between">
-                            <div className="flex min-w-0 items-center gap-[22px]">
-                                <div className="relative flex h-[64px] w-[64px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#FDFEF9] text-[24px] font-bold text-[#5F785F]">
-                                    {profilePhoto ? (
-                                        <img
-                                            src={profilePhoto}
-                                            alt="Profile photo"
-                                            className="h-full w-full object-cover"
-                                        />
-                                    ) : (
-                                        <span>{initials}</span>
-                                    )}
-                                </div>
-
-                                <div className="min-w-0">
-                                    <h2 className="truncate text-[22px] font-bold leading-none text-white">
-                                        {isLoading ? 'Loading...' : displayName}
-                                    </h2>
-
-                                    <p className="mt-[8px] truncate text-[12px] font-medium leading-none text-white">
-                                        {isLoading
-                                            ? 'Loading role...'
-                                            : displayRole}
-                                    </p>
-
-                                    <p className="mt-[8px] truncate text-[11px] font-medium leading-none text-white/90">
-                                        {clinic?.clinic_name ||
-                                            'Clinic belum tersedia'}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="flex flex-wrap items-center gap-[12px] lg:justify-end">
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handlePhotoChange}
-                                    className="hidden"
-                                />
-
-                                <button
-                                    type="button"
-                                    onClick={handleUpdatePhotoClick}
-                                    disabled={isUpdatingPhoto || isLoading}
-                                    className="h-[32px] shrink-0 rounded-[50px] bg-white px-[18px] text-[12px] font-bold text-[#5F785F] shadow-sm transition-all hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-70"
-                                >
-                                    {isUpdatingPhoto
-                                        ? 'Updating...'
-                                        : 'Update Photo'}
-                                </button>
-                            </div>
-                        </div>
-
-                        {errorMessage && (
-                            <div className="mt-[18px] box-border w-full rounded-l-[6px] border border-red-200 bg-red-50 px-[16px] py-[10px] text-[12px] text-red-700">
-                                {errorMessage}
-                            </div>
-                        )}
-
-                        {successMessage && (
-                            <div className="mt-[18px] box-border w-full rounded-l-[6px] border border-green-200 bg-green-50 px-[16px] py-[10px] text-[12px] text-green-700">
-                                {successMessage}
-                            </div>
-                        )}
-
-                        {isLoading ? (
-                            <div className="mt-[26px] box-border w-full rounded-l-[8px] border border-[#D2D8CF] bg-white px-[30px] py-[28px] text-[12px] text-black">
-                                Mengambil data akun...
-                            </div>
+        <div className="relative box-border w-full max-w-none min-w-0">
+            {showLoadingOverlay && <LoadingOverlay />}
+            <div className="mt-[28px] box-border flex min-h-[104px] w-full max-w-full flex-col gap-[18px] rounded-l-[8px] bg-[#86A789] px-4 py-[22px] shadow-md sm:px-[38px] lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex min-w-0 items-center gap-[22px]">
+                    <div className="relative flex h-[64px] w-[64px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#FDFEF9] text-[24px] font-bold text-[#5F785F]">
+                        {profilePhoto ? (
+                            <img
+                                src={profilePhoto}
+                                alt="Profile photo"
+                                className="h-full w-full object-cover"
+                            />
                         ) : (
-                            <form
-                                onSubmit={handleSubmit}
-                                className="mt-[26px] box-border w-full max-w-full"
-                            >
-                                <SectionCard
-                                    title="Personal Information"
-                                    description="Data ini diambil dari akun user yang sedang login"
-                                    fields={personalFields}
-                                    formData={formData}
-                                    onChange={handleChange}
-                                    disabled={isSubmitting}
-                                    className="min-h-[220px] rounded-r-none"
-                                />
-
-                                <ClinicSummary clinic={clinic} />
-
-                                <SectionCard
-                                    title="Change Password"
-                                    description="Kosongkan bagian ini jika tidak ingin mengganti password"
-                                    fields={passwordFields}
-                                    formData={formData}
-                                    onChange={handleChange}
-                                    disabled={isSubmitting}
-                                    className="mt-[26px] min-h-[170px] rounded-r-none"
-                                />
-
-                                <button
-                                    type="submit"
-                                    disabled={isSubmitting}
-                                    className="mt-[26px] h-[34px] rounded-[50px] bg-[#86A789] px-[22px] text-[12px] font-semibold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-70"
-                                >
-                                    {isSubmitting
-                                        ? 'Updating...'
-                                        : 'Update Changes'}
-                                </button>
-                            </form>
+                            <span>{initials}</span>
                         )}
                     </div>
-                </main>
+
+                    <div className="min-w-0">
+                        <h2 className="truncate text-[22px] font-bold leading-none text-white">
+                            {isLoading ? 'Loading...' : displayName}
+                        </h2>
+
+                        <p className="mt-[8px] truncate text-[12px] font-medium leading-none text-white">
+                            {isLoading ? 'Loading role...' : displayRole}
+                        </p>
+
+                        <p className="mt-[8px] truncate text-[11px] font-medium leading-none text-white/90">
+                            {clinic?.clinic_name || 'Clinic belum tersedia'}
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-[12px] lg:justify-end">
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePhotoChange}
+                        className="hidden"
+                    />
+
+                    <button
+                        type="button"
+                        onClick={handleUpdatePhotoClick}
+                        disabled={isUpdatingPhoto || isLoading}
+                        className="h-[32px] shrink-0 rounded-[50px] bg-white px-[18px] text-[12px] font-bold text-[#5F785F] shadow-sm transition-all hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                        {isUpdatingPhoto ? 'Updating...' : 'Update Photo'}
+                    </button>
+                </div>
             </div>
+
+            {errorMessage && (
+                <div className="mt-[18px] box-border w-full rounded-l-[6px] border border-red-200 bg-red-50 px-[16px] py-[10px] text-[12px] text-red-700">
+                    {errorMessage}
+                </div>
+            )}
+
+            {successMessage && (
+                <div className="mt-[18px] box-border w-full rounded-l-[6px] border border-green-200 bg-green-50 px-[16px] py-[10px] text-[12px] text-green-700">
+                    {successMessage}
+                </div>
+            )}
+
+            {isLoading ? (
+                <div className="mt-[26px] box-border w-full rounded-l-[8px] border border-[#D2D8CF] bg-white px-[30px] py-[28px] text-[12px] text-black">
+                    Mengambil data akun...
+                </div>
+            ) : (
+                <form
+                    onSubmit={handleSubmit}
+                    className="mt-[26px] box-border w-full max-w-full"
+                >
+                    <SectionCard
+                        title="Personal Information"
+                        description="Data ini diambil dari akun user yang sedang login"
+                        fields={personalFields}
+                        formData={formData}
+                        onChange={handleChange}
+                        disabled={isSubmitting}
+                        className="min-h-[220px] rounded-r-none"
+                    />
+
+                    <ClinicSummary clinic={clinic} />
+
+                    <SectionCard
+                        title="Change Password"
+                        description="Kosongkan bagian ini jika tidak ingin mengganti password"
+                        fields={passwordFields}
+                        formData={formData}
+                        onChange={handleChange}
+                        disabled={isSubmitting}
+                        className="mt-[26px] min-h-[170px] rounded-r-none"
+                    />
+
+                    <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="mt-[26px] h-[34px] rounded-[50px] bg-[#86A789] px-[22px] text-[12px] font-semibold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                        {isSubmitting ? 'Updating...' : 'Update Changes'}
+                    </button>
+                </form>
+            )}
         </div>
     );
 };
