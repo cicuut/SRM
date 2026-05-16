@@ -5,6 +5,10 @@ import Cookies from "js-cookie";
 import api from "@/utils/app";
 import LoadingOverlay from "@/components/loading";
 import {
+  FinancialChart,
+  FinancialChartPoint,
+} from "@/components/dashboard/financial-chart";
+import {
   SERVICE_COLORS,
   ServiceSeries,
   VisitorChart,
@@ -88,6 +92,22 @@ function formatNumber(value: number) {
   return new Intl.NumberFormat("id-ID").format(value);
 }
 
+function formatRupiah(value: number) {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+  }).format(Number(value || 0));
+}
+
+interface MonthlyFinancialSummary {
+  month: string;
+  monthly_income: number;
+  monthly_expense: number;
+  daily_income: FinancialChartPoint[];
+  daily_expense: FinancialChartPoint[];
+}
+
 const Dashboard = () => {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -95,6 +115,10 @@ const Dashboard = () => {
     null,
   );
   const [forecastError, setForecastError] = useState<string | null>(null);
+  const [monthlyIncome, setMonthlyIncome] = useState<number | null>(null);
+  const [monthlyExpense, setMonthlyExpense] = useState<number | null>(null);
+  const [dailyIncome, setDailyIncome] = useState<FinancialChartPoint[]>([]);
+  const [dailyExpense, setDailyExpense] = useState<FinancialChartPoint[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -149,6 +173,26 @@ const Dashboard = () => {
               ? `${apiMessage ?? "Gagal memuat data perkiraan pengunjung"}: ${apiDetail}`
               : apiMessage ?? "Gagal memuat data perkiraan pengunjung",
           );
+        }
+      }
+
+      try {
+        const financialResponse = await api.get<MonthlyFinancialSummary>(
+          "/financial/monthly-summary",
+        );
+        if (!cancelled) {
+          setMonthlyIncome(financialResponse.data.monthly_income);
+          setMonthlyExpense(financialResponse.data.monthly_expense);
+          setDailyIncome(financialResponse.data.daily_income ?? []);
+          setDailyExpense(financialResponse.data.daily_expense ?? []);
+        }
+      } catch (err) {
+        console.error("Failed to load monthly financial summary:", err);
+        if (!cancelled) {
+          setMonthlyIncome(null);
+          setMonthlyExpense(null);
+          setDailyIncome([]);
+          setDailyExpense([]);
         }
       } finally {
         if (!cancelled) {
@@ -228,22 +272,26 @@ const Dashboard = () => {
                   ? `${formatNumber(forecastData.monthly_actual)} Kunjungan`
                   : forecastError || "Memuat..."}
               </p>
-              {forecastData && (
-                <p className="mt-1 text-xs text-gray-500">
-                  Perkiraan akhir bulan:{" "}
-                  <span className="font-medium text-gray-600">
-                    {formatNumber(forecastData.monthly_forecast)} kunjungan
-                  </span>
-                </p>
-              )}
             </div>
             <div className="flex-1 rounded-[10px] bg-[#FFFFFF] px-7 py-6 text-center drop-shadow-lg">
-              <h3 className="text-[20px]">Pemasukan Bulanan</h3>
-              <p className="text-[20px] font-bold">Rp. 500.000</p>
+              <h3 className="text-[20px]">Total Pemasukan Bulanan</h3>
+              <p className="text-[20px] font-bold">
+                {monthlyIncome !== null
+                  ? formatRupiah(monthlyIncome)
+                  : loading
+                    ? "Memuat..."
+                    : "—"}
+              </p>
             </div>
             <div className="flex-1 rounded-[10px] bg-[#FFFFFF] px-7 py-6 text-center drop-shadow-lg">
-              <h3 className="text-[20px]">Pengeluaran Bulanan</h3>
-              <p className="text-[20px] font-bold">Rp. 100.000</p>
+              <h3 className="text-[20px]">Total Pengeluaran Bulanan</h3>
+              <p className="text-[20px] font-bold">
+                {monthlyExpense !== null
+                  ? formatRupiah(monthlyExpense)
+                  : loading
+                    ? "Memuat..."
+                    : "—"}
+              </p>
             </div>
           </div>
 
@@ -328,8 +376,12 @@ const Dashboard = () => {
                 )}
               </div>
 
-              <div className="h-130 rounded-[10px] bg-[#FFFFFF] px-5 py-6 text-center drop-shadow-lg">
-                <h1 className="text-xl">Grafik Keuangan Bulanan</h1>
+              <div className="min-h-[300px] rounded-[10px] bg-[#FFFFFF] px-5 py-6 drop-shadow-lg">
+                <FinancialChart
+                  title="Grafik Keuangan Bulanan"
+                  income={dailyIncome}
+                  expense={dailyExpense}
+                />
               </div>
             </div>
 

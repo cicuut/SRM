@@ -31,7 +31,7 @@ SERVICE_MODELS: Dict[str, dict] = {
         ],
     },
     "Keluarga Berencana": {
-        "file": "model_famplan_1.joblib",
+        "file": "model_famplan_2.joblib",
         "features": [
             "lag_30",
             "lag_60",
@@ -56,7 +56,7 @@ SERVICE_MODELS: Dict[str, dict] = {
         ],
     },
     "Imunisasi": {
-        "file": "model_vaksin_1.joblib",
+        "file": "model_vaksin_2.joblib",
         "features": [
             "lag_1",
             "lag_7",
@@ -67,7 +67,7 @@ SERVICE_MODELS: Dict[str, dict] = {
         ],
     },
     "Persalinan": {
-        "file": "model_melahirkan_1.joblib",
+        "file": "model_melahirkan_2.joblib",
         "features": [
             "hpl_count",
             "day_of_week",
@@ -275,7 +275,16 @@ def predict_single_day(
 ) -> float:
     model = _load_model(service_type)
     features = _build_feature_row(service_type, series, target, hpl_counts)
-    feature_names = SERVICE_MODELS[service_type]["features"]
+    if service_type == "Persalinan":
+        print(
+            f"DEBUG PERSALINAN - Tanggal: {target}, Jumlah HPL dari DB: {features['hpl_count']}"
+        )
+    model_features = getattr(model, "feature_names_in_", None)
+    feature_names = (
+        list(model_features)
+        if model_features is not None
+        else SERVICE_MODELS[service_type]["features"]
+    )
     frame = pd.DataFrame([[features[name] for name in feature_names]], columns=feature_names)
     prediction = float(model.predict(frame)[0])
     return max(0.0, round(prediction))

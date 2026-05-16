@@ -78,7 +78,7 @@ const AddInvoice = () => {
     const [formData, setFormData] = useState<InvoiceFormData>({
         payment_date: getTodayInputValue(),
         visit_id: '',
-        trans_type: 'Income',
+        trans_type: 'income',
         amount: '',
         payment_method: 'Transfer',
         status: 'Paid',
@@ -490,8 +490,8 @@ const AddInvoice = () => {
                                     required
                                     className={selectClassName}
                                 >
-                                    <option value="Income">Income</option>
-                                    <option value="Expense">Expense</option>
+                                    <option value="income">Income</option>
+                                    <option value="expense">Expense</option>
                                     <option value="Other">Other</option>
                                 </select>
                             </label>

@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models import db, User
 from app.utils import decrypt_data, generate_financial_number, write_audit_log
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
@@ -12,6 +12,126 @@ import uuid
 financial_bp = Blueprint("financial", __name__)
 
 FINANCIAL_ALLOWED_ROLES = ["admin", "midwife"]
+
+INCOME_TYPES = {"income"}
+EXPENSE_TYPES = {"expense"}
+
+# PostgreSQL enum `transaction_category` stores Indonesian labels
+DB_CATEGORY_BY_APP = {"income": "pemasukan", "expense": "pengeluaran"}
+APP_CATEGORY_BY_DB = {db: app for app, db in DB_CATEGORY_BY_APP.items()}
+
+
+def resolve_app_category(trans_type: str) -> str | None:
+    normalized = str(trans_type or "").strip().lower()
+
+    if normalized in INCOME_TYPES:
+        return "income"
+
+    if normalized in EXPENSE_TYPES:
+        return "expense"
+
+    return APP_CATEGORY_BY_DB.get(normalized)
+
+
+def to_db_category(app_category: str) -> str:
+    normalized = str(app_category or "").strip().lower()
+    return DB_CATEGORY_BY_APP.get(normalized, normalized)
+
+
+def is_income_type(trans_type: str) -> bool:
+    return resolve_app_category(trans_type) == "income"
+
+
+def is_expense_type(trans_type: str) -> bool:
+    return resolve_app_category(trans_type) == "expense"
+
+
+def get_month_bounds(reference: date | None = None) -> tuple[date, date]:
+    today = reference or date.today()
+    month_start = today.replace(day=1)
+    if today.month == 12:
+        month_end = date(today.year + 1, 1, 1) - timedelta(days=1)
+    else:
+        month_end = date(today.year, today.month + 1, 1) - timedelta(days=1)
+    return month_start, month_end
+
+
+def build_daily_financial_series(
+    clinic_id: str, month_start: date, month_end: date
+) -> tuple[list[dict], list[dict]]:
+    rows = db.session.execute(
+        text(
+            """
+            SELECT
+                CAST(f.payment_date AS date) AS day,
+                LOWER(f.trans_type::text) AS trans_type,
+                COALESCE(SUM(f.amount), 0) AS total
+            FROM financial f
+            LEFT JOIN visit_master vm
+                ON vm.visit_id::text = f.visit_id::text
+            LEFT JOIN medical_record mr
+                ON mr.record_id::text = vm.record_id::text
+            LEFT JOIN patient p
+                ON p.patient_id::text = COALESCE(f.patient_id::text, mr.patient_id::text)
+            LEFT JOIN users u
+                ON u.user_id::text = f.user_id::text
+            WHERE (
+                p.clinic_id::text = :clinic_id
+                OR (
+                    p.patient_id IS NULL
+                    AND u.clinic_id::text = :clinic_id
+                )
+            )
+            AND CAST(f.payment_date AS date) >= :month_start
+            AND CAST(f.payment_date AS date) <= :month_end
+            GROUP BY day, f.trans_type
+            ORDER BY day
+            """
+        ),
+        {
+            "clinic_id": str(clinic_id),
+            "month_start": month_start,
+            "month_end": month_end,
+        },
+    ).mappings().all()
+
+    income_by_day: dict[date, float] = {}
+    expense_by_day: dict[date, float] = {}
+
+    for row in rows:
+        day = row.get("day")
+        if day is None:
+            continue
+        if hasattr(day, "date"):
+            day = day.date()
+        trans_type = str(row.get("trans_type") or "").strip().lower()
+        total = float(row.get("total") or 0)
+
+        if is_income_type(trans_type):
+            income_by_day[day] = income_by_day.get(day, 0.0) + total
+        elif is_expense_type(trans_type):
+            expense_by_day[day] = expense_by_day.get(day, 0.0) + total
+
+    income_series: list[dict] = []
+    expense_series: list[dict] = []
+    current = month_start
+
+    while current <= month_end:
+        income_series.append(
+            {
+                "date": current.isoformat(),
+                "amount": income_by_day.get(current, 0.0),
+            }
+        )
+        expense_series.append(
+            {
+                "date": current.isoformat(),
+                "amount": expense_by_day.get(current, 0.0),
+            }
+        )
+        current += timedelta(days=1)
+
+    return income_series, expense_series
 
 
 def to_str(value):
@@ -452,6 +572,95 @@ def get_transaction_number():
         )
 
 
+@financial_bp.route("/monthly-summary", methods=["GET"])
+@jwt_required()
+def get_monthly_summary():
+    current_user = get_current_user()
+
+    if not current_user:
+        return jsonify({"msg": "User not found"}), 404
+
+    if not current_user.clinic_id:
+        return jsonify({"msg": "Akun belum terhubung ke klinik"}), 400
+
+    try:
+        month_start, month_end = get_month_bounds()
+
+        rows = db.session.execute(
+            text(
+                """
+                SELECT
+                    LOWER(f.trans_type::text) AS trans_type,
+                    COALESCE(SUM(f.amount), 0) AS total
+                FROM financial f
+                LEFT JOIN visit_master vm
+                    ON vm.visit_id::text = f.visit_id::text
+                LEFT JOIN medical_record mr
+                    ON mr.record_id::text = vm.record_id::text
+                LEFT JOIN patient p
+                    ON p.patient_id::text = COALESCE(f.patient_id::text, mr.patient_id::text)
+                LEFT JOIN users u
+                    ON u.user_id::text = f.user_id::text
+                WHERE (
+                    p.clinic_id::text = :clinic_id
+                    OR (
+                        p.patient_id IS NULL
+                        AND u.clinic_id::text = :clinic_id
+                    )
+                )
+                AND CAST(f.payment_date AS date) >= :month_start
+                AND CAST(f.payment_date AS date) <= :month_end
+                GROUP BY f.trans_type
+                """
+            ),
+            {
+                "clinic_id": str(current_user.clinic_id),
+                "month_start": month_start,
+                "month_end": month_end,
+            },
+        ).mappings().all()
+
+        monthly_income = 0.0
+        monthly_expense = 0.0
+
+        for row in rows:
+            trans_type = str(row.get("trans_type") or "").strip().lower()
+            total = float(row.get("total") or 0)
+
+            if is_income_type(trans_type):
+                monthly_income += total
+            elif is_expense_type(trans_type):
+                monthly_expense += total
+
+        daily_income, daily_expense = build_daily_financial_series(
+            current_user.clinic_id, month_start, month_end
+        )
+
+        return (
+            jsonify(
+                {
+                    "month": month_start.strftime("%Y-%m"),
+                    "monthly_income": monthly_income,
+                    "monthly_expense": monthly_expense,
+                    "daily_income": daily_income,
+                    "daily_expense": daily_expense,
+                }
+            ),
+            200,
+        )
+
+    except Exception as e:
+        return (
+            jsonify(
+                {
+                    "msg": "Gagal mengambil ringkasan keuangan bulanan",
+                    "error": str(e),
+                }
+            ),
+            500,
+        )
+
+
 @financial_bp.route("/get-all", methods=["GET"])
 @jwt_required()
 def get_all_financial_transactions():
@@ -578,10 +787,11 @@ def add_financial_transaction():
         payment_date = parse_payment_date(data.get("payment_date"))
         reference_id = str(data.get("visit_id")).strip()
 
-        trans_type = normalize_enum_value(
-            "transaction_type",
-            data.get("trans_type"),
-        )
+        resolved_category = resolve_app_category(data.get("trans_type"))
+        if resolved_category not in INCOME_TYPES | EXPENSE_TYPES:
+            return jsonify({"msg": "Transaction type must be income or expense"}), 400
+
+        trans_type = to_db_category(resolved_category)
 
         payment_method = normalize_enum_value(
             "payment_type",
@@ -641,7 +851,7 @@ def add_financial_transaction():
                     CAST(:user_id AS uuid),
                     CAST(:patient_id AS uuid),
                     :transaction_number,
-                    CAST(:trans_type AS transaction_type),
+                    CAST(:trans_type AS transaction_category),
                     :amount,
                     CAST(:payment_method AS payment_type),
                     CAST(:status AS payment_status),

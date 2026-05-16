@@ -97,6 +97,7 @@ export function VisitorChart({
       PADDING.top + plotHeight - (count / maxCount) * plotHeight;
 
     const gridLines = [0, 0.25, 0.5, 0.75, 1].map((ratio) => ({
+      ratio,
       y: PADDING.top + plotHeight - ratio * plotHeight,
       label: Math.round(maxCount * ratio),
     }));
@@ -178,7 +179,7 @@ export function VisitorChart({
           aria-label={title}
         >
           {chart.gridLines.map((line) => (
-            <g key={line.label}>
+            <g key={`grid-${line.ratio}`}>
               <line
                 x1={PADDING.left}
                 x2={CHART_WIDTH - PADDING.right}

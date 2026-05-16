@@ -514,11 +514,11 @@ const FinancialReport = () => {
                 summary.totalRecords += 1;
                 summary.totalAmount += amount;
 
-                if (type === 'income') {
+                if (type === 'income' || type === 'pemasukan') {
                     summary.incomeAmount += amount;
                 }
 
-                if (type === 'outcome' || type === 'expense') {
+                if (type === 'expense' || type === 'pengeluaran') {
                     summary.outcomeAmount += amount;
                 }
 
