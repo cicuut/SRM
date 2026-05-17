@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 import os
 import base64
 from Crypto.Cipher import AES
@@ -111,8 +111,15 @@ def clean_float(value):
         return None
     
 def format_date(date_obj):
-    if date_obj:
+    if not date_obj:
+        return None
+
+    if isinstance(date_obj, datetime):
+        return date_obj.strftime('%d %B %Y, %H:%M')
+        
+    elif isinstance(date_obj, date):
         return date_obj.strftime('%d %B %Y')
+        
     return None
 
 def parse_date(date_str):

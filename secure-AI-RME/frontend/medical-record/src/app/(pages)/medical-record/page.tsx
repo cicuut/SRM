@@ -127,7 +127,7 @@ const MedicalRecord = () => {
       const msg =
         err.response?.data?.msg || err.message || "Gagal mencari pasien";
       setError(msg);
-    } 
+    }
   };
 
   const handleViewRecordDetail = (rmId: string) => {
@@ -160,34 +160,30 @@ const MedicalRecord = () => {
       if (currentPage <= 2) {
         pageNumbers.push(1);
         pageNumbers.push(2);
-        if (currentPage === 2) pageNumbers.push(3); // Biar user tahu ada halaman berikutnya
+        if (currentPage === 2) pageNumbers.push(3);
         pageNumbers.push("...");
         pageNumbers.push(totalPages);
-      }
-      else if (currentPage === 3) {
+      } else if (currentPage === 3) {
         pageNumbers.push(1);
         pageNumbers.push(2);
         pageNumbers.push(3);
         pageNumbers.push(4);
         pageNumbers.push("...");
         pageNumbers.push(totalPages);
-      }
-      else if (currentPage >= totalPages - 1) {
+      } else if (currentPage >= totalPages - 1) {
         pageNumbers.push(1);
         pageNumbers.push("...");
         if (currentPage === totalPages - 1) pageNumbers.push(totalPages - 2);
         pageNumbers.push(totalPages - 1);
         pageNumbers.push(totalPages);
-      }
-      else if (currentPage === totalPages - 2) {
+      } else if (currentPage === totalPages - 2) {
         pageNumbers.push(1);
         pageNumbers.push("...");
         pageNumbers.push(totalPages - 3);
         pageNumbers.push(totalPages - 2);
         pageNumbers.push(totalPages - 1);
         pageNumbers.push(totalPages);
-      }
-      else {
+      } else {
         pageNumbers.push(1);
         pageNumbers.push("...");
         pageNumbers.push(currentPage - 1);
@@ -201,7 +197,6 @@ const MedicalRecord = () => {
     return pageNumbers;
   };
 
-
   return (
     <div>
       <div className="flex-1 flex flex-col  w-full  gap-5">
@@ -214,7 +209,7 @@ const MedicalRecord = () => {
               <input
                 type="text"
                 value={medicalSearch}
-                placeholder="Search for a record"
+                placeholder="Masukan identitas pasien"
                 onChange={(e) => {
                   const val = e.target.value;
                   setMedicalSearch(val);
@@ -255,8 +250,6 @@ const MedicalRecord = () => {
                 <Plus className="w-4" />
                 <span>Tambah Rekam Medis</span>
               </button>
-
-              
             </div>
           </div>
           <div className="hidden w-full overflow-x-auto lg:block">
@@ -269,7 +262,14 @@ const MedicalRecord = () => {
                     Nama Pasien
                   </th>
                   <th className="px-6 py-4 text-center font-bold">NIK</th>
+                  <th className="px-6 py-4 text-center font-bold">Tanggal Lahir</th>
                   <th className="px-6 py-4 text-center font-bold">Status</th>
+                  <th className="px-6 py-4 text-center font-bold">
+                    Waktu Dibuat
+                  </th>
+                  <th className="px-6 py-4 text-center font-bold">
+                    Waktu Diperbarui
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -285,6 +285,7 @@ const MedicalRecord = () => {
                     <td className="px-6 py-4">{item.record_type}</td>
                     <td className="px-6 py-4">{item.patient_name}</td>
                     <td className="px-6 py-4 text-center">{item.nik}</td>
+                     <td className="px-6 py-4 text-center">{item.birth_date}</td>
                     <td className="px-6 py-4 text-center">
                       <span
                         className={`px-3 py-1 rounded-full text-[10px] font-bold ${item.status === "Active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}
@@ -292,6 +293,8 @@ const MedicalRecord = () => {
                         {item.status}
                       </span>
                     </td>
+                    <td className="px-6 py-4">{item.created_at}</td>
+                    <td className="px-6 py-4">{item.updated_at}</td>
                   </tr>
                 ))}
               </tbody>

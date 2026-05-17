@@ -403,7 +403,7 @@ const FamilyInformation = () => {
             </label>
 
             <label className="flex flex-col text-sm gap-2">
-              <span className="text-[12px] font-bold text-[#2F3A2F]">Umur</span>
+              <span className="text-[12px] font-bold text-[#2F3A2F]">Umur Keluarga</span>
               <input
                 name="age"
                 value={formData.age}
@@ -415,7 +415,7 @@ const FamilyInformation = () => {
               />
             </label>
             <label className="flex flex-col text-sm gap-2">
-              <span className="text-[12px] font-bold text-[#2F3A2F]">NIK</span>
+              <span className="text-[12px] font-bold text-[#2F3A2F]">NIK Keluarga</span>
               <input
                 name="family_nik"
                 value={formData.family_nik}
@@ -423,6 +423,19 @@ const FamilyInformation = () => {
                 type="text"
                 className="mt-1 h-10.5 w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10"
                 placeholder="Masukkan NIK keluarga"
+              />
+            </label>
+             <label className="flex flex-col text-sm gap-2">
+              <span className="text-[12px] font-bold text-[#2F3A2F]">
+                No Telepon Keluarga
+              </span>
+              <input
+                name="family_number"
+                value={formData.family_number}
+                onChange={handleInputChange}
+                type="text"
+                className="mt-1 h-10.5 w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10"
+                placeholder="Masukkan nomor telepon keluarga"
               />
             </label>
             <label className="flex flex-col text-sm gap-2">
@@ -438,19 +451,7 @@ const FamilyInformation = () => {
                 placeholder="Masukkan alamat keluarga"
               />
             </label>
-            <label className="flex flex-col text-sm gap-2">
-              <span className="text-[12px] font-bold text-[#2F3A2F]">
-                No Telepon Keluarga
-              </span>
-              <input
-                name="family_number"
-                value={formData.family_number}
-                onChange={handleInputChange}
-                type="text"
-                className="mt-1 h-10.5 w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10"
-                placeholder="Masukkan nomor telepon keluarga"
-              />
-            </label>
+           
             <label className="flex flex-col text-sm gap-2">
               <span className="text-[12px] font-bold text-[#2F3A2F]">
                 Hubungan
@@ -518,7 +519,7 @@ const FamilyInformation = () => {
           disabled={isSaving || isDeleting}
           className="h-9.5 rounded-[30px] border border-red-200 bg-white px-5 text-[12px] font-bold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Hapus Kunjungan
+          Hapus Rekam Medis
         </button>
 
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
