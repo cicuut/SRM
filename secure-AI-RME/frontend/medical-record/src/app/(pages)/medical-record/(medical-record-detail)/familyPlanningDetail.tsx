@@ -1,23 +1,21 @@
 'use client';
 import React from "react";
 import { useState } from "react";
-import PatientInformationDetail from "../../../../components/records/patientInformationDetail";
-import FamilyInformation from "../../../../components/records/familyInformationDetail";
+import FamilyInformation from "../../../../components/records/patientFamilyInformationDetail";
 import ObstectricAndMedicalRecord from "@/components/records/obstetricAndMedicalHistory";
 import VisitFamilyPlanningAccordition from "@/components/records/visitFamilyPlanning";
 const FamilyPlanningDetail = () => {
-    const [activeTab, setActiveTab] = useState('Informasi Keluarga');
+    const [activeTab, setActiveTab] = useState('Identitas Pasien dan Keluarga');
 
     const tabs = [
-        'Informasi Keluarga',
+        'Identitas Pasien dan Keluarga',
         'Riwayat Kehamilan dan Medis',
         'Hasil Pemeriksaan Kunjungan'
     ];
 
     return (
-        <div className="min-h-screen mt-10 flex flex-col bg-[#FDFEF9] w-full">
-            <PatientInformationDetail />
-            <div className="flex border-b border-gray-200 gap-6 mt-10">
+        <div className="min-h-screen flex flex-col bg-[#FDFEF9] w-full">
+            <div className="flex border-b border-gray-200 gap-6 mt-5">
                 {tabs.map((tab) => (
                     <button
                         key={tab}
@@ -32,7 +30,7 @@ const FamilyPlanningDetail = () => {
                 ))}
             </div>
             <div className="mt-6">
-                {activeTab === 'Informasi Keluarga' && <FamilyInformation />}
+                {activeTab === 'Identitas Pasien dan Keluarga' && <FamilyInformation />}
                 {activeTab === 'Riwayat Kehamilan dan Medis' && <ObstectricAndMedicalRecord />}
                 {activeTab === 'Hasil Pemeriksaan Kunjungan' && <VisitFamilyPlanningAccordition/>}
             </div>

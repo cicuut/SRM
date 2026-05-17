@@ -1,6 +1,5 @@
 "use client";
 import { useState, useEffect } from "react";
-import Cookies from "js-cookie";
 import { useParams } from "next/navigation";
 import Accordion from "@mui/material/Accordion";
 import AccordionDetails from "@mui/material/AccordionDetails";

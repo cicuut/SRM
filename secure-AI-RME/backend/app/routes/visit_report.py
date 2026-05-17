@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from app.models import PregnancyRecord, User, db, Patient, MedicalRecord, VisitMaster, VisitPregnancy, VisitFamilyPlanning, ImmunizationRecord, VisitImunization, VisitGeneral, FamilyPlanningRecord, Financial
-from app.utils import generate_visit_number, get_latest_visits_count, decrypt_data, get_column_name, clean_float, format_date, generate_financial_number, reserve_next_sequence, encrypt_data
+from app.utils import generate_visit_number, get_latest_visits_count, decrypt_data, get_column_name, clean_float, format_date, generate_financial_number, reserve_next_sequence
 from datetime import datetime
 from flask_jwt_extended import get_jwt_identity, jwt_required, get_jwt
 from sqlalchemy import or_
@@ -293,10 +293,10 @@ def update_pregnancy_visit_report(uuid):
         current_pregnancy_visit.respiratory_rate = new_respiratory_rate
         current_pregnancy_visit.heart_rate = new_heart_rate
         current_pregnancy_visit.blood_pressure = new_blood_pressure
-        current_pregnancy_visit.subjective = encrypt_data(new_subjective)
-        current_pregnancy_visit.objective = encrypt_data(new_objective)
-        current_pregnancy_visit.assessment = encrypt_data(new_assessment)
-        current_pregnancy_visit.plan = encrypt_data(new_plan)
+        current_pregnancy_visit.subjective =new_subjective
+        current_pregnancy_visit.objective = new_objective
+        current_pregnancy_visit.assessment = new_assessment
+        current_pregnancy_visit.plan = new_plan
 
         db.session.commit()
 
@@ -607,6 +607,7 @@ def add_visit_general():
         # 2. Add Visit Pregnancy
         new_general_visit = VisitGeneral(
             visit_id=new_visit.visit_id,
+            gr_id = medical_record.record_id,
             subjective=data.get('subjective'),
             objective=data.get('objective'),
             assessment=data.get('assessment'),
@@ -707,10 +708,10 @@ def update_general_visit_report(uuid):
         new_assessment = data.get('assessment', '')
         new_plan = data.get('plan', '')
 
-        current_general_visit.subjective = encrypt_data(new_subjective)
-        current_general_visit.objective = encrypt_data(new_objective)
-        current_general_visit.assessment = encrypt_data(new_assessment)
-        current_general_visit.plan = encrypt_data(new_plan)
+        current_general_visit.subjective = new_subjective
+        current_general_visit.objective = new_objective
+        current_general_visit.assessment = new_assessment
+        current_general_visit.plan = new_plan
 
         db.session.commit()
 

@@ -60,7 +60,6 @@ const MedicalRecord = () => {
 
   const currentItems = totalDataList.slice(indexOfFirstItem, indexOfLastItem);
 
-  // Fetch all medical records on component mount
   useEffect(() => {
     const fetchMedicalRecord = async () => {
       try {
@@ -78,11 +77,9 @@ const MedicalRecord = () => {
     fetchMedicalRecord();
   }, []);
 
-  // Error state display
   if (error)
     return <div className="p-8 text-center text-red-500">Error: {error}</div>;
 
-  // Handle form submission for record type
   const handleSubmitRecordType = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -119,7 +116,6 @@ const MedicalRecord = () => {
     }
   };
 
-  // Search for patients by query
   const handleSearch = async (query: string) => {
     if (query.length < 3) return;
     try {
@@ -131,15 +127,13 @@ const MedicalRecord = () => {
       const msg =
         err.response?.data?.msg || err.message || "Gagal mencari pasien";
       setError(msg);
-    }
+    } 
   };
 
-  // Navigate to record detail page
   const handleViewRecordDetail = (rmId: string) => {
     router.push(`/medical-record/${rmId}`);
   };
 
-  // Handle filter change for record type
   const handleFilterChange = async (type: string, label: string) => {
     setSelectedRMValue(type);
     setSelectedRMLabel(label);
@@ -158,13 +152,11 @@ const MedicalRecord = () => {
   const getPageNumbers = () => {
     const pageNumbers = [];
 
-    // Jika total halaman sedikit (misal <= 4), tampilkan semua tanpa titik-titik
     if (totalPages <= 4) {
       for (let i = 1; i <= totalPages; i++) {
         pageNumbers.push(i);
       }
     } else {
-      // 1. Jika aktif di Halaman 1 atau 2 (Awal banget)
       if (currentPage <= 2) {
         pageNumbers.push(1);
         pageNumbers.push(2);
@@ -172,7 +164,6 @@ const MedicalRecord = () => {
         pageNumbers.push("...");
         pageNumbers.push(totalPages);
       }
-      // 2. Jika aktif di Halaman 3 (Mencegah elipsis aneh antara angka 1 dan 2)
       else if (currentPage === 3) {
         pageNumbers.push(1);
         pageNumbers.push(2);
@@ -181,7 +172,6 @@ const MedicalRecord = () => {
         pageNumbers.push("...");
         pageNumbers.push(totalPages);
       }
-      // 3. Jika aktif di Halaman Akhir-akhir (misal halaman 15 atau 16)
       else if (currentPage >= totalPages - 1) {
         pageNumbers.push(1);
         pageNumbers.push("...");
@@ -189,7 +179,6 @@ const MedicalRecord = () => {
         pageNumbers.push(totalPages - 1);
         pageNumbers.push(totalPages);
       }
-      // 4. Jika aktif di Halaman Batas Akhir (misal halaman 14 dari 16)
       else if (currentPage === totalPages - 2) {
         pageNumbers.push(1);
         pageNumbers.push("...");
@@ -198,7 +187,6 @@ const MedicalRecord = () => {
         pageNumbers.push(totalPages - 1);
         pageNumbers.push(totalPages);
       }
-      // 5. Jika aktif di Tengah-tengah (True Middle)
       else {
         pageNumbers.push(1);
         pageNumbers.push("...");
@@ -213,7 +201,7 @@ const MedicalRecord = () => {
     return pageNumbers;
   };
 
-  // Main render function
+
   return (
     <div>
       <div className="flex-1 flex flex-col  w-full  gap-5">
@@ -268,14 +256,7 @@ const MedicalRecord = () => {
                 <span>Tambah Rekam Medis</span>
               </button>
 
-              <button
-                type="button"
-                disabled={loading || medicalRecordList.length === 0}
-                className="flex min-h-[38px] items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Download className="w-4" />
-                <span>Download</span>
-              </button>
+              
             </div>
           </div>
           <div className="hidden w-full overflow-x-auto lg:block">

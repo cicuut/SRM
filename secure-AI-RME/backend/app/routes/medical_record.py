@@ -1063,4 +1063,204 @@ def filter_rm_type():
 
     except Exception as e:
         print(f"Filter Error: {str(e)}")
-        return jsonify({"msg": "Gagal memfilter data", "error": str(e)}), 50
+        return jsonify({"msg": "Gagal memfilter data", "error": str(e)}), 500
+
+@medical_record_bp.route('/update-patient-data/<uuid>', methods=['PUT'])
+@jwt_required()
+def update_patient_and_family_data(uuid):
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"msg": "Payload data tidak boleh kosong"}), 400
+
+        record = MedicalRecord.query.filter_by(record_id=uuid).first()
+        if not record:
+            return jsonify({"msg": "Data rekam medis tidak ditemukan"}), 404
+        
+        target_patient_id = record.patient_id
+
+        patient = Patient.query.filter_by(patient_id=target_patient_id).first()
+        if not patient:
+            return jsonify({"msg": "Data profil pasien tidak ditemukan"}), 404
+
+        patient.patient_name = data.get('patient_name', patient.patient_name)
+        patient.birth_date = parse_date(data.get('birthdate'))  
+        patient.national_id = data.get('nik', patient.national_id) 
+        patient.gender = data.get('gender', patient.gender)
+        patient.patient_number = data.get('patient_number', patient.patient_number)
+        patient.address = data.get('address', patient.address)
+        patient.education_level = data.get('education', patient.education_level)  
+        patient.occupation = data.get('occupation', patient.occupation)
+        patient.insurance_number = data.get('bpjs_number', patient.insurance_number)  
+        patient.primary_health_facility = data.get('primary_healthcare', patient.primary_health_facility)  
+
+        
+        family_id = patient.family_link_id
+        family = None
+
+        if family_id:
+          family = Patient.query.filter_by(patient_id=family_id).first()
+
+        if not family and data.get('family_name'):
+            family = Patient(
+                role='family',
+                clinic_id=patient.clinic_id 
+            )
+            db.session.add(family)
+            db.session.flush()  
+            
+            patient.family_link_id = family.patient_id
+
+        if family:
+            family.patient_name = data.get('family_name', family.patient_name)
+            family.birth_date = parse_date(data.get('family_birthdate')) 
+            family.national_id = data.get('family_nik', family.national_id)  
+            family.gender = data.get('family_gender', family.gender)
+            family.relation = data.get('relation', family.relation)
+            family.address = data.get('family_address', family.address)
+            family.patient_number = data.get('family_number', family.patient_number)
+            family.education_level = data.get('family_education', family.education_level)
+            family.occupation = data.get('family_occupation', family.occupation)
+
+        db.session.commit()
+
+        return jsonify({
+            "msg": "Informasi rekam medis pasien dan keluarga berhasil diperbarui",
+            "patient_id": uuid
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "msg": "Terjadi kesalahan pada server", 
+            "error": str(e)
+        }), 500
+    
+@medical_record_bp.route('/update-pregnancy-record-data/<uuid>', methods=['PUT'])
+@jwt_required()
+def update_pregnancy_record_data(uuid):
+    try:
+        payload = request.get_json()
+        if not payload:
+            return jsonify({"msg": "Payload data tidak boleh kosong"}), 400
+
+        current_preg_data = payload.get('current_pregnancy', {})
+        past_history_data = payload.get('past_obstetric_history', [])
+
+        record = MedicalRecord.query.filter_by(record_id=uuid).first()
+        if not record:
+            return jsonify({"msg": "Data rekam medis tidak ditemukan"}), 404
+        
+        pregnancy_record = PregnancyRecord.query.filter_by(record_id=uuid).first()   
+        if not pregnancy_record:  
+            return jsonify({"msg": "Data rekam medis kehamilan tidak ditemukan"}), 404
+
+        pregnancy_record.contraceptive_history = current_preg_data.get('contraceptive_history', pregnancy_record.contraceptive_history)
+        pregnancy_record.family_med_history = current_preg_data.get('family_med_history', pregnancy_record.family_med_history)
+        pregnancy_record.lab_results = current_preg_data.get('lab_results', pregnancy_record.lab_results)
+        pregnancy_record.diagnosis = current_preg_data.get('diagnosis', pregnancy_record.diagnosis)
+
+        pregnancy_record.registration_date = parse_date(current_preg_data.get('registration_date'))
+        pregnancy_record.tt_screening = current_preg_data.get('tt_screening', pregnancy_record.tt_screening)
+        pregnancy_record.last_menstrual_period = parse_date(current_preg_data.get('last_menstrual_period'))
+        pregnancy_record.expected_due_date = parse_date(current_preg_data.get('expected_due_date'))
+
+        pregnancy_record.pre_preg_weight_kg = clean_float(current_preg_data.get('pre_preg_weight_kg'))
+        pregnancy_record.pre_preg_muac_cm = clean_float(current_preg_data.get('pre_preg_muac_cm'))
+        pregnancy_record.height_cm = clean_float(current_preg_data.get('height_cm'))
+        pregnancy_record.weight_kg = clean_float(current_preg_data.get('weight_kg'))
+        pregnancy_record.muac_cm = clean_float(current_preg_data.get('muac_cm'))
+
+    
+        ObstetricHistory.query.filter_by(pr_id=pregnancy_record.pr_id).delete()
+
+        for index, item in enumerate(past_history_data):
+            if not item.get('gestational_age') and not item.get('delivery_mode'):
+                continue
+
+            new_history = ObstetricHistory(
+                pr_id=pregnancy_record.pr_id, 
+                pregnancy_no=item.get('pregnancy_no') or str(index + 1),
+                gestational_age=item.get('gestational_age'),
+                pregnancy_complications=item.get('pregnancy_complications'),
+                delivery_mode=item.get('delivery_mode'),
+                delivery_complications=item.get('delivery_complications'),
+                postpartum_status=item.get('postpartum_status'),
+                postpartum_complications=item.get('postpartum_complications'),
+                baby_complications=item.get('baby_complications'),
+                baby_weight=clean_float(item.get('baby_weight')),
+                baby_height=clean_float(item.get('baby_height'))
+            )
+            db.session.add(new_history)
+
+        db.session.commit()
+        return jsonify({"msg": "Berhasil diperbarui"}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": "Terjadi kesalahan internal server", "error": str(e)}), 500
+    
+   
+@medical_record_bp.route('/update-family-planning-record-data/<uuid>', methods=['PUT'])
+@jwt_required()
+def update_family_planning_record_data(uuid):
+    try:
+        payload = request.get_json()
+        if not payload:
+            return jsonify({"msg": "Payload data tidak boleh kosong"}), 400
+
+        record = MedicalRecord.query.filter_by(record_id=uuid).first()
+        if not record:
+            return jsonify({"msg": "Data rekam medis tidak ditemukan"}), 404
+        
+        family_planning_record = FamilyPlanningRecord.query.filter_by(record_id=uuid).first()   
+        if not family_planning_record:  
+            return jsonify({"msg": "Data rekam medis KB tidak ditemukan"}), 404
+
+        family_planning_record.number_of_children = clean_float(payload.get('number_of_children', family_planning_record.number_of_children))
+        family_planning_record.youngest_child_age = payload.get('youngest_child_age', family_planning_record.youngest_child_age)
+        family_planning_record.family_med_history = payload.get('family_med_history', family_planning_record.family_med_history)
+    
+
+        db.session.commit()
+        return jsonify({"msg": "Berhasil diperbarui"}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": "Terjadi kesalahan internal server", "error": str(e)}), 500
+    
+@medical_record_bp.route('/update-delivery-record-data/<uuid>', methods=['PUT'])
+@jwt_required()
+def update_delivery_record_data(uuid):
+    try:
+        payload = request.get_json()
+        if not payload:
+            return jsonify({"msg": "Payload data tidak boleh kosong"}), 400
+
+        record = MedicalRecord.query.filter_by(record_id=uuid).first()
+        if not record:
+            return jsonify({"msg": "Data rekam medis tidak ditemukan"}), 404
+        
+        delivery_record = DeliveryRecord.query.filter_by(record_id=uuid).first()   
+        if not delivery_record:  
+            return jsonify({"msg": "Data rekam medis persalinan tidak ditemukan"}), 404
+
+        delivery_record.delivery_date = payload.get('delivery_date', delivery_record.delivery_date)
+        delivery_record.delivery_type = payload.get('delivery_type', delivery_record.delivery_type)
+        delivery_record.deliver_complications = payload.get('deliver_complications', delivery_record.deliver_complications)
+        delivery_record.baby_gender = payload.get('baby_gender', delivery_record.baby_gender)
+        delivery_record.vit_k_given = payload.get('vit_k_given', delivery_record.vit_k_given)
+        delivery_record.baby_weight = clean_float(payload.get('baby_weight', delivery_record.baby_weight))
+        delivery_record.hbo_given = payload.get('hbo_given', delivery_record.hbo_given)
+        delivery_record.baby_length = clean_float(payload.get('baby_length', delivery_record.baby_length))
+        delivery_record.apgar_score = payload.get('apgar_score', delivery_record.apgar_score)
+        delivery_record.eye_ointment = payload.get('eye_ointment', delivery_record.eye_ointment)
+        delivery_record.imd = payload.get('imd', delivery_record.imd)
+        delivery_record.baby_complications = payload.get('baby_complications', delivery_record.baby_complications)
+
+        db.session.commit()
+        return jsonify({"msg": "Berhasil diperbarui"}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": "Terjadi kesalahan internal server", "error": str(e)}), 500

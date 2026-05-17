@@ -859,7 +859,7 @@ const DetailInvoicePage = () => {
                             type="button"
                             onClick={() => setShowDeleteConfirm(true)}
                             disabled={isSaving || isDeleting}
-                            className="h-[38px] rounded-[30px] border border-red-200 bg-white px-5 text-[12px] font-bold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="h-9.5 rounded-[30px] border border-red-200 bg-white px-5 text-[12px] font-bold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             Hapus Invoice
                         </button>
@@ -869,7 +869,7 @@ const DetailInvoicePage = () => {
                                 type="button"
                                 onClick={() => router.push('/financial-report')}
                                 disabled={isSaving || isDeleting}
-                                className="h-[38px] rounded-[30px] border border-[#BFC7BB] bg-white px-5 text-[12px] font-bold text-[#4B4B4B] hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-60"
+                                className="h-9.5 rounded-[30px] border border-[#BFC7BB] bg-white px-5 text-[12px] font-bold text-[#4B4B4B] hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-60"
                             >
                                 Kembali
                             </button>
@@ -877,7 +877,7 @@ const DetailInvoicePage = () => {
                             <button
                                 type="submit"
                                 disabled={isSaving || isDeleting || !isChanged}
-                                className="h-[38px] rounded-[30px] bg-[#739072] px-5 text-[12px] font-bold text-white hover:bg-[#5F785F] disabled:cursor-not-allowed disabled:opacity-60"
+                                className="h-9.5 rounded-[30px] bg-[#739072] px-5 text-[12px] font-bold text-white hover:bg-[#5F785F] disabled:cursor-not-allowed disabled:opacity-60"
                             >
                                 {isSaving
                                     ? 'Menyimpan...'
@@ -890,7 +890,7 @@ const DetailInvoicePage = () => {
 
             {showDeleteConfirm && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-                    <div className="w-full max-w-[420px] rounded-[16px] bg-white px-6 py-6 shadow-xl">
+                    <div className="w-full max-w-105 rounded-2xl bg-white px-6 py-6 shadow-xl">
                         <h2 className="text-[20px] font-bold text-[#2F3A2F]">
                             Hapus Invoice?
                         </h2>
@@ -909,7 +909,7 @@ const DetailInvoicePage = () => {
                                 type="button"
                                 onClick={() => setShowDeleteConfirm(false)}
                                 disabled={isDeleting}
-                                className="h-[38px] rounded-[30px] border border-[#BFC7BB] bg-white px-5 text-[12px] font-bold text-[#4B4B4B] hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-60"
+                                className="h-9.5 rounded-[30px] border border-[#BFC7BB] bg-white px-5 text-[12px] font-bold text-[#4B4B4B] hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-60"
                             >
                                 Batal
                             </button>
@@ -918,7 +918,7 @@ const DetailInvoicePage = () => {
                                 type="button"
                                 onClick={handleDelete}
                                 disabled={isDeleting}
-                                className="h-[38px] rounded-[30px] bg-red-600 px-5 text-[12px] font-bold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                className="h-9.5 rounded-[30px] bg-red-600 px-5 text-[12px] font-bold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                             >
                                 {isDeleting ? 'Menghapus...' : 'Ya, Hapus'}
                             </button>

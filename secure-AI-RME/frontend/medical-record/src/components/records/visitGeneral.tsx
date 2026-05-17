@@ -1,8 +1,5 @@
 "use client";
-import React from "react";
 import { useState, useEffect } from "react";
-import { emit } from "process";
-import Cookies from "js-cookie";
 import { useParams } from "next/navigation";
 import Accordion from "@mui/material/Accordion";
 import AccordionDetails from "@mui/material/AccordionDetails";
@@ -112,7 +109,7 @@ const VisitGeneralAccordition = () => {
                   </tr>
                   <tr>
                     <td colSpan={3}>
-                      <div className="min-h-10 p-2 overflow-y-auto text-wrap rounded-md bg-white  border border-gray-300 focus:outline-none focus:ring-2">
+                      <div className="min-h-10 p-2 overflow-y-auto text-wrap rounded-md bg-white  wrap-break-word whitespace-pre-wrap border border-gray-300 focus:outline-none focus:ring-2">
                         {visitGeneral.subjective}
                       </div>
                     </td>
@@ -123,7 +120,7 @@ const VisitGeneralAccordition = () => {
                   </tr>
                   <tr>
                     <td colSpan={3}>
-                      <div className="min-h-10 p-2 overflow-y-auto text-wrap rounded-md bg-white  border border-gray-300 focus:outline-none focus:ring-2">
+                      <div className="min-h-10 p-2 overflow-y-auto text-wrap rounded-md bg-white wrap-break-word whitespace-pre-wrap  border border-gray-300 focus:outline-none focus:ring-2">
                         {visitGeneral.objective}
                       </div>
                     </td>
@@ -134,7 +131,7 @@ const VisitGeneralAccordition = () => {
                   </tr>
                   <tr>
                     <td colSpan={3}>
-                      <div className="min-h-10 p-2 overflow-y-auto text-wrap rounded-md bg-white  border border-gray-300 focus:outline-none focus:ring-2">
+                      <div className="min-h-10 p-2 overflow-y-auto text-wrap wrap-break-word whitespace-pre-wrap rounded-md bg-white  border border-gray-300 focus:outline-none focus:ring-2">
                         {visitGeneral.assessment}
                       </div>
                     </td>
@@ -145,7 +142,7 @@ const VisitGeneralAccordition = () => {
                   </tr>
                   <tr>
                     <td colSpan={3}>
-                      <div className="min-h-10 p-2 overflow-y-auto text-wrap rounded-md bg-white border border-gray-300 focus:outline-none focus:ring-2">
+                      <div className="min-h-10 p-2 overflow-y-auto text-wrap rounded-md wrap-break-word whitespace-pre-wrap bg-white border border-gray-300 focus:outline-none focus:ring-2">
                         {visitGeneral.plan}
                       </div>
                     </td>

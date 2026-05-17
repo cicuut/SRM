@@ -68,7 +68,6 @@ const VisitGeneralDetail = () => {
 
         setVisitGeneralDetail(data);
 
-        // Map data dari API ke dalam state form pengetikan
         const initialFormValues = {
           subjective: data?.subjective || "",
           objective: data?.objective || "",
@@ -77,7 +76,7 @@ const VisitGeneralDetail = () => {
         };
 
         setFormData(initialFormValues);
-        setOriginalFormData(initialFormValues); // Kunci data awal sebagai baseline pembanding
+        setOriginalFormData(initialFormValues); 
       } catch (err: any) {
         setError(
           err.response?.data?.msg || err.message || "Gagal memuat rekam medis",
@@ -89,20 +88,17 @@ const VisitGeneralDetail = () => {
     fetchPatientData();
   }, [uuid]);
 
-  // Handler melacak ketikan di textarea
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Handler membatalkan semua perubahan data murni di frontend
   const handleCancelChanges = () => {
     if (originalFormData) {
       setFormData(originalFormData);
     }
   };
 
-  // Handler mengirimkan seluruh pembaruan data ke backend Flask
   const handleSaveAll = async () => {
     if (!uuid) return;
     try {
@@ -121,7 +117,7 @@ const VisitGeneralDetail = () => {
           confirmButtonColor: "#739072",
         });
 
-        setOriginalFormData(formData); // Amankan data baru sebagai baseline
+        setOriginalFormData(formData); 
       }
     } catch (err: any) {
       alert(
@@ -308,7 +304,7 @@ const VisitGeneralDetail = () => {
           ) : (
             <button
               type="button"
-              onClick={() => router.push("/visit-report")}
+              onClick={() => router.push("/daily-report")}
               disabled={isSaving || isDeleting}
               className="h-[38px] rounded-[30px] border border-[#BFC7BB] bg-white px-5 text-[12px] font-bold text-[#4B4B4B] hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-60"
             >
