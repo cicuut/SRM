@@ -493,37 +493,6 @@ const FinancialReport = () => {
         statusFilter,
     ]);
 
-<<<<<<< HEAD
-    const summaryData = useMemo<SummaryData>(() => {
-        return filteredTransactions.reduce(
-            (summary, transaction) => {
-                const amount = Number(transaction.amount || 0);
-                const type = safeLower(transaction.trans_type);
-
-                summary.totalRecords += 1;
-                summary.totalAmount += amount;
-
-                if (type === 'income' || type === 'pemasukan') {
-                    summary.incomeAmount += amount;
-                }
-
-                if (type === 'expense' || type === 'pengeluaran') {
-                    summary.outcomeAmount += amount;
-                }
-
-                return summary;
-            },
-            {
-                totalRecords: 0,
-                totalAmount: 0,
-                incomeAmount: 0,
-                outcomeAmount: 0,
-            },
-        );
-    }, [filteredTransactions]);
-
-=======
->>>>>>> origin/financial3-filter
     const activeFilterCount = useMemo(() => {
         return [typeFilter, methodFilter, statusFilter].filter(
             (value) => value !== 'all',
