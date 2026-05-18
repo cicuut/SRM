@@ -28,6 +28,7 @@ type Employee = {
     strnumber?: string | null;
     clinic_id?: string | null;
     is_active: boolean;
+    profile_photo?: string | null;
     created_at?: string | null;
     last_login?: string | null;
     is_current_user?: boolean;
@@ -143,6 +144,39 @@ const getInitials = (name: string) => {
     return initials || 'U';
 };
 
+const UserAvatar = ({
+    name,
+    photo,
+    size = 'md',
+}: {
+    name: string;
+    photo?: string | null;
+    size?: 'sm' | 'md' | 'lg';
+}) => {
+    const sizeClassName =
+        size === 'lg'
+            ? 'h-[54px] w-[54px] text-[20px]'
+            : size === 'sm'
+              ? 'h-[36px] w-[36px] text-[12px]'
+              : 'h-[38px] w-[38px] text-[12px]';
+
+    return (
+        <div
+            className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#D2E3C8] font-bold text-[#4F6F52] shadow-sm ${sizeClassName}`}
+        >
+            {photo ? (
+                <img
+                    src={photo}
+                    alt={name}
+                    className="h-full w-full object-cover"
+                />
+            ) : (
+                getInitials(name)
+            )}
+        </div>
+    );
+};
+
 const mapClinicToForm = (clinic: ClinicData | null): ClinicFormData => {
     if (!clinic) {
         return emptyClinicForm;
@@ -240,6 +274,7 @@ const ManagementSetting = () => {
         localStorage.removeItem('user_email');
         localStorage.removeItem('user_role');
         localStorage.removeItem('clinic_id');
+        localStorage.removeItem('profile_photo');
 
         router.push('/login');
     };
@@ -819,11 +854,15 @@ const ManagementSetting = () => {
                                                         >
                                                             <td className="px-5 py-4 text-left">
                                                                 <div className="flex min-w-0 items-center gap-3">
-                                                                    <div className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full bg-[#D2E3C8] text-[12px] font-bold text-[#4F6F52]">
-                                                                        {getInitials(
-                                                                            employee.fullname,
-                                                                        )}
-                                                                    </div>
+                                                                    <UserAvatar
+                                                                        name={
+                                                                            employee.fullname
+                                                                        }
+                                                                        photo={
+                                                                            employee.profile_photo
+                                                                        }
+                                                                        size="sm"
+                                                                    />
 
                                                                     <div className="min-w-0">
                                                                         <p className="truncate text-[13px] font-bold">
@@ -914,11 +953,15 @@ const ManagementSetting = () => {
                                                 className="rounded-[16px] border border-[#E4E8E1] bg-white px-4 py-4 text-left shadow-sm transition-all hover:border-[#86A789] hover:bg-[#F8FAF6]"
                                             >
                                                 <div className="flex items-start gap-3">
-                                                    <div className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-[#D2E3C8] text-[12px] font-bold text-[#4F6F52]">
-                                                        {getInitials(
-                                                            employee.fullname,
-                                                        )}
-                                                    </div>
+                                                    <UserAvatar
+                                                        name={
+                                                            employee.fullname
+                                                        }
+                                                        photo={
+                                                            employee.profile_photo
+                                                        }
+                                                        size="md"
+                                                    />
 
                                                     <div className="min-w-0 flex-1">
                                                         <p className="truncate text-[13px] font-bold text-black">
@@ -1225,9 +1268,11 @@ const ManagementSetting = () => {
 
                         <div className="border-b border-[#E4E8E1] px-[26px] py-[22px]">
                             <div className="flex items-start gap-4">
-                                <div className="flex h-[54px] w-[54px] shrink-0 items-center justify-center rounded-full bg-[#D2E3C8] text-[20px] font-bold text-[#4F6F52] shadow-sm">
-                                    {getInitials(selectedEmployee.fullname)}
-                                </div>
+                                <UserAvatar
+                                    name={selectedEmployee.fullname}
+                                    photo={selectedEmployee.profile_photo}
+                                    size="lg"
+                                />
 
                                 <div className="min-w-0 pr-8">
                                     <h2 className="truncate text-[22px] font-bold leading-tight text-[#4F6F52]">

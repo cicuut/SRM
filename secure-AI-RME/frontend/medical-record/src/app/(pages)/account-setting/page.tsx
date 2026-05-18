@@ -14,6 +14,9 @@ type AccountFormData = {
     email: string;
     strnumber: string;
     role: string;
+};
+
+type PasswordFormData = {
     currentPassword: string;
     newPassword: string;
     confirmNewPassword: string;
@@ -48,23 +51,12 @@ type AccountApiResponse = {
     clinic?: ClinicData | null;
 };
 
-type FieldConfig = {
+type PersonalFieldConfig = {
     label: string;
     name: keyof AccountFormData;
     type?: string;
-    fullWidth?: boolean;
     autoComplete?: string;
     readOnly?: boolean;
-};
-
-type SectionCardProps = {
-    title: string;
-    description: string;
-    fields: FieldConfig[];
-    formData: AccountFormData;
-    onChange: (event: ChangeEvent<HTMLInputElement>) => void;
-    disabled?: boolean;
-    className?: string;
 };
 
 type InfoItemProps = {
@@ -72,24 +64,20 @@ type InfoItemProps = {
     value?: string | null;
 };
 
-type ClinicSummaryProps = {
-    clinic: ClinicData | null;
-};
-
-const emptyFormData: AccountFormData = {
+const emptyAccountForm: AccountFormData = {
     fullname: '',
     email: '',
     strnumber: '',
     role: '',
+};
+
+const emptyPasswordForm: PasswordFormData = {
     currentPassword: '',
     newPassword: '',
     confirmNewPassword: '',
 };
 
-const inputClassName =
-    'mt-[6px] h-[28px] w-full min-w-0 box-border rounded-[4px] border border-[#BFC7BB] bg-white px-2 text-[11px] text-[#222222] shadow-sm outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072]';
-
-const personalFields: FieldConfig[] = [
+const personalFields: PersonalFieldConfig[] = [
     {
         label: 'Full Name',
         name: 'fullname',
@@ -105,34 +93,15 @@ const personalFields: FieldConfig[] = [
         label: 'STR Number',
         name: 'strnumber',
     },
-    {
-        label: 'Role',
-        name: 'role',
-        readOnly: true,
-    },
 ];
 
-const passwordFields: FieldConfig[] = [
-    {
-        label: 'Current Password',
-        name: 'currentPassword',
-        type: 'password',
-        fullWidth: true,
-        autoComplete: 'current-password',
-    },
-    {
-        label: 'New Password',
-        name: 'newPassword',
-        type: 'password',
-        autoComplete: 'new-password',
-    },
-    {
-        label: 'Confirm New Password',
-        name: 'confirmNewPassword',
-        type: 'password',
-        autoComplete: 'new-password',
-    },
-];
+const inputClassName =
+    'mt-[8px] h-[34px] w-full min-w-0 box-border rounded-[6px] border border-[#BFC7BB] bg-white px-3 text-[12px] text-[#222222] shadow-sm outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072] disabled:cursor-not-allowed disabled:bg-[#F8FAF6] disabled:opacity-70';
+
+const readonlyInputClassName =
+    'mt-[8px] h-[34px] w-full min-w-0 cursor-not-allowed rounded-[6px] border border-[#D2D8CF] bg-[#F8FAF6] px-3 text-[12px] text-[#5F5F5F] shadow-sm outline-none';
+
+const labelClassName = 'text-[11px] font-bold text-black';
 
 const readJson = async (response: Response) => {
     try {
@@ -176,18 +145,23 @@ const mapApiDataToForm = (data: AccountApiResponse): AccountFormData => {
         email: data.user?.email || '',
         strnumber: data.user?.strnumber || '',
         role,
-        currentPassword: '',
-        newPassword: '',
-        confirmNewPassword: '',
     };
 };
 
-const wantsPasswordChange = (formData: AccountFormData) => {
-    return Boolean(
-        formData.currentPassword ||
-            formData.newPassword ||
-            formData.confirmNewPassword,
-    );
+const fileToDataUrl = (file: File) => {
+    return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onload = () => {
+            resolve(String(reader.result || ''));
+        };
+
+        reader.onerror = () => {
+            reject(new Error('Gagal membaca file gambar'));
+        };
+
+        reader.readAsDataURL(file);
+    });
 };
 
 const InfoItem = ({ label, value }: InfoItemProps) => {
@@ -204,114 +178,26 @@ const InfoItem = ({ label, value }: InfoItemProps) => {
     );
 };
 
-const SectionCard = ({
-    title,
-    description,
-    fields,
-    formData,
-    onChange,
-    disabled = false,
-    className = '',
-}: SectionCardProps) => {
-    return (
-        <section
-            className={`box-border w-full max-w-full rounded-[8px] border border-[#D2D8CF] bg-white px-4 py-[28px] shadow-sm sm:px-[30px] ${className}`}
-        >
-            <h2 className="text-[16px] leading-none font-bold text-black">
-                {title}
-            </h2>
-
-            <p className="mt-[8px] text-[10px] leading-snug text-black">
-                {description}
-            </p>
-
-            <div className="mt-[22px] grid w-full min-w-0 grid-cols-1 gap-x-[52px] gap-y-[14px] md:grid-cols-2">
-                {fields.map((field) => {
-                    const isReadOnly = Boolean(field.readOnly);
-                    const fieldValue =
-                        field.name === 'role'
-                            ? formatRole(formData.role)
-                            : formData[field.name];
-
-                    return (
-                        <label
-                            key={field.name}
-                            className={`block min-w-0 ${
-                                field.fullWidth ? 'md:col-span-2' : ''
-                            }`}
-                        >
-                            <span className="text-[10px] font-medium text-black">
-                                {field.label}
-                            </span>
-
-                            <input
-                                name={field.name}
-                                type={field.type || 'text'}
-                                value={fieldValue}
-                                onChange={onChange}
-                                readOnly={isReadOnly}
-                                disabled={disabled}
-                                autoComplete={field.autoComplete || 'off'}
-                                className={`${inputClassName} ${
-                                    isReadOnly
-                                        ? 'cursor-not-allowed bg-[#F2F4F0] text-[#6B6B6B]'
-                                        : ''
-                                } ${
-                                    disabled
-                                        ? 'cursor-not-allowed opacity-70'
-                                        : ''
-                                }`}
-                            />
-                        </label>
-                    );
-                })}
-            </div>
-        </section>
-    );
-};
-
-const ClinicSummary = ({ clinic }: ClinicSummaryProps) => {
-    return (
-        <section className="mt-[26px] box-border w-full max-w-full rounded-[8px] border border-[#D2D8CF] bg-white px-4 py-[28px] shadow-sm sm:px-[30px]">
-            <div>
-                <h2 className="text-[16px] leading-none font-bold text-black">
-                    Clinic Summary
-                </h2>
-
-                <p className="mt-[8px] text-[10px] leading-snug text-black">
-                    Data klinik ditampilkan di sini sebagai informasi akun.
-                </p>
-            </div>
-
-            <div className="mt-[22px] grid w-full min-w-0 grid-cols-1 gap-x-[52px] gap-y-[16px] md:grid-cols-2">
-                <InfoItem label="Clinic Name" value={clinic?.clinic_name} />
-                <InfoItem label="SIPB No" value={clinic?.license_number} />
-                <InfoItem label="Clinic Email" value={clinic?.clinic_email} />
-                <InfoItem label="Clinic Phone" value={clinic?.clinic_phone} />
-
-                <div className="md:col-span-2">
-                    <InfoItem
-                        label="Clinic Address"
-                        value={clinic?.clinic_address}
-                    />
-                </div>
-            </div>
-        </section>
-    );
-};
-
 const AccountSetting = () => {
     const router = useRouter();
     const fileInputRef = useRef<HTMLInputElement | null>(null);
 
     const [formData, setFormData] =
-        useState<AccountFormData>(emptyFormData);
+        useState<AccountFormData>(emptyAccountForm);
+
+    const [passwordForm, setPasswordForm] =
+        useState<PasswordFormData>(emptyPasswordForm);
+
     const [clinic, setClinic] = useState<ClinicData | null>(null);
     const [profilePhoto, setProfilePhoto] = useState('');
 
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isUpdatingPhoto, setIsUpdatingPhoto] = useState(false);
+    const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+    const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+
     const [errorMessage, setErrorMessage] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
 
@@ -319,7 +205,8 @@ const AccountSetting = () => {
     const displayRole = formatRole(formData.role);
     const initials = getInitials(displayName);
 
-    const showLoadingOverlay = isLoading || isSubmitting || isUpdatingPhoto;
+    const showLoadingOverlay =
+        isLoading || isSubmitting || isUpdatingPhoto || isChangingPassword;
 
     const getToken = () => {
         return Cookies.get('access_token');
@@ -353,6 +240,8 @@ const AccountSetting = () => {
             localStorage.setItem('profile_photo', data.user.profile_photo);
             setProfilePhoto(data.user.profile_photo);
         }
+
+        window.dispatchEvent(new Event('profile-photo-updated'));
     };
 
     const fetchAccountData = async () => {
@@ -439,13 +328,29 @@ const AccountSetting = () => {
 
         const { value } = event.target;
 
+        setSuccessMessage('');
+        setErrorMessage('');
+
         setFormData((prevData) => ({
             ...prevData,
             [fieldName]: value,
         }));
     };
 
-    const validateForm = () => {
+    const handlePasswordChange = (event: ChangeEvent<HTMLInputElement>) => {
+        const fieldName = event.target.name as keyof PasswordFormData;
+        const { value } = event.target;
+
+        setSuccessMessage('');
+        setErrorMessage('');
+
+        setPasswordForm((prevData) => ({
+            ...prevData,
+            [fieldName]: value,
+        }));
+    };
+
+    const validateProfileForm = () => {
         if (!formData.fullname.trim()) {
             return 'Full name wajib diisi';
         }
@@ -462,26 +367,28 @@ const AccountSetting = () => {
             return 'STR number wajib diisi';
         }
 
-        if (wantsPasswordChange(formData)) {
-            if (
-                !formData.currentPassword ||
-                !formData.newPassword ||
-                !formData.confirmNewPassword
-            ) {
-                return 'Semua field password wajib diisi jika ingin mengganti password';
-            }
+        return '';
+    };
 
-            if (formData.newPassword.length < 8) {
-                return 'Password baru minimal 8 karakter';
-            }
+    const validatePasswordForm = () => {
+        if (
+            !passwordForm.currentPassword ||
+            !passwordForm.newPassword ||
+            !passwordForm.confirmNewPassword
+        ) {
+            return 'Semua field password wajib diisi';
+        }
 
-            if (formData.newPassword !== formData.confirmNewPassword) {
-                return 'Konfirmasi password baru tidak sama';
-            }
+        if (passwordForm.newPassword.length < 8) {
+            return 'Password baru minimal 8 karakter';
+        }
 
-            if (formData.currentPassword === formData.newPassword) {
-                return 'Password baru tidak boleh sama dengan password lama';
-            }
+        if (passwordForm.newPassword !== passwordForm.confirmNewPassword) {
+            return 'Konfirmasi password baru tidak sama';
+        }
+
+        if (passwordForm.currentPassword === passwordForm.newPassword) {
+            return 'Password baru tidak boleh sama dengan password lama';
         }
 
         return '';
@@ -515,85 +422,105 @@ const AccountSetting = () => {
         return data;
     };
 
-    const changePassword = async (token: string) => {
-        if (!wantsPasswordChange(formData)) {
-            return;
-        }
-
-        const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
+    const updateProfilePhotoToBackend = async (
+        token: string,
+        photoDataUrl: string,
+    ) => {
+        const response = await fetch(`${API_BASE_URL}/auth/me`, {
             method: 'PATCH',
             headers: {
                 Authorization: `Bearer ${token}`,
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                current_password: formData.currentPassword,
-                new_password: formData.newPassword,
-                confirm_new_password: formData.confirmNewPassword,
+                profile_photo: photoDataUrl,
             }),
         });
 
-        const data = await readJson(response);
+        const data = (await readJson(response)) as AccountApiResponse;
 
         if (response.status === 401 || response.status === 422) {
             handleUnauthorized();
-            return;
+            return null;
         }
 
         if (!response.ok) {
-            throw new Error(data?.msg || 'Gagal mengganti password');
+            throw new Error(
+                data?.msg ||
+                    'Foto sudah berubah di tampilan, tapi backend belum menerima field profile_photo.',
+            );
         }
+
+        return data;
     };
 
     const handleUpdatePhotoClick = () => {
         fileInputRef.current?.click();
     };
 
-    const handlePhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const handlePhotoChange = async (
+        event: ChangeEvent<HTMLInputElement>,
+    ) => {
         const file = event.target.files?.[0];
 
         if (!file) return;
-
-        if (!file.type.startsWith('image/')) {
-            setErrorMessage('File harus berupa gambar');
-            event.target.value = '';
-            return;
-        }
-
-        if (file.size > 2 * 1024 * 1024) {
-            setErrorMessage('Ukuran foto maksimal 2MB');
-            event.target.value = '';
-            return;
-        }
 
         try {
             setIsUpdatingPhoto(true);
             setErrorMessage('');
             setSuccessMessage('');
 
-            const reader = new FileReader();
+            if (!file.type.startsWith('image/')) {
+                throw new Error('File harus berupa gambar');
+            }
 
-            reader.onload = () => {
-                const result = String(reader.result || '');
+            if (file.size > 2 * 1024 * 1024) {
+                throw new Error('Ukuran foto maksimal 2MB');
+            }
 
-                setProfilePhoto(result);
-                localStorage.setItem('profile_photo', result);
-                window.dispatchEvent(new Event('profile-photo-updated'));
+            const token = getToken();
+
+            if (!token) {
+                handleUnauthorized();
+                return;
+            }
+
+            const photoDataUrl = await fileToDataUrl(file);
+
+            setProfilePhoto(photoDataUrl);
+            localStorage.setItem('profile_photo', photoDataUrl);
+            window.dispatchEvent(new Event('profile-photo-updated'));
+
+            try {
+                const updatedData = await updateProfilePhotoToBackend(
+                    token,
+                    photoDataUrl,
+                );
+
+                if (updatedData?.user) {
+                    syncLocalStorage(updatedData);
+                }
 
                 setSuccessMessage('Profile photo berhasil diperbarui');
-                setIsUpdatingPhoto(false);
-                event.target.value = '';
-            };
+            } catch (backendError) {
+                const message =
+                    backendError instanceof Error
+                        ? backendError.message
+                        : 'Foto berubah di browser, tapi belum tersimpan ke backend';
 
-            reader.onerror = () => {
-                setErrorMessage('Gagal membaca file gambar');
-                setIsUpdatingPhoto(false);
-                event.target.value = '';
-            };
+                setSuccessMessage(
+                    'Profile photo berhasil diperbarui di tampilan browser.',
+                );
+                setErrorMessage(message);
+            }
+        } catch (error) {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : 'Terjadi kesalahan saat update photo';
 
-            reader.readAsDataURL(file);
-        } catch {
-            setErrorMessage('Terjadi kesalahan saat update photo');
+            setErrorMessage(message);
+        } finally {
             setIsUpdatingPhoto(false);
             event.target.value = '';
         }
@@ -607,7 +534,7 @@ const AccountSetting = () => {
             setErrorMessage('');
             setSuccessMessage('');
 
-            const validationMessage = validateForm();
+            const validationMessage = validateProfileForm();
 
             if (validationMessage) {
                 setErrorMessage(validationMessage);
@@ -621,25 +548,17 @@ const AccountSetting = () => {
                 return;
             }
 
-            const isChangingPassword = wantsPasswordChange(formData);
-
             const updatedAccount = await updateProfile(token);
 
             if (!updatedAccount) {
                 return;
             }
 
-            await changePassword(token);
-
             setFormData(mapApiDataToForm(updatedAccount));
             setClinic(updatedAccount.clinic || null);
             syncLocalStorage(updatedAccount);
 
-            setSuccessMessage(
-                isChangingPassword
-                    ? 'Account setting dan password berhasil diperbarui'
-                    : 'Account setting berhasil diperbarui',
-            );
+            setSuccessMessage('Account setting berhasil diperbarui');
         } catch (error) {
             const message =
                 error instanceof Error
@@ -652,111 +571,362 @@ const AccountSetting = () => {
         }
     };
 
+    const openPasswordModal = () => {
+        setPasswordForm(emptyPasswordForm);
+        setErrorMessage('');
+        setSuccessMessage('');
+        setIsPasswordModalOpen(true);
+    };
+
+    const closePasswordModal = () => {
+        if (isChangingPassword) return;
+
+        setPasswordForm(emptyPasswordForm);
+        setIsPasswordModalOpen(false);
+    };
+
+    const handleChangePassword = async (
+        event: FormEvent<HTMLFormElement>,
+    ) => {
+        event.preventDefault();
+
+        try {
+            setIsChangingPassword(true);
+            setErrorMessage('');
+            setSuccessMessage('');
+
+            const validationMessage = validatePasswordForm();
+
+            if (validationMessage) {
+                setErrorMessage(validationMessage);
+                return;
+            }
+
+            const token = getToken();
+
+            if (!token) {
+                handleUnauthorized();
+                return;
+            }
+
+            const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
+                method: 'PATCH',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    current_password: passwordForm.currentPassword,
+                    new_password: passwordForm.newPassword,
+                    confirm_new_password: passwordForm.confirmNewPassword,
+                }),
+            });
+
+            const data = await readJson(response);
+
+            if (response.status === 401 || response.status === 422) {
+                handleUnauthorized();
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error(data?.msg || 'Gagal mengganti password');
+            }
+
+            setPasswordForm(emptyPasswordForm);
+            setIsPasswordModalOpen(false);
+            setSuccessMessage('Password berhasil diperbarui');
+        } catch (error) {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : 'Terjadi kesalahan saat mengganti password';
+
+            setErrorMessage(message);
+        } finally {
+            setIsChangingPassword(false);
+        }
+    };
+
     return (
-        <div className="relative box-border w-full max-w-none min-w-0">
-            {showLoadingOverlay && <LoadingOverlay />}
-            <div className="mt-[28px] box-border flex min-h-[104px] w-full max-w-full flex-col gap-[18px] rounded-l-[8px] bg-[#86A789] px-4 py-[22px] shadow-md sm:px-[38px] lg:flex-row lg:items-center lg:justify-between">
-                <div className="flex min-w-0 items-center gap-[22px]">
-                    <div className="relative flex h-[64px] w-[64px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#FDFEF9] text-[24px] font-bold text-[#5F785F]">
-                        {profilePhoto ? (
-                            <img
-                                src={profilePhoto}
-                                alt="Profile photo"
-                                className="h-full w-full object-cover"
-                            />
-                        ) : (
-                            <span>{initials}</span>
-                        )}
+        <>
+            <div className="relative box-border w-full max-w-none min-w-0">
+                {showLoadingOverlay && <LoadingOverlay />}
+
+                <div className="box-border flex min-h-[136px] w-full max-w-full flex-col gap-[18px] rounded-[4px] bg-[#86A789] px-4 py-[22px] shadow-md sm:px-[38px] lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex min-w-0 items-center gap-[22px]">
+                        <div className="relative flex h-[76px] w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#FDFEF9] text-[26px] font-bold text-[#5F785F]">
+                            {profilePhoto ? (
+                                <img
+                                    src={profilePhoto}
+                                    alt="Profile photo"
+                                    className="h-full w-full object-cover"
+                                />
+                            ) : (
+                                <span>{initials}</span>
+                            )}
+                        </div>
+
+                        <div className="min-w-0">
+                            <h2 className="truncate text-[26px] font-bold leading-none text-white">
+                                {isLoading ? 'Loading...' : displayName}
+                            </h2>
+
+                            <p className="mt-[12px] truncate text-[14px] font-bold leading-none text-white">
+                                {isLoading ? 'Loading role...' : displayRole}
+                            </p>
+
+                            <p className="mt-[10px] truncate text-[13px] font-semibold leading-none text-white">
+                                {clinic?.clinic_name || 'Clinic belum tersedia'}
+                            </p>
+                        </div>
                     </div>
 
-                    <div className="min-w-0">
-                        <h2 className="truncate text-[22px] font-bold leading-none text-white">
-                            {isLoading ? 'Loading...' : displayName}
-                        </h2>
+                    <div className="flex flex-wrap items-center gap-[12px] lg:justify-end">
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handlePhotoChange}
+                            className="hidden"
+                        />
 
-                        <p className="mt-[8px] truncate text-[12px] font-medium leading-none text-white">
-                            {isLoading ? 'Loading role...' : displayRole}
-                        </p>
-
-                        <p className="mt-[8px] truncate text-[11px] font-medium leading-none text-white/90">
-                            {clinic?.clinic_name || 'Clinic belum tersedia'}
-                        </p>
+                        <button
+                            type="button"
+                            onClick={handleUpdatePhotoClick}
+                            disabled={isUpdatingPhoto || isLoading}
+                            className="h-[38px] shrink-0 rounded-[50px] bg-white px-[24px] text-[14px] font-bold text-[#5F785F] shadow-sm transition-all hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                            {isUpdatingPhoto ? 'Updating...' : 'Update Photo'}
+                        </button>
                     </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-[12px] lg:justify-end">
-                    <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={handlePhotoChange}
-                        className="hidden"
-                    />
+                {errorMessage && (
+                    <div className="mt-[18px] box-border w-full rounded-[8px] border border-red-200 bg-red-50 px-[16px] py-[10px] text-[12px] text-red-700">
+                        {errorMessage}
+                    </div>
+                )}
 
-                    <button
-                        type="button"
-                        onClick={handleUpdatePhotoClick}
-                        disabled={isUpdatingPhoto || isLoading}
-                        className="h-[32px] shrink-0 rounded-[50px] bg-white px-[18px] text-[12px] font-bold text-[#5F785F] shadow-sm transition-all hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-70"
+                {successMessage && (
+                    <div className="mt-[18px] box-border w-full rounded-[8px] border border-green-200 bg-green-50 px-[16px] py-[10px] text-[12px] text-green-700">
+                        {successMessage}
+                    </div>
+                )}
+
+                {isLoading ? (
+                    <div className="mt-[26px] box-border w-full rounded-[8px] border border-[#D2D8CF] bg-white px-[30px] py-[28px] text-[12px] text-black">
+                        Mengambil data akun...
+                    </div>
+                ) : (
+                    <form
+                        onSubmit={handleSubmit}
+                        className="mt-[26px] box-border w-full max-w-full"
                     >
-                        {isUpdatingPhoto ? 'Updating...' : 'Update Photo'}
-                    </button>
-                </div>
+                        <section className="box-border w-full max-w-full rounded-[8px] border border-[#D2D8CF] bg-white px-4 py-[28px] shadow-sm sm:px-[30px]">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div>
+                                    <h2 className="text-[16px] leading-none font-bold text-black">
+                                        Personal Information
+                                    </h2>
+
+                                    <p className="mt-[8px] text-[10px] leading-snug text-black">
+                                        Ubah data utama akun yang sedang login.
+                                    </p>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={openPasswordModal}
+                                    className="h-[34px] rounded-[50px] border border-[#BFC7BB] bg-white px-[18px] text-[12px] font-bold text-[#4B4B4B] shadow-sm transition-all hover:border-[#739072] hover:bg-[#F8FAF6]"
+                                >
+                                    Change Password
+                                </button>
+                            </div>
+
+                            <div className="mt-[22px] grid w-full min-w-0 grid-cols-1 gap-x-[52px] gap-y-[14px] md:grid-cols-2">
+                                {personalFields.map((field) => (
+                                    <label
+                                        key={field.name}
+                                        className="block min-w-0"
+                                    >
+                                        <span className={labelClassName}>
+                                            {field.label}
+                                        </span>
+
+                                        <input
+                                            name={field.name}
+                                            type={field.type || 'text'}
+                                            value={formData[field.name]}
+                                            onChange={handleChange}
+                                            disabled={isSubmitting}
+                                            autoComplete={
+                                                field.autoComplete || 'off'
+                                            }
+                                            className={inputClassName}
+                                        />
+                                    </label>
+                                ))}
+
+                                <label className="block min-w-0">
+                                    <span className={labelClassName}>Role</span>
+
+                                    <input
+                                        type="text"
+                                        value={displayRole}
+                                        readOnly
+                                        className={readonlyInputClassName}
+                                    />
+                                </label>
+                            </div>
+                        </section>
+
+                        <section className="mt-[26px] box-border w-full max-w-full rounded-[8px] border border-[#D2D8CF] bg-white px-4 py-[28px] shadow-sm sm:px-[30px]">
+                            <div>
+                                <h2 className="text-[16px] leading-none font-bold text-black">
+                                    Clinic Information
+                                </h2>
+
+                                <p className="mt-[8px] text-[10px] leading-snug text-black">
+                                    Informasi klinik ditampilkan seperlunya.
+                                </p>
+                            </div>
+
+                            <div className="mt-[22px] grid w-full min-w-0 grid-cols-1 gap-x-[52px] gap-y-[16px] md:grid-cols-2">
+                                <InfoItem
+                                    label="SIPB No"
+                                    value={clinic?.license_number}
+                                />
+                                <InfoItem
+                                    label="Clinic Email"
+                                    value={clinic?.clinic_email}
+                                />
+                                <InfoItem
+                                    label="Clinic Phone"
+                                    value={clinic?.clinic_phone}
+                                />
+
+                                <div className="md:col-span-2">
+                                    <InfoItem
+                                        label="Clinic Address"
+                                        value={clinic?.clinic_address}
+                                    />
+                                </div>
+                            </div>
+                        </section>
+
+                        <button
+                            type="submit"
+                            disabled={isSubmitting}
+                            className="mt-[26px] h-[34px] rounded-[50px] bg-[#86A789] px-[22px] text-[12px] font-semibold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                            {isSubmitting ? 'Updating...' : 'Update Changes'}
+                        </button>
+                    </form>
+                )}
             </div>
 
-            {errorMessage && (
-                <div className="mt-[18px] box-border w-full rounded-l-[6px] border border-red-200 bg-red-50 px-[16px] py-[10px] text-[12px] text-red-700">
-                    {errorMessage}
+            {isPasswordModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-6">
+                    <div className="relative box-border w-full max-w-[460px] overflow-hidden rounded-[18px] border border-[#D2E3C8] bg-white shadow-2xl">
+                        <button
+                            type="button"
+                            onClick={closePasswordModal}
+                            disabled={isChangingPassword}
+                            className="absolute right-[18px] top-[16px] z-10 flex h-[28px] w-[28px] items-center justify-center rounded-full text-[22px] leading-none text-[#2F2F2F] transition-all hover:bg-[#EEF3EA] disabled:cursor-not-allowed disabled:opacity-60"
+                            aria-label="Close change password modal"
+                        >
+                            ×
+                        </button>
+
+                        <div className="border-b border-[#E4E8E1] px-[26px] py-[22px]">
+                            <h2 className="text-[22px] font-bold leading-tight text-[#4F6F52]">
+                                Change Password
+                            </h2>
+
+                            <p className="mt-1 text-[12px] text-[#6B6B6B]">
+                                Masukkan password lama dan password baru.
+                            </p>
+                        </div>
+
+                        <form
+                            onSubmit={handleChangePassword}
+                            className="px-[26px] py-[24px]"
+                        >
+                            <div className="grid grid-cols-1 gap-[14px]">
+                                <label className="block min-w-0">
+                                    <span className={labelClassName}>
+                                        Current Password
+                                    </span>
+
+                                    <input
+                                        type="password"
+                                        name="currentPassword"
+                                        value={passwordForm.currentPassword}
+                                        onChange={handlePasswordChange}
+                                        autoComplete="current-password"
+                                        className={inputClassName}
+                                    />
+                                </label>
+
+                                <label className="block min-w-0">
+                                    <span className={labelClassName}>
+                                        New Password
+                                    </span>
+
+                                    <input
+                                        type="password"
+                                        name="newPassword"
+                                        value={passwordForm.newPassword}
+                                        onChange={handlePasswordChange}
+                                        autoComplete="new-password"
+                                        className={inputClassName}
+                                    />
+                                </label>
+
+                                <label className="block min-w-0">
+                                    <span className={labelClassName}>
+                                        Confirm New Password
+                                    </span>
+
+                                    <input
+                                        type="password"
+                                        name="confirmNewPassword"
+                                        value={
+                                            passwordForm.confirmNewPassword
+                                        }
+                                        onChange={handlePasswordChange}
+                                        autoComplete="new-password"
+                                        className={inputClassName}
+                                    />
+                                </label>
+                            </div>
+
+                            <div className="mt-[22px] flex items-center justify-end gap-[10px]">
+                                <button
+                                    type="button"
+                                    onClick={closePasswordModal}
+                                    disabled={isChangingPassword}
+                                    className="h-[36px] rounded-[50px] border border-[#BFC7BB] bg-white px-[18px] text-[12px] font-bold text-black transition-all hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    Cancel
+                                </button>
+
+                                <button
+                                    type="submit"
+                                    disabled={isChangingPassword}
+                                    className="h-[36px] rounded-[50px] bg-[#86A789] px-[20px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    {isChangingPassword
+                                        ? 'Updating...'
+                                        : 'Update Password'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             )}
-
-            {successMessage && (
-                <div className="mt-[18px] box-border w-full rounded-l-[6px] border border-green-200 bg-green-50 px-[16px] py-[10px] text-[12px] text-green-700">
-                    {successMessage}
-                </div>
-            )}
-
-            {isLoading ? (
-                <div className="mt-[26px] box-border w-full rounded-l-[8px] border border-[#D2D8CF] bg-white px-[30px] py-[28px] text-[12px] text-black">
-                    Mengambil data akun...
-                </div>
-            ) : (
-                <form
-                    onSubmit={handleSubmit}
-                    className="mt-[26px] box-border w-full max-w-full"
-                >
-                    <SectionCard
-                        title="Personal Information"
-                        description="Data ini diambil dari akun user yang sedang login"
-                        fields={personalFields}
-                        formData={formData}
-                        onChange={handleChange}
-                        disabled={isSubmitting}
-                        className="min-h-[220px] rounded-r-none"
-                    />
-
-                    <ClinicSummary clinic={clinic} />
-
-                    <SectionCard
-                        title="Change Password"
-                        description="Kosongkan bagian ini jika tidak ingin mengganti password"
-                        fields={passwordFields}
-                        formData={formData}
-                        onChange={handleChange}
-                        disabled={isSubmitting}
-                        className="mt-[26px] min-h-[170px] rounded-r-none"
-                    />
-
-                    <button
-                        type="submit"
-                        disabled={isSubmitting}
-                        className="mt-[26px] h-[34px] rounded-[50px] bg-[#86A789] px-[22px] text-[12px] font-semibold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-70"
-                    >
-                        {isSubmitting ? 'Updating...' : 'Update Changes'}
-                    </button>
-                </form>
-            )}
-        </div>
+        </>
     );
 };
 
