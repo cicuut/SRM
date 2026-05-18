@@ -3,14 +3,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-    faCalendarDays,
-    faDownload,
-    faFilter,
-    faPlus,
-    faSearch,
-} from '@fortawesome/free-solid-svg-icons';
+    CalendarDays,
+    ChevronLeft,
+    ChevronRight,
+    FileDown,
+    Filter,
+    Plus,
+    Search,
+} from 'lucide-react';
 import LoadingOverlay from '@/components/loading';
 
 const API_BASE_URL =
@@ -20,22 +21,23 @@ const FINANCIAL_ALLOWED_ROLES = ['admin', 'midwife'];
 
 type FinancialTransaction = {
     transaction_id: string;
-    visit_id: string | null;
-    user_id: string;
-    patient_id: string;
+    visit_id?: string | null;
+    user_id?: string | null;
+    patient_id?: string | null;
     transaction_number: string;
-    trans_id: string;
+    trans_id?: string | null;
     payment_date: string;
     trans_type: string;
     amount: number;
     payment_method: string;
     status: string;
-    description: string;
-    visit_display: string;
-    record_number: string;
-    record_type: string;
-    patient_name: string;
-    user_name: string;
+    description?: string;
+    visit_display?: string;
+    visit_number?: string;
+    record_number?: string;
+    record_type?: string;
+    patient_name?: string;
+    user_name?: string;
 };
 
 type MeResponse = {
@@ -55,7 +57,7 @@ type MeResponse = {
 
 type TableKey =
     | 'transaction_number'
-    | 'trans_id'
+    | 'payment_date'
     | 'trans_type'
     | 'visit_display'
     | 'payment_method'
@@ -65,7 +67,12 @@ type TableKey =
 type TableHeader = {
     label: string;
     key: TableKey;
-    width: string;
+};
+
+type CalendarDay = {
+    dateString: string;
+    dayNumber: number;
+    isCurrentMonth: boolean;
 };
 
 type FilterOptions = {
@@ -78,45 +85,64 @@ const tableHeaders: TableHeader[] = [
     {
         label: 'Invoice No',
         key: 'transaction_number',
-        width: 'w-[17%]',
     },
     {
         label: 'Tanggal',
-        key: 'trans_id',
-        width: 'w-[13%]',
+        key: 'payment_date',
     },
     {
         label: 'Tipe',
         key: 'trans_type',
-        width: 'w-[12%]',
     },
     {
         label: 'Visit / Record',
         key: 'visit_display',
-        width: 'w-[18%]',
     },
     {
         label: 'Metode',
         key: 'payment_method',
-        width: 'w-[13%]',
     },
     {
         label: 'Nominal',
         key: 'amount',
-        width: 'w-[16%]',
     },
     {
         label: 'Status',
         key: 'status',
-        width: 'w-[11%]',
     },
 ];
+
+const monthNames = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+];
+
+const dayLabels = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
 const getTodayInputValue = () => {
     const date = new Date();
     date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
 
     return date.toISOString().split('T')[0];
+};
+
+const toInputDateValue = (date: Date) => {
+    const clonedDate = new Date(date);
+    clonedDate.setMinutes(
+        clonedDate.getMinutes() - clonedDate.getTimezoneOffset(),
+    );
+
+    return clonedDate.toISOString().split('T')[0];
 };
 
 const readJson = async (response: Response) => {
@@ -131,6 +157,12 @@ const safeLower = (value: unknown) => {
     return String(value ?? '').toLowerCase();
 };
 
+const normalizeDateInput = (dateString?: string | null) => {
+    if (!dateString) return '';
+
+    return dateString.includes('T') ? dateString.split('T')[0] : dateString;
+};
+
 const formatDisplayDate = (dateString: string) => {
     if (!dateString) return 'Semua Tanggal';
 
@@ -141,20 +173,21 @@ const formatDisplayDate = (dateString: string) => {
     }
 
     return date.toLocaleDateString('id-ID', {
-        weekday: 'short',
+        weekday: 'long',
         day: '2-digit',
         month: 'long',
         year: 'numeric',
     });
 };
 
-const formatShortDate = (dateString: string) => {
+const formatShortDate = (dateString?: string | null) => {
     if (!dateString) return '-';
 
-    const date = new Date(`${dateString}T00:00:00`);
+    const normalizedDate = normalizeDateInput(dateString);
+    const date = new Date(`${normalizedDate}T00:00:00`);
 
     if (Number.isNaN(date.getTime())) {
-        return dateString;
+        return normalizedDate;
     }
 
     return date.toLocaleDateString('id-ID', {
@@ -162,6 +195,22 @@ const formatShortDate = (dateString: string) => {
         month: 'short',
         year: 'numeric',
     });
+};
+
+const formatDateRangeDisplay = (startDate: string, endDate: string) => {
+    if (!startDate && !endDate) {
+        return 'Semua Tanggal';
+    }
+
+    if (startDate && !endDate) {
+        return formatDisplayDate(startDate);
+    }
+
+    if (startDate && endDate && startDate === endDate) {
+        return formatDisplayDate(startDate);
+    }
+
+    return `${formatShortDate(startDate)} - ${formatShortDate(endDate)}`;
 };
 
 const formatRupiah = (value: number) => {
@@ -181,14 +230,15 @@ const formatEnumLabel = (value: string) => {
     if (lowerValue === 'qris') return 'QRIS';
     if (lowerValue === 'pemasukan') return 'Pemasukan';
     if (lowerValue === 'pengeluaran') return 'Pengeluaran';
+    if (lowerValue === 'paid') return 'Paid';
+    if (lowerValue === 'unpaid') return 'Unpaid';
 
     return normalizedValue
         .split(' ')
         .filter(Boolean)
         .map(
             (word) =>
-                word.charAt(0).toUpperCase() +
-                word.slice(1).toLowerCase(),
+                word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
         )
         .join(' ');
 };
@@ -221,12 +271,49 @@ const getStatusBadgeClassName = (status: string) => {
     return 'bg-[#F2F2F2] text-[#5F5F5F]';
 };
 
+const getCalendarDays = (calendarMonth: Date): CalendarDay[] => {
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
+
+    const firstDayOfMonth = new Date(year, month, 1);
+    const startDate = new Date(firstDayOfMonth);
+    startDate.setDate(firstDayOfMonth.getDate() - firstDayOfMonth.getDay());
+
+    const days: CalendarDay[] = [];
+
+    for (let index = 0; index < 42; index += 1) {
+        const date = new Date(startDate);
+        date.setDate(startDate.getDate() + index);
+
+        days.push({
+            dateString: toInputDateValue(date),
+            dayNumber: date.getDate(),
+            isCurrentMonth: date.getMonth() === month,
+        });
+    }
+
+    return days;
+};
+
+const isDateBetween = (date: string, startDate: string, endDate: string) => {
+    if (!date || !startDate || !endDate) return false;
+
+    return date >= startDate && date <= endDate;
+};
+
 const FinancialReport = () => {
     const router = useRouter();
     const today = getTodayInputValue();
-    const dateInputRef = useRef<HTMLInputElement | null>(null);
+    const calendarRef = useRef<HTMLDivElement | null>(null);
 
-    const [selectedDate, setSelectedDate] = useState(today);
+    const [selectedStartDate, setSelectedStartDate] = useState(today);
+    const [selectedEndDate, setSelectedEndDate] = useState(today);
+
+    const [calendarMonth, setCalendarMonth] = useState(
+        new Date(`${today}T00:00:00`),
+    );
+    const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+
     const [searchQuery, setSearchQuery] = useState('');
 
     const [typeFilter, setTypeFilter] = useState('all');
@@ -243,9 +330,16 @@ const FinancialReport = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
 
-    const formattedSelectedDate = useMemo(() => {
-        return formatDisplayDate(selectedDate);
-    }, [selectedDate]);
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
+
+    const formattedSelectedDateRange = useMemo(() => {
+        return formatDateRangeDisplay(selectedStartDate, selectedEndDate);
+    }, [selectedStartDate, selectedEndDate]);
+
+    const calendarDays = useMemo(() => {
+        return getCalendarDays(calendarMonth);
+    }, [calendarMonth]);
 
     const showLoadingOverlay = isCheckingAccess || isLoading;
 
@@ -327,7 +421,7 @@ const FinancialReport = () => {
         }
     };
 
-    const fetchFinancialTransactions = async (dateValue: string) => {
+    const fetchFinancialTransactions = async () => {
         try {
             setIsLoading(true);
             setErrorMessage('');
@@ -339,26 +433,13 @@ const FinancialReport = () => {
                 return;
             }
 
-            const params = new URLSearchParams();
-
-            if (dateValue) {
-                params.set('date', dateValue);
-            }
-
-            const queryString = params.toString();
-
-            const response = await fetch(
-                `${API_BASE_URL}/financial/get-all${
-                    queryString ? `?${queryString}` : ''
-                }`,
-                {
-                    method: 'GET',
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
+            const response = await fetch(`${API_BASE_URL}/financial/get-all`, {
+                method: 'GET',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
                 },
-            );
+            });
 
             const data = await readJson(response);
 
@@ -376,7 +457,7 @@ const FinancialReport = () => {
                 throw new Error(data?.msg || 'Gagal mengambil data keuangan');
             }
 
-            setTransactions(Array.isArray(data) ? data : []);
+            setTransactions(Array.isArray(data) ? data : data?.data || []);
         } catch (error) {
             const message =
                 error instanceof Error
@@ -398,25 +479,26 @@ const FinancialReport = () => {
     useEffect(() => {
         if (!hasAccess) return;
 
-        fetchFinancialTransactions(selectedDate);
+        fetchFinancialTransactions();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [hasAccess, selectedDate]);
+    }, [hasAccess]);
 
-    const openDatePicker = () => {
-        const input = dateInputRef.current as
-            | (HTMLInputElement & { showPicker?: () => void })
-            | null;
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (
+                calendarRef.current &&
+                !calendarRef.current.contains(event.target as Node)
+            ) {
+                setIsCalendarOpen(false);
+            }
+        };
 
-        if (!input) return;
+        document.addEventListener('mousedown', handleClickOutside);
 
-        if (typeof input.showPicker === 'function') {
-            input.showPicker();
-            return;
-        }
-
-        input.click();
-        input.focus();
-    };
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
 
     const filterOptions = useMemo<FilterOptions>(() => {
         return {
@@ -436,9 +518,21 @@ const FinancialReport = () => {
         const normalizedSearch = searchQuery.trim().toLowerCase();
 
         return transactions.filter((transaction) => {
-            const matchesDate = selectedDate
-                ? transaction.payment_date === selectedDate
-                : true;
+            const transactionDate = normalizeDateInput(
+                transaction.payment_date,
+            );
+
+            let matchesDateRange = true;
+
+            if (selectedStartDate && selectedEndDate) {
+                matchesDateRange = isDateBetween(
+                    transactionDate,
+                    selectedStartDate,
+                    selectedEndDate,
+                );
+            } else if (selectedStartDate && !selectedEndDate) {
+                matchesDateRange = transactionDate === selectedStartDate;
+            }
 
             const searchableText = [
                 transaction.transaction_number,
@@ -446,6 +540,7 @@ const FinancialReport = () => {
                 transaction.payment_date,
                 transaction.trans_type,
                 transaction.visit_display,
+                transaction.visit_number,
                 transaction.record_number,
                 transaction.record_type,
                 transaction.payment_method,
@@ -477,7 +572,7 @@ const FinancialReport = () => {
                 safeLower(transaction.status) === safeLower(statusFilter);
 
             return (
-                matchesDate &&
+                matchesDateRange &&
                 matchesSearch &&
                 matchesType &&
                 matchesMethod &&
@@ -486,12 +581,48 @@ const FinancialReport = () => {
         });
     }, [
         transactions,
-        selectedDate,
+        selectedStartDate,
+        selectedEndDate,
         searchQuery,
         typeFilter,
         methodFilter,
         statusFilter,
     ]);
+
+    const totalPages = Math.max(
+        1,
+        Math.ceil(filteredTransactions.length / itemsPerPage),
+    );
+
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+
+    const currentTransactions = filteredTransactions.slice(
+        indexOfFirstItem,
+        indexOfLastItem,
+    );
+
+    const showingStart =
+        filteredTransactions.length === 0 ? 0 : indexOfFirstItem + 1;
+    const showingEnd = Math.min(indexOfLastItem, filteredTransactions.length);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [
+        selectedStartDate,
+        selectedEndDate,
+        searchQuery,
+        typeFilter,
+        methodFilter,
+        statusFilter,
+        transactions,
+    ]);
+
+    useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
+    }, [currentPage, totalPages]);
 
     const activeFilterCount = useMemo(() => {
         return [typeFilter, methodFilter, statusFilter].filter(
@@ -499,11 +630,91 @@ const FinancialReport = () => {
         ).length;
     }, [typeFilter, methodFilter, statusFilter]);
 
-    const handleDateChange = (value: string) => {
-        setSelectedDate(value);
-        setTypeFilter('all');
-        setMethodFilter('all');
-        setStatusFilter('all');
+    const getPageNumbers = () => {
+        const pageNumbers: Array<number | string> = [];
+
+        if (totalPages <= 4) {
+            for (let page = 1; page <= totalPages; page += 1) {
+                pageNumbers.push(page);
+            }
+        } else if (currentPage <= 2) {
+            pageNumbers.push(1);
+            pageNumbers.push(2);
+
+            if (currentPage === 2) pageNumbers.push(3);
+
+            pageNumbers.push('...');
+            pageNumbers.push(totalPages);
+        } else if (currentPage === 3) {
+            pageNumbers.push(1);
+            pageNumbers.push(2);
+            pageNumbers.push(3);
+            pageNumbers.push(4);
+            pageNumbers.push('...');
+            pageNumbers.push(totalPages);
+        } else if (currentPage >= totalPages - 1) {
+            pageNumbers.push(1);
+            pageNumbers.push('...');
+
+            if (currentPage === totalPages - 1) {
+                pageNumbers.push(totalPages - 2);
+            }
+
+            pageNumbers.push(totalPages - 1);
+            pageNumbers.push(totalPages);
+        } else {
+            pageNumbers.push(1);
+            pageNumbers.push('...');
+            pageNumbers.push(currentPage - 1);
+            pageNumbers.push(currentPage);
+            pageNumbers.push(currentPage + 1);
+            pageNumbers.push('...');
+            pageNumbers.push(totalPages);
+        }
+
+        return pageNumbers;
+    };
+
+    const handleSelectDate = (dateString: string) => {
+        if (
+            !selectedStartDate ||
+            (selectedStartDate && selectedEndDate)
+        ) {
+            setSelectedStartDate(dateString);
+            setSelectedEndDate('');
+            setCalendarMonth(new Date(`${dateString}T00:00:00`));
+            return;
+        }
+
+        if (dateString < selectedStartDate) {
+            setSelectedEndDate(selectedStartDate);
+            setSelectedStartDate(dateString);
+            setCalendarMonth(new Date(`${dateString}T00:00:00`));
+            setIsCalendarOpen(false);
+            return;
+        }
+
+        setSelectedEndDate(dateString);
+        setCalendarMonth(new Date(`${dateString}T00:00:00`));
+        setIsCalendarOpen(false);
+    };
+
+    const handlePreviousMonth = () => {
+        setCalendarMonth((currentMonth) => {
+            const nextMonth = new Date(currentMonth);
+            nextMonth.setMonth(currentMonth.getMonth() - 1);
+
+            return nextMonth;
+        });
+    };
+
+    const handleNextMonth = () => {
+        setCalendarMonth((currentMonth) => {
+            const nextMonth = new Date(currentMonth);
+            nextMonth.setMonth(currentMonth.getMonth() + 1);
+
+            return nextMonth;
+        });
     };
 
     const handleClearFilter = () => {
@@ -513,19 +724,29 @@ const FinancialReport = () => {
     };
 
     const handleResetAll = () => {
-        setSelectedDate(today);
+        setSelectedStartDate(today);
+        setSelectedEndDate(today);
+        setCalendarMonth(new Date(`${today}T00:00:00`));
         setSearchQuery('');
         setTypeFilter('all');
         setMethodFilter('all');
         setStatusFilter('all');
         setIsFilterOpen(false);
+        setIsCalendarOpen(false);
+        setCurrentPage(1);
     };
 
     const handleShowAllDates = () => {
-        setSelectedDate('');
-        setTypeFilter('all');
-        setMethodFilter('all');
-        setStatusFilter('all');
+        setSelectedStartDate('');
+        setSelectedEndDate('');
+        setIsCalendarOpen(false);
+    };
+
+    const handleTodayDate = () => {
+        setSelectedStartDate(today);
+        setSelectedEndDate(today);
+        setCalendarMonth(new Date(`${today}T00:00:00`));
+        setIsCalendarOpen(false);
     };
 
     const handleDownload = () => {
@@ -540,9 +761,28 @@ const FinancialReport = () => {
                         return escapeCsvValue(formatRupiah(transaction.amount));
                     }
 
-                    if (header.key === 'trans_id') {
+                    if (header.key === 'payment_date') {
                         return escapeCsvValue(
-                            transaction.trans_id || transaction.payment_date,
+                            formatShortDate(transaction.payment_date),
+                        );
+                    }
+
+                    if (
+                        header.key === 'trans_type' ||
+                        header.key === 'payment_method' ||
+                        header.key === 'status'
+                    ) {
+                        return escapeCsvValue(
+                            formatEnumLabel(String(transaction[header.key])),
+                        );
+                    }
+
+                    if (header.key === 'visit_display') {
+                        return escapeCsvValue(
+                            transaction.visit_display ||
+                                transaction.visit_number ||
+                                transaction.record_number ||
+                                '-',
                         );
                     }
 
@@ -555,7 +795,7 @@ const FinancialReport = () => {
             '',
             [
                 escapeCsvValue('Tanggal Terpilih'),
-                escapeCsvValue(formattedSelectedDate),
+                escapeCsvValue(formattedSelectedDateRange),
             ].join(','),
             [
                 escapeCsvValue('Total Records'),
@@ -563,11 +803,7 @@ const FinancialReport = () => {
             ].join(','),
         ];
 
-        const csvContent = [
-            headerRow,
-            ...dataRows,
-            ...summaryRows,
-        ].join('\n');
+        const csvContent = [headerRow, ...dataRows, ...summaryRows].join('\n');
 
         const blob = new Blob([`\uFEFF${csvContent}`], {
             type: 'text/csv;charset=utf-8;',
@@ -577,7 +813,9 @@ const FinancialReport = () => {
         const link = document.createElement('a');
 
         link.href = url;
-        link.download = `financial-report-${selectedDate || 'all-dates'}.csv`;
+        link.download = `financial-report-${
+            selectedStartDate || 'all'
+        }-${selectedEndDate || 'dates'}.csv`;
         link.click();
 
         URL.revokeObjectURL(url);
@@ -591,20 +829,27 @@ const FinancialReport = () => {
             return formatRupiah(transaction.amount);
         }
 
-        if (key === 'trans_id') {
-            return formatShortDate(
-                transaction.trans_id || transaction.payment_date,
-            );
+        if (key === 'payment_date') {
+            return formatShortDate(transaction.payment_date);
         }
 
         if (key === 'trans_type' || key === 'payment_method') {
             return formatEnumLabel(String(transaction[key]));
         }
 
+        if (key === 'visit_display') {
+            return (
+                transaction.visit_display ||
+                transaction.visit_number ||
+                transaction.record_number ||
+                '-'
+            );
+        }
+
         if (key === 'status') {
             return (
                 <span
-                    className={`inline-flex min-w-18.5 justify-center rounded-full px-3 py-1 text-[10px] font-bold ${getStatusBadgeClassName(
+                    className={`inline-flex min-w-[74px] justify-center rounded-full px-3 py-1 text-[10px] font-bold ${getStatusBadgeClassName(
                         transaction.status,
                     )}`}
                 >
@@ -614,6 +859,10 @@ const FinancialReport = () => {
         }
 
         return transaction[key] || '-';
+    };
+
+    const goToDetail = (transactionId: string) => {
+        router.push(`/financial-report/${transactionId}`);
     };
 
     if (isCheckingAccess) {
@@ -628,44 +877,10 @@ const FinancialReport = () => {
         <div className="relative flex w-full min-w-0 flex-col gap-5">
             {showLoadingOverlay && <LoadingOverlay />}
 
-            <section className="w-full rounded-[22px] bg-[#86A789] px-6 py-7 shadow-md sm:px-8">
-                <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-                    <div className="min-w-0">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/80">
-                            Financial Report
-                        </p>
-
-                        <h2 className="mt-2.5 text-[30px] font-extrabold leading-none text-white">
-                            Laporan Keuangan
-                        </h2>
-
-                        <p className="mt-2.5 max-w-190 text-[12px] font-medium leading-relaxed text-white/90">
-                            Pantau invoice, metode pembayaran, status
-                            transaksi, dan data pembayaran klinik dalam satu
-                            halaman.
-                        </p>
-                    </div>
-
-                    <button
-                        type="button"
-                        onClick={() =>
-                            router.push('/financial-report/add-invoice')
-                        }
-                        className="flex h-10 w-fit items-center justify-center gap-x-2 rounded-[50px] bg-white px-5 text-[12px] font-bold text-[#5F785F] shadow-sm transition-all hover:bg-[#F4F4F4]"
-                    >
-                        <FontAwesomeIcon icon={faPlus} className="w-4" />
-                        <span>Tambah Invoice</span>
-                    </button>
-                </div>
-            </section>
-
             <section className="w-full rounded-[22px] border border-[#D2D8CF] bg-white px-5 py-5 shadow-sm sm:px-6">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                    <div className="relative min-w-0 flex-1 rounded-[50px] border border-[#D2D8CF] bg-[#FDFEF9] px-5 py-3 shadow-sm transition-all focus-within:border-[#739072] xl:max-w-170">
-                        <FontAwesomeIcon
-                            icon={faSearch}
-                            className="absolute left-5 top-1/2 w-4 -translate-y-1/2 text-gray-400"
-                        />
+                    <div className="relative min-w-0 flex-1 rounded-[50px] border border-[#D2D8CF] bg-[#FDFEF9] px-5 py-[12px] shadow-sm transition-all focus-within:border-[#739072] xl:max-w-[680px]">
+                        <Search className="absolute left-5 top-1/2 w-4 -translate-y-1/2 text-gray-400" />
 
                         <input
                             type="text"
@@ -678,36 +893,151 @@ const FinancialReport = () => {
                         />
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2.5">
-                        <div className="rounded-[50px] bg-[#D2E3C8] px-5 py-2.75 text-center text-[12px] font-bold text-black shadow-sm">
-                            {formattedSelectedDate}
+                    <div className="flex flex-wrap items-center gap-[10px]">
+                        <div className="rounded-[50px] bg-[#D2E3C8] px-[20px] py-[11px] text-center text-[12px] font-bold text-black shadow-sm">
+                            {formattedSelectedDateRange}
                         </div>
 
-                        <div className="relative inline-block">
+                        <div ref={calendarRef} className="relative inline-block">
                             <button
                                 type="button"
-                                onClick={openDatePicker}
-                                className="rounded-[50px] border border-[#BFC7BB] bg-white px-4.5 py-2.75 text-[12px] font-bold text-[#4B4B4B] shadow-sm transition-all hover:border-[#739072] hover:bg-[#F9FBF7]"
+                                onClick={() =>
+                                    setIsCalendarOpen((current) => !current)
+                                }
+                                className="rounded-[50px] border border-[#BFC7BB] bg-white px-[18px] py-[11px] text-[12px] font-bold text-[#4B4B4B] shadow-sm transition-all hover:border-[#739072] hover:bg-[#F9FBF7]"
                             >
-                                <span>Pilih Tanggal</span>
+                                <span>Filter Tanggal</span>
 
-                                <FontAwesomeIcon
-                                    icon={faCalendarDays}
-                                    className="ml-2.5 w-4 text-black"
-                                />
+                                <CalendarDays className="ml-[10px] inline-block w-4 text-black" />
                             </button>
 
-                            <input
-                                ref={dateInputRef}
-                                type="date"
-                                value={selectedDate}
-                                onChange={(event) =>
-                                    handleDateChange(event.target.value)
-                                }
-                                className="absolute left-1/2 top-1/2 h-px w-px -translate-x-1/2 -translate-y-1/2 opacity-0"
-                                tabIndex={-1}
-                                aria-hidden="true"
-                            />
+                            {isCalendarOpen && (
+                                <div className="absolute left-1/2 top-[calc(100%+12px)] z-[70] w-[320px] max-w-[calc(100vw-32px)] -translate-x-1/2 rounded-b-[18px] bg-white shadow-[0_16px_32px_rgba(0,0,0,0.14)]">
+                                    <div className="absolute left-1/2 top-[-12px] h-0 w-0 -translate-x-1/2 border-x-[11px] border-b-[12px] border-x-transparent border-b-[#D2E3C8]" />
+
+                                    <div className="flex items-center justify-between rounded-t-[18px] bg-[#D2E3C8] px-4 py-3">
+                                        <button
+                                            type="button"
+                                            onClick={handlePreviousMonth}
+                                            className="flex h-8 w-8 items-center justify-center rounded-full text-[#4F6F52] transition-all hover:bg-white/40"
+                                            aria-label="Bulan sebelumnya"
+                                        >
+                                            <ChevronLeft className="w-5" />
+                                        </button>
+
+                                        <p className="text-[18px] font-extrabold text-black">
+                                            {
+                                                monthNames[
+                                                    calendarMonth.getMonth()
+                                                ]
+                                            }{' '}
+                                            {calendarMonth.getFullYear()}
+                                        </p>
+
+                                        <button
+                                            type="button"
+                                            onClick={handleNextMonth}
+                                            className="flex h-8 w-8 items-center justify-center rounded-full text-[#4F6F52] transition-all hover:bg-white/40"
+                                            aria-label="Bulan berikutnya"
+                                        >
+                                            <ChevronRight className="w-5" />
+                                        </button>
+                                    </div>
+
+                                    <div className="px-4 pb-4 pt-4">
+                                        <p className="mb-3 text-center text-[11px] font-semibold text-[#6B6B6B]">
+                                            {selectedStartDate &&
+                                            !selectedEndDate
+                                                ? 'Pilih tanggal akhir'
+                                                : 'Pilih tanggal mulai'}
+                                        </p>
+
+                                        <div className="grid grid-cols-7 text-center">
+                                            {dayLabels.map((dayLabel) => (
+                                                <div
+                                                    key={dayLabel}
+                                                    className="pb-2 text-[14px] font-extrabold text-[#5F785F]"
+                                                >
+                                                    {dayLabel}
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <div className="grid grid-cols-7 gap-y-2 text-center">
+                                            {calendarDays.map((day) => {
+                                                const isStart =
+                                                    day.dateString ===
+                                                    selectedStartDate;
+                                                const isEnd =
+                                                    day.dateString ===
+                                                    selectedEndDate;
+                                                const isToday =
+                                                    day.dateString === today;
+                                                const isInRange =
+                                                    selectedStartDate &&
+                                                    selectedEndDate &&
+                                                    day.dateString >
+                                                        selectedStartDate &&
+                                                    day.dateString <
+                                                        selectedEndDate;
+
+                                                return (
+                                                    <button
+                                                        key={day.dateString}
+                                                        type="button"
+                                                        onClick={() =>
+                                                            handleSelectDate(
+                                                                day.dateString,
+                                                            )
+                                                        }
+                                                        className={`mx-auto flex h-[34px] w-[34px] items-center justify-center rounded-[8px] text-[15px] font-medium transition-all ${
+                                                            isStart || isEnd
+                                                                ? 'bg-[#739072] text-white'
+                                                                : isInRange
+                                                                  ? 'bg-[#EEF3E9] text-[#4F6F52]'
+                                                                  : isToday
+                                                                    ? 'bg-[#F8FAF6] text-[#4F6F52]'
+                                                                    : day.isCurrentMonth
+                                                                      ? 'text-black hover:bg-[#EEF3E9]'
+                                                                      : 'text-black/70 hover:bg-[#EEF3E9]'
+                                                        }`}
+                                                    >
+                                                        {day.dayNumber}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+
+                                        <div className="mt-4 flex flex-wrap justify-between gap-2 border-t border-[#E4E8E1] pt-3">
+                                            <button
+                                                type="button"
+                                                onClick={handleTodayDate}
+                                                className="rounded-[30px] border border-[#BFC7BB] bg-white px-3 py-2 text-[11px] font-bold text-[#4B4B4B] hover:bg-[#F4F4F4]"
+                                            >
+                                                Hari Ini
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={handleShowAllDates}
+                                                className="rounded-[30px] border border-[#BFC7BB] bg-white px-3 py-2 text-[11px] font-bold text-[#4B4B4B] hover:bg-[#F4F4F4]"
+                                            >
+                                                Semua
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    setIsCalendarOpen(false)
+                                                }
+                                                className="rounded-[30px] bg-[#86A789] px-3 py-2 text-[11px] font-bold text-white hover:bg-[#739072]"
+                                            >
+                                                Selesai
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <button
@@ -715,7 +1045,7 @@ const FinancialReport = () => {
                             onClick={() =>
                                 setIsFilterOpen((current) => !current)
                             }
-                            className={`rounded-[50px] border px-4.5 py-2.75ext-[12px] font-bold shadow-sm transition-all ${
+                            className={`rounded-[50px] border px-[18px] py-[11px] text-[12px] font-bold shadow-sm transition-all ${
                                 isFilterOpen || activeFilterCount > 0
                                     ? 'border-[#739072] bg-[#EEF3E9] text-[#4F6F52]'
                                     : 'border-[#BFC7BB] bg-white text-[#4B4B4B] hover:border-[#739072] hover:bg-[#F9FBF7]'
@@ -728,16 +1058,13 @@ const FinancialReport = () => {
                                     : ''}
                             </span>
 
-                            <FontAwesomeIcon
-                                icon={faFilter}
-                                className="ml-2.5 w-4 text-black"
-                            />
+                            <Filter className="ml-[10px] inline-block w-4 text-black" />
                         </button>
 
                         <button
                             type="button"
                             onClick={handleResetAll}
-                            className="rounded-[50px] border border-[#BFC7BB] bg-white px-4.5 py-2.75 text-[12px] font-bold text-[#4B4B4B] shadow-sm transition-all hover:bg-[#F4F4F4]"
+                            className="rounded-[50px] border border-[#BFC7BB] bg-white px-[18px] py-[11px] text-[12px] font-bold text-[#4B4B4B] shadow-sm transition-all hover:bg-[#F4F4F4]"
                         >
                             Reset
                         </button>
@@ -749,7 +1076,7 @@ const FinancialReport = () => {
                         <div className="grid w-full min-w-0 grid-cols-1 gap-[14px] md:grid-cols-3 xl:grid-cols-[1fr_1fr_1fr_auto_auto] xl:items-end">
                             <label className="block min-w-0">
                                 <span className="text-[11px] font-bold text-black">
-                                    Tipe
+                                    Tipe Transaksi
                                 </span>
 
                                 <select
@@ -771,7 +1098,7 @@ const FinancialReport = () => {
 
                             <label className="block min-w-0">
                                 <span className="text-[11px] font-bold text-black">
-                                    Metode
+                                    Metode Pembayaran
                                 </span>
 
                                 <select
@@ -793,7 +1120,7 @@ const FinancialReport = () => {
 
                             <label className="block min-w-0">
                                 <span className="text-[11px] font-bold text-black">
-                                    Status
+                                    Status Pembayaran
                                 </span>
 
                                 <select
@@ -816,7 +1143,7 @@ const FinancialReport = () => {
                             <button
                                 type="button"
                                 onClick={handleShowAllDates}
-                                className="h-[36px] rounded-[50px] border border-[#BFC7BB] bg-white px-4.5 text-[12px] font-bold text-[#4B4B4B] transition-all hover:bg-[#F4F4F4]"
+                                className="h-[36px] rounded-[50px] border border-[#BFC7BB] bg-white px-[18px] text-[12px] font-bold text-[#4B4B4B] transition-all hover:bg-[#F4F4F4]"
                             >
                                 Semua Tanggal
                             </button>
@@ -824,7 +1151,7 @@ const FinancialReport = () => {
                             <button
                                 type="button"
                                 onClick={handleClearFilter}
-                                className="h-[36px] rounded-[50px] bg-[#86A789] px-4.5 text-[12px] font-bold text-white transition-all hover:bg-[#739072]"
+                                className="h-[36px] rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white transition-all hover:bg-[#739072]"
                             >
                                 Hapus Filter
                             </button>
@@ -839,41 +1166,25 @@ const FinancialReport = () => {
                 </div>
             )}
 
-            <section className="w-full overflow-hidden rounded-[22px] border border-[#D2D8CF] bg-white shadow-sm">
-                <div className="flex flex-col gap-[16px] border-b border-[#E4E8E1] px-5 py-[20px] lg:flex-row lg:items-center lg:justify-between sm:px-[26px]">
+            <section className="min-h-[600px] w-full overflow-hidden rounded-[22px] border border-[#D2D8CF] bg-white shadow-sm">
+                <div className="flex flex-col gap-[16px] border-b border-[#E4E8E1] px-5 py-[20px] sm:px-[26px] lg:flex-row lg:items-center lg:justify-between">
                     <div className="min-w-0">
                         <h2 className="text-[20px] font-extrabold leading-none text-[#5F785F]">
                             Financial List
                         </h2>
-
-                        <p className="mt-[7px] text-[11px] text-[#5F5F5F]">
-                            Menampilkan{' '}
-                            <span className="font-bold text-black">
-                                {filteredTransactions.length}
-                            </span>{' '}
-                            transaksi
-                            {selectedDate
-                                ? ` pada ${formattedSelectedDate}`
-                                : ' dari semua tanggal'}
-                        </p>
                     </div>
 
                     <div className="flex w-full flex-col gap-[10px] sm:flex-row sm:items-center sm:justify-between lg:w-auto lg:justify-end">
-                        <div className="flex min-h-[38px] items-center justify-between rounded-[12px] border border-[#D2D8CF] bg-[#F8FAF6] px-[14px] py-[9px] sm:min-w-[156px]">
-                            <div>
-                                <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-[#5F785F]">
-                                    Records
-                                </p>
-
-                                <p className="mt-[3px] text-[17px] font-bold leading-none text-black">
-                                    {filteredTransactions.length}
-                                </p>
-                            </div>
-
-                            <p className="text-[10px] font-semibold text-[#6B6B6B]">
-                                Data
-                            </p>
-                        </div>
+                        <button
+                            type="button"
+                            onClick={() =>
+                                router.push('/financial-report/add-invoice')
+                            }
+                            className="flex min-h-[38px] items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            <Plus className="w-4" />
+                            <span>Tambah Invoice</span>
+                        </button>
 
                         <button
                             type="button"
@@ -881,12 +1192,9 @@ const FinancialReport = () => {
                             disabled={
                                 isLoading || filteredTransactions.length === 0
                             }
-                            className="flex min-h-[38px] items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-4.5 text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+                            className="flex min-h-[38px] items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                            <FontAwesomeIcon
-                                icon={faDownload}
-                                className="w-4"
-                            />
+                            <FileDown className="w-4" />
                             <span>Download</span>
                         </button>
                     </div>
@@ -898,13 +1206,13 @@ const FinancialReport = () => {
                             <div className="col-span-full rounded-[14px] border border-[#E4E8E1] bg-[#F8FAF6] px-4 py-8 text-center text-[12px] text-gray-500">
                                 Memuat data keuangan...
                             </div>
-                        ) : filteredTransactions.length === 0 ? (
+                        ) : currentTransactions.length === 0 ? (
                             <div className="col-span-full rounded-[14px] border border-[#E4E8E1] bg-[#F8FAF6] px-4 py-8 text-center text-[12px] text-gray-500">
                                 Tidak ada data keuangan untuk{' '}
-                                {formattedSelectedDate}
+                                {formattedSelectedDateRange}
                             </div>
                         ) : (
-                            filteredTransactions.map((transaction) => (
+                            currentTransactions.map((transaction) => (
                                 <button
                                     key={
                                         transaction.transaction_id ||
@@ -912,9 +1220,7 @@ const FinancialReport = () => {
                                     }
                                     type="button"
                                     onClick={() =>
-                                        router.push(
-                                            `/financial-report/${transaction.transaction_id}`,
-                                        )
+                                        goToDetail(transaction.transaction_id)
                                     }
                                     className="w-full rounded-[16px] border border-[#E4E8E1] bg-white px-4 py-4 text-left shadow-sm transition-all hover:border-[#86A789] hover:bg-[#F8FAF6]"
                                 >
@@ -927,8 +1233,7 @@ const FinancialReport = () => {
 
                                             <p className="mt-[5px] text-[11px] font-medium text-[#6B6B6B]">
                                                 {formatShortDate(
-                                                    transaction.trans_id ||
-                                                        transaction.payment_date,
+                                                    transaction.payment_date,
                                                 )}
                                             </p>
                                         </div>
@@ -964,7 +1269,8 @@ const FinancialReport = () => {
 
                                             <p className="mt-[4px] truncate text-[11px] font-semibold text-black">
                                                 {formatEnumLabel(
-                                                    transaction.payment_method,
+                                                    transaction.payment_method ||
+                                                        '',
                                                 )}
                                             </p>
                                         </div>
@@ -976,6 +1282,8 @@ const FinancialReport = () => {
 
                                             <p className="mt-[4px] truncate text-[11px] font-semibold text-black">
                                                 {transaction.visit_display ||
+                                                    transaction.visit_number ||
+                                                    transaction.record_number ||
                                                     '-'}
                                             </p>
                                         </div>
@@ -999,17 +1307,15 @@ const FinancialReport = () => {
                 </div>
 
                 <div className="hidden w-full overflow-x-auto lg:block">
-                    <table className="w-full min-w-[1050px] border-separate border-spacing-0 text-[11px]">
-                        <thead>
+                    <table className="w-full border-separate border-spacing-0 text-[12px]">
+                        <thead className="bg-[#FDFEF9] text-[10px] font-bold uppercase text-[#5F785F]">
                             <tr className="bg-[#D2E3C8] text-gray-700">
                                 {tableHeaders.map((header, index) => (
                                     <th
                                         key={header.key}
                                         className={`px-6 py-4 text-center font-bold ${
-                                            header.width
-                                        } ${
                                             index !== tableHeaders.length - 1
-                                                ? 'border-r border-[#BFC7BB]'
+                                                ? 'border-r border-gray-200'
                                                 : ''
                                         }`}
                                     >
@@ -1019,28 +1325,32 @@ const FinancialReport = () => {
                             </tr>
                         </thead>
 
-                        <tbody>
+                        <tbody className="divide-y divide-gray-100">
                             {isLoading ? (
                                 <tr>
                                     <td
                                         colSpan={tableHeaders.length}
-                                        className="px-6 py-10 text-center text-gray-500"
+                                        className="px-6 py-20 text-center text-gray-400"
                                     >
                                         Memuat data keuangan...
                                     </td>
                                 </tr>
-                            ) : filteredTransactions.length === 0 ? (
+                            ) : currentTransactions.length === 0 ? (
                                 <tr>
                                     <td
                                         colSpan={tableHeaders.length}
-                                        className="px-6 py-12 text-center text-gray-500"
+                                        className="px-6 py-20 text-center text-gray-400"
                                     >
-                                        Tidak ada data keuangan untuk{' '}
-                                        {formattedSelectedDate}
+                                        <div className="flex flex-col items-center justify-center gap-2">
+                                            <p className="text-sm">
+                                                Tidak ada data keuangan untuk{' '}
+                                                {formattedSelectedDateRange}
+                                            </p>
+                                        </div>
                                     </td>
                                 </tr>
                             ) : (
-                                filteredTransactions.map(
+                                currentTransactions.map(
                                     (transaction, rowIndex) => (
                                         <tr
                                             key={
@@ -1048,8 +1358,8 @@ const FinancialReport = () => {
                                                 transaction.transaction_number
                                             }
                                             onClick={() =>
-                                                router.push(
-                                                    `/financial-report/${transaction.transaction_id}`,
+                                                goToDetail(
+                                                    transaction.transaction_id,
                                                 )
                                             }
                                             className={`cursor-pointer text-center text-black transition-all hover:bg-[#EEF3E9] ${
@@ -1058,27 +1368,19 @@ const FinancialReport = () => {
                                                     : 'bg-[#FBFCF8]'
                                             }`}
                                         >
-                                            {tableHeaders.map(
-                                                (header, index) => (
-                                                    <td
-                                                        key={header.key}
-                                                        className={`border-b border-[#E4E8E1] px-6 py-4 ${
-                                                            index !==
-                                                            tableHeaders.length -
-                                                                1
-                                                                ? 'border-r border-[#EEF0EC]'
-                                                                : ''
-                                                        }`}
-                                                    >
-                                                        <div className="min-w-0 truncate">
-                                                            {renderTableValue(
-                                                                transaction,
-                                                                header.key,
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                ),
-                                            )}
+                                            {tableHeaders.map((header) => (
+                                                <td
+                                                    key={header.key}
+                                                    className="px-4 py-4"
+                                                >
+                                                    <div className="min-w-0 truncate">
+                                                        {renderTableValue(
+                                                            transaction,
+                                                            header.key,
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            ))}
                                         </tr>
                                     ),
                                 )
@@ -1087,6 +1389,82 @@ const FinancialReport = () => {
                     </table>
                 </div>
             </section>
+
+            <div className="flex items-center justify-between border-t px-4 py-4 sm:px-6">
+                <div className="hidden sm:block">
+                    <p className="text-[11px] text-gray-500">
+                        Showing{' '}
+                        <span className="font-semibold text-black">
+                            {showingStart}
+                        </span>{' '}
+                        to{' '}
+                        <span className="font-semibold text-black">
+                            {showingEnd}
+                        </span>{' '}
+                        of{' '}
+                        <span className="font-semibold text-black">
+                            {filteredTransactions.length}
+                        </span>{' '}
+                        records
+                    </p>
+                </div>
+
+                <div className="flex items-center gap-x-1.5">
+                    <button
+                        type="button"
+                        onClick={() =>
+                            setCurrentPage((prev) => Math.max(prev - 1, 1))
+                        }
+                        disabled={currentPage === 1}
+                        className="flex items-center gap-x-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-[12px] font-bold text-gray-600 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        <ChevronLeft className="h-4 w-4" />
+                        <span>Previous</span>
+                    </button>
+
+                    {getPageNumbers().map((page, index) => {
+                        if (page === '...') {
+                            return (
+                                <span
+                                    key={`ellipsis-${index}`}
+                                    className="flex h-8 w-8 items-center justify-center text-[12px] text-gray-400"
+                                >
+                                    ...
+                                </span>
+                            );
+                        }
+
+                        return (
+                            <button
+                                key={`page-${page}`}
+                                type="button"
+                                onClick={() => setCurrentPage(Number(page))}
+                                className={`flex h-8 w-8 items-center justify-center rounded-full text-[12px] font-bold transition-all ${
+                                    currentPage === page
+                                        ? 'scale-105 bg-[#739072] text-white shadow-md'
+                                        : 'bg-transparent text-gray-600 hover:bg-[#EEF3E9] hover:text-[#4F6F52]'
+                                }`}
+                            >
+                                {page}
+                            </button>
+                        );
+                    })}
+
+                    <button
+                        type="button"
+                        onClick={() =>
+                            setCurrentPage((prev) =>
+                                Math.min(prev + 1, totalPages),
+                            )
+                        }
+                        disabled={currentPage === totalPages}
+                        className="flex items-center gap-x-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-[12px] font-bold text-gray-600 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        <span>Next</span>
+                        <ChevronRight className="h-4 w-4" />
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };

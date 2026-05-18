@@ -72,10 +72,10 @@ const formatRupiah = (value: string | number) => {
 };
 
 const inputClassName =
-    'mt-2 h-[42px] w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 disabled:cursor-not-allowed disabled:opacity-70';
+    'mt-2 h-[42px] w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 disabled:cursor-not-allowed disabled:bg-[#F8FAF6] disabled:text-[#8A8A8A] disabled:opacity-70';
 
 const selectClassName =
-    'mt-2 h-[42px] w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 disabled:cursor-not-allowed disabled:opacity-70';
+    'mt-2 h-[42px] w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 disabled:cursor-not-allowed disabled:bg-[#F8FAF6] disabled:text-[#8A8A8A] disabled:opacity-70';
 
 const labelClassName = 'text-[12px] font-bold text-[#2F3A2F]';
 
@@ -105,6 +105,8 @@ const AddInvoice = () => {
 
     const [isVisitModalOpen, setIsVisitModalOpen] = useState(false);
     const [searchKeyword, setSearchKeyword] = useState('');
+
+    const isUnpaid = formData.status === 'unpaid';
 
     const showLoadingOverlay =
         isCheckingAccess ||
@@ -348,6 +350,22 @@ const AddInvoice = () => {
     ) => {
         const { name, value } = event.target;
 
+        setErrorMessage('');
+
+        if (name === 'status') {
+            setFormData((prevData) => ({
+                ...prevData,
+                status: value,
+                amount: value === 'unpaid' ? '' : prevData.amount,
+                payment_method:
+                    value === 'unpaid'
+                        ? ''
+                        : prevData.payment_method || 'Transfer',
+            }));
+
+            return;
+        }
+
         setFormData((prevData) => ({
             ...prevData,
             [name]: value,
@@ -394,24 +412,26 @@ const AddInvoice = () => {
             return 'Tipe transaksi tidak valid.';
         }
 
-        if (!formData.amount || Number(formData.amount) <= 0) {
-            return 'Nominal harus lebih dari 0.';
-        }
-
-        if (!formData.payment_method) {
-            return 'Metode pembayaran wajib dipilih.';
-        }
-
-        if (!['Transfer', 'QRIS', 'Cash'].includes(formData.payment_method)) {
-            return 'Metode pembayaran tidak valid.';
-        }
-
         if (!formData.status) {
             return 'Status pembayaran wajib dipilih.';
         }
 
         if (!['paid', 'unpaid'].includes(formData.status)) {
             return 'Status pembayaran tidak valid.';
+        }
+
+        if (formData.status === 'paid') {
+            if (!formData.amount || Number(formData.amount) <= 0) {
+                return 'Nominal harus lebih dari 0 untuk status paid.';
+            }
+
+            if (!formData.payment_method) {
+                return 'Metode pembayaran wajib dipilih untuk status paid.';
+            }
+
+            if (!['Transfer', 'QRIS', 'Cash'].includes(formData.payment_method)) {
+                return 'Metode pembayaran tidak valid.';
+            }
         }
 
         return '';
@@ -448,8 +468,8 @@ const AddInvoice = () => {
                     payment_date: formData.payment_date,
                     visit_id: formData.visit_id,
                     trans_type: formData.trans_type,
-                    amount: Number(formData.amount),
-                    payment_method: formData.payment_method,
+                    amount: isUnpaid ? 0 : Number(formData.amount),
+                    payment_method: isUnpaid ? null : formData.payment_method,
                     status: formData.status,
                     description: formData.description.trim(),
                 }),
@@ -585,44 +605,7 @@ const AddInvoice = () => {
                     </label>
 
                     <label className="block">
-                        <span className={labelClassName}>Nominal</span>
-
-                        <input
-                            type="number"
-                            name="amount"
-                            value={formData.amount}
-                            onChange={handleChange}
-                            min="0"
-                            required
-                            disabled={isSubmitting}
-                            placeholder="Masukkan nominal"
-                            className={inputClassName}
-                        />
-                    </label>
-
-                    <label className="block">
-                        <span className={labelClassName}>
-                            Metode Pembayaran
-                        </span>
-
-                        <select
-                            name="payment_method"
-                            value={formData.payment_method}
-                            onChange={handleChange}
-                            required
-                            disabled={isSubmitting}
-                            className={selectClassName}
-                        >
-                            <option value="Transfer">Transfer</option>
-                            <option value="QRIS">QRIS</option>
-                            <option value="Cash">Cash</option>
-                        </select>
-                    </label>
-
-                    <label className="block">
-                        <span className={labelClassName}>
-                            Status Pembayaran
-                        </span>
+                        <span className={labelClassName}>Status Pembayaran</span>
 
                         <select
                             name="status"
@@ -635,6 +618,64 @@ const AddInvoice = () => {
                             <option value="paid">Paid</option>
                             <option value="unpaid">Unpaid</option>
                         </select>
+                    </label>
+
+                    <label className="block">
+                        <span className={labelClassName}>Nominal</span>
+
+                        <input
+                            type="number"
+                            name="amount"
+                            value={formData.amount}
+                            onChange={handleChange}
+                            min="1"
+                            required={!isUnpaid}
+                            disabled={isSubmitting || isUnpaid}
+                            placeholder={
+                                isUnpaid
+                                    ? 'Nonaktif untuk status unpaid'
+                                    : 'Masukkan nominal'
+                            }
+                            className={inputClassName}
+                        />
+
+                        {isUnpaid && (
+                            <p className="mt-1 text-[11px] text-[#8A8A8A]">
+                                Nominal dikosongkan karena status pembayaran
+                                belum dibayar.
+                            </p>
+                        )}
+                    </label>
+
+                    <label className="block">
+                        <span className={labelClassName}>
+                            Metode Pembayaran
+                        </span>
+
+                        <select
+                            name="payment_method"
+                            value={formData.payment_method}
+                            onChange={handleChange}
+                            required={!isUnpaid}
+                            disabled={isSubmitting || isUnpaid}
+                            className={selectClassName}
+                        >
+                            <option value="">
+                                {isUnpaid
+                                    ? 'Nonaktif untuk status unpaid'
+                                    : 'Pilih metode pembayaran'}
+                            </option>
+                            <option value="Transfer">Transfer</option>
+                            <option value="QRIS">QRIS</option>
+                            <option value="Cash">Cash</option>
+                        </select>
+
+                        {isUnpaid && (
+                            <p className="mt-1 text-[11px] text-[#8A8A8A]">
+                                Metode pembayaran dikosongkan karena belum ada
+                                pembayaran.
+                            </p>
+                        )}
                     </label>
 
                     <label className="block md:col-span-2">
@@ -679,7 +720,9 @@ const AddInvoice = () => {
                                 </p>
 
                                 <p className="mt-1 text-[16px] font-bold text-[#2F3A2F]">
-                                    {formatRupiah(formData.amount)}
+                                    {isUnpaid
+                                        ? 'Belum dibayar'
+                                        : formatRupiah(formData.amount)}
                                 </p>
                             </div>
                         </div>

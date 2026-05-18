@@ -1,7 +1,13 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models import db, User
-from app.utils import decrypt_data, generate_financial_number, write_audit_log, reserve_next_sequence, get_next_sequence_preview
+from app.utils import (
+    decrypt_data,
+    generate_financial_number,
+    write_audit_log,
+    reserve_next_sequence,
+    get_next_sequence_preview,
+)
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from sqlalchemy import text
@@ -113,14 +119,18 @@ def format_date(value):
     return raw_value
 
 
-def parse_amount(value):
+def parse_amount(value, allow_zero=False):
     try:
         amount = Decimal(str(value))
     except (InvalidOperation, ValueError, TypeError):
         raise ValueError("Amount must be a valid number")
 
-    if amount <= 0:
-        raise ValueError("Amount must be greater than 0")
+    if allow_zero:
+        if amount < 0:
+            raise ValueError("Amount cannot be negative")
+    else:
+        if amount <= 0:
+            raise ValueError("Amount must be greater than 0")
 
     return amount
 
@@ -252,6 +262,7 @@ def normalize_column_enum_value(table_name, column_name, value, allowed_fallback
         f"Invalid value '{raw_value}' for {column_name}. Allowed values: {allowed_values}"
     )
 
+
 def get_financial_enum_type_names():
     return {
         "trans_type": get_column_db_type_name("financial", "trans_type"),
@@ -259,19 +270,18 @@ def get_financial_enum_type_names():
         "status": get_column_db_type_name("financial", "status"),
     }
 
+
 def normalize_financial_input(data, include_required=True):
-    required_fields = [
+    base_required_fields = [
         "payment_date",
         "trans_type",
-        "amount",
-        "payment_method",
         "status",
     ]
 
     if include_required:
         missing_fields = [
             field
-            for field in required_fields
+            for field in base_required_fields
             if data.get(field) is None or data.get(field) == ""
         ]
 
@@ -289,13 +299,6 @@ def normalize_financial_input(data, include_required=True):
         ["pemasukan", "pengeluaran"],
     )
 
-    payment_method = normalize_column_enum_value(
-        "financial",
-        "payment_method",
-        data.get("payment_method"),
-        ["Transfer", "QRIS", "Cash"],
-    )
-
     status = normalize_column_enum_value(
         "financial",
         "status",
@@ -303,8 +306,32 @@ def normalize_financial_input(data, include_required=True):
         ["paid", "unpaid"],
     )
 
-    amount = parse_amount(data.get("amount"))
     description = (data.get("description") or "").strip()
+
+    if str(status).lower() == "unpaid":
+        return {
+            "payment_date": payment_date,
+            "trans_type": trans_type,
+            "amount": Decimal("0"),
+            "payment_method": None,
+            "status": status,
+            "description": description,
+        }
+
+    if data.get("amount") is None or data.get("amount") == "":
+        raise ValueError("Amount is required when payment status is paid")
+
+    if data.get("payment_method") is None or data.get("payment_method") == "":
+        raise ValueError("Payment method is required when payment status is paid")
+
+    amount = parse_amount(data.get("amount"))
+
+    payment_method = normalize_column_enum_value(
+        "financial",
+        "payment_method",
+        data.get("payment_method"),
+        ["Transfer", "QRIS", "Cash"],
+    )
 
     return {
         "payment_date": payment_date,
@@ -314,7 +341,6 @@ def normalize_financial_input(data, include_required=True):
         "status": status,
         "description": description,
     }
-
 
 
 # -----------------------------------------------------------------------------
@@ -474,6 +500,8 @@ def serialize_financial_row(row):
         or "-"
     )
 
+    payment_method = row.get("payment_method")
+
     return {
         "transaction_id": row.get("transaction_id"),
         "visit_id": row.get("visit_id"),
@@ -485,7 +513,7 @@ def serialize_financial_row(row):
         "payment_date": payment_date,
         "trans_type": row.get("trans_type"),
         "amount": float(row.get("amount") or 0),
-        "payment_method": row.get("payment_method"),
+        "payment_method": payment_method or "",
         "status": row.get("status"),
         "description": row.get("description") or "",
         "visit_display": visit_display,
@@ -665,8 +693,6 @@ def add_financial_transaction():
         "payment_date",
         "visit_id",
         "trans_type",
-        "amount",
-        "payment_method",
         "status",
     ]
 
