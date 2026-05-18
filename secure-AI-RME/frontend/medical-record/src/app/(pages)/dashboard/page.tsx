@@ -405,7 +405,7 @@ const Dashboard = () => {
                   Top 5 Diagnosa Bulanan
                 </h2>
                 <p className="mt-4 text-sm text-gray-500">
-                  Data diagnosa akan ditampilkan di sini.
+                  Data diagnosa akan dilist di sini.
                 </p>
               </div>
             </div>
