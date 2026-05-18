@@ -3,7 +3,7 @@ from app.models import PregnancyRecord, User, db, Patient, MedicalRecord, VisitM
 from app.utils import generate_visit_number, get_latest_visits_count, decrypt_data, get_column_name, clean_float, format_date
 from datetime import datetime
 from flask_jwt_extended import get_jwt_identity, jwt_required, get_jwt
-from sqlalchemy import or_
+from sqlalchemy import or_, text
 import pytz
 
 visit_report_bp = Blueprint('visit_report', __name__)

@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-import uuid
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
 import joblib
 import numpy as np
 import pandas as pd
 from sqlalchemy import func
 
-from app.models import MedicalRecord, Patient, PregnancyRecord, VisitMaster, db
+from app.models import DeliveryRecord, MedicalRecord, PregnancyRecord, VisitMaster, db
 
 try:
     import holidays
@@ -152,22 +151,11 @@ def _build_feature_row(
     return {name: row[name] for name in feature_names}
 
 
-def _parse_clinic_id(clinic_id: Union[str, uuid.UUID]) -> uuid.UUID:
-    if isinstance(clinic_id, uuid.UUID):
-        return clinic_id
-    return uuid.UUID(str(clinic_id))
-
-
-def get_monthly_visit_total(
-    clinic_id: str, month_start: date, end_date: date
-) -> int:
-    clinic_uuid = _parse_clinic_id(clinic_id)
+def get_monthly_visit_total(month_start: date, end_date: date) -> int:
     total = (
         db.session.query(func.count(VisitMaster.visit_id))
         .join(MedicalRecord, VisitMaster.record_id == MedicalRecord.record_id)
-        .join(Patient, MedicalRecord.patient_id == Patient.patient_id)
         .filter(
-            Patient.clinic_id == clinic_uuid,
             VisitMaster.visit_date >= month_start,
             VisitMaster.visit_date <= end_date,
         )
@@ -177,18 +165,15 @@ def get_monthly_visit_total(
 
 
 def get_monthly_counts_by_service(
-    clinic_id: str, month_start: date, end_date: date
+    month_start: date, end_date: date
 ) -> Dict[str, int]:
-    clinic_uuid = _parse_clinic_id(clinic_id)
     rows = (
         db.session.query(
             MedicalRecord.record_type,
             func.count(VisitMaster.visit_id),
         )
         .join(MedicalRecord, VisitMaster.record_id == MedicalRecord.record_id)
-        .join(Patient, MedicalRecord.patient_id == Patient.patient_id)
         .filter(
-            Patient.clinic_id == clinic_uuid,
             VisitMaster.visit_date >= month_start,
             VisitMaster.visit_date <= end_date,
         )
@@ -199,15 +184,12 @@ def get_monthly_counts_by_service(
 
 
 def get_daily_visit_counts(
-    clinic_id: str, record_type: str, start_date: date, end_date: date
+    record_type: str, start_date: date, end_date: date
 ) -> Dict[date, int]:
-    clinic_uuid = _parse_clinic_id(clinic_id)
     rows = (
         db.session.query(VisitMaster.visit_date, func.count(VisitMaster.visit_id))
         .join(MedicalRecord, VisitMaster.record_id == MedicalRecord.record_id)
-        .join(Patient, MedicalRecord.patient_id == Patient.patient_id)
         .filter(
-            Patient.clinic_id == clinic_uuid,
             MedicalRecord.record_type == record_type,
             VisitMaster.visit_date >= start_date,
             VisitMaster.visit_date <= end_date,
@@ -225,20 +207,46 @@ def get_daily_visit_counts(
     return counts
 
 
-def get_hpl_counts_by_date(
-    clinic_id: str, start_date: date, end_date: date
-) -> Dict[date, int]:
+def get_daily_delivery_counts(start_date: date, end_date: date) -> Dict[date, int]:
+    """Jumlah pasien melahirkan berdasarkan delivery_record.delivery_date."""
+    rows = (
+        db.session.query(
+            DeliveryRecord.delivery_date,
+            func.count(DeliveryRecord.dr_id),
+        )
+        .join(MedicalRecord, DeliveryRecord.record_id == MedicalRecord.record_id)
+        .filter(
+            MedicalRecord.record_type == "Persalinan",
+            DeliveryRecord.delivery_date.isnot(None),
+            DeliveryRecord.delivery_date >= start_date,
+            DeliveryRecord.delivery_date <= end_date,
+        )
+        .group_by(DeliveryRecord.delivery_date)
+        .all()
+    )
+
+    counts: Dict[date, int] = {}
+    for delivery_date, total in rows:
+        if delivery_date is None:
+            continue
+        day = (
+            delivery_date.date()
+            if hasattr(delivery_date, "date")
+            else delivery_date
+        )
+        counts[day] = int(total)
+    return counts
+
+
+def get_hpl_counts_by_date(start_date: date, end_date: date) -> Dict[date, int]:
     """Jumlah pasien kehamilan dengan HPL (expected_due_date) pada tanggal tertentu."""
-    clinic_uuid = _parse_clinic_id(clinic_id)
     rows = (
         db.session.query(
             PregnancyRecord.expected_due_date,
             func.count(PregnancyRecord.pr_id),
         )
         .join(MedicalRecord, PregnancyRecord.record_id == MedicalRecord.record_id)
-        .join(Patient, MedicalRecord.patient_id == Patient.patient_id)
         .filter(
-            Patient.clinic_id == clinic_uuid,
             PregnancyRecord.expected_due_date.isnot(None),
             PregnancyRecord.expected_due_date >= start_date,
             PregnancyRecord.expected_due_date <= end_date,
@@ -275,10 +283,6 @@ def predict_single_day(
 ) -> float:
     model = _load_model(service_type)
     features = _build_feature_row(service_type, series, target, hpl_counts)
-    if service_type == "Persalinan":
-        print(
-            f"DEBUG PERSALINAN - Tanggal: {target}, Jumlah HPL dari DB: {features['hpl_count']}"
-        )
     model_features = getattr(model, "feature_names_in_", None)
     feature_names = (
         list(model_features)
@@ -326,7 +330,7 @@ def get_month_bounds(reference: Optional[date] = None) -> Tuple[date, date]:
     return month_start, month_end
 
 
-def build_forecast_payload(clinic_id: str, reference: Optional[date] = None) -> dict:
+def build_forecast_payload(reference: Optional[date] = None) -> dict:
     today = reference or date.today()
     month_start, month_end = get_month_bounds(today)
     history_start = month_start - timedelta(days=120)
@@ -336,17 +340,22 @@ def build_forecast_payload(clinic_id: str, reference: Optional[date] = None) -> 
     by_service: Dict[str, dict] = {}
 
     month_end_actual = min(today, month_end)
-    monthly_actual = get_monthly_visit_total(clinic_id, month_start, month_end_actual)
+    monthly_actual = get_monthly_visit_total(month_start, month_end_actual)
     monthly_counts_by_service = get_monthly_counts_by_service(
-        clinic_id, month_start, month_end_actual
+        month_start, month_end_actual
     )
     forecast_remaining_total = 0
-    hpl_counts = get_hpl_counts_by_date(clinic_id, history_start, month_end)
+    hpl_counts = get_hpl_counts_by_date(history_start, month_end)
 
     for service_type in SERVICE_MODELS:
-        counts = get_daily_visit_counts(
-            clinic_id, service_type, history_start, today
-        )
+        if service_type == "Persalinan":
+            counts = get_daily_delivery_counts(history_start, today)
+            forecast_history_counts = get_daily_visit_counts(
+                "Kehamilan", history_start, today
+            )
+        else:
+            forecast_history_counts = None
+            counts = get_daily_visit_counts(service_type, history_start, today)
         actual_this_month = sum(
             total
             for day, total in counts.items()
@@ -360,7 +369,7 @@ def build_forecast_payload(clinic_id: str, reference: Optional[date] = None) -> 
         if forecast_start <= month_end:
             service_forecast, _ = forecast_date_range(
                 service_type,
-                counts,
+                forecast_history_counts if service_type == "Persalinan" else counts,
                 forecast_start,
                 month_end,
                 history_start=history_start,
