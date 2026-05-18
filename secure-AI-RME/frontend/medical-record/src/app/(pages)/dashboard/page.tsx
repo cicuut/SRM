@@ -319,103 +319,106 @@ const Dashboard = () => {
             </div>
           </div>
 
-          <div className="mt-6 flex w-full flex-row gap-6">
-            <div className="flex flex-[1.5] flex-col gap-y-[40px]">
-              <div className="min-h-[300px] rounded-[10px] bg-[#FFFFFF] px-5 py-6 drop-shadow-lg">
-                <VisitorChart
-                  title="Grafik Pengunjung Bulanan"
-                  series={visitorChartSeries}
-                  emptyMessage={
-                    forecastError ||
-                    "Belum ada data kunjungan untuk layanan yang dimodelkan"
-                  }
-                />
-              </div>
+          <div className="mt-6 flex w-full flex-col gap-6">
+            <div className="min-h-[240px] w-full rounded-[10px] bg-[#FFFFFF] px-5 py-6 drop-shadow-lg">
+              <VisitorChart
+                title="Grafik Pengunjung Bulanan"
+                series={visitorChartSeries}
+                emptyMessage={
+                  forecastError ||
+                  "Belum ada data kunjungan untuk layanan yang dimodelkan"
+                }
+              />
+            </div>
 
-              <div className="rounded-[10px] bg-[#FFFFFF] px-5 py-6 drop-shadow-lg">
-                <h2 className="text-xl font-semibold text-[#4F6F52]">
-                  Perkiraan Pengunjung Bulanan
-                </h2>
-                {forecastError && (
-                  <p className="mt-4 text-sm text-red-500">{forecastError}</p>
-                )}
-                {!forecastError && forecastServices.length === 0 && !loading && (
-                  <p className="mt-4 text-sm text-gray-500">
-                    Belum ada data untuk menghitung perkiraan.
-                  </p>
-                )}
-                <div className="mt-5 flex flex-wrap gap-4">
-                  {forecastServices.map(([service, stats], index) => {
-                    const accentColor =
-                      SERVICE_COLORS[service] ??
-                      FALLBACK_SERVICE_COLORS[
-                        index % FALLBACK_SERVICE_COLORS.length
-                      ];
+            <div className="flex w-full flex-col gap-6 lg:flex-row">
+              <div className="min-w-0 w-full shrink-0 rounded-[10px] bg-[#FFFFFF] px-5 py-6 drop-shadow-lg lg:w-[42%] lg:max-w-xl">
+              <h2 className="text-xl font-semibold text-[#4F6F52]">
+                Perkiraan Pengunjung Bulanan
+              </h2>
+              {forecastError && (
+                <p className="mt-4 text-sm text-red-500">{forecastError}</p>
+              )}
+              {!forecastError && forecastServices.length === 0 && !loading && (
+                <p className="mt-4 text-sm text-gray-500">
+                  Belum ada data untuk menghitung perkiraan.
+                </p>
+              )}
+              <div className="mt-5 flex flex-row flex-wrap gap-4">
+                {forecastServices.map(([service, stats], index) => {
+                  const accentColor =
+                    SERVICE_COLORS[service] ??
+                    FALLBACK_SERVICE_COLORS[
+                      index % FALLBACK_SERVICE_COLORS.length
+                    ];
 
-                    return (
-                      <div
-                        key={service}
-                        className="min-w-[200px] flex-[1_1_220px] rounded-lg border border-[#E6EDE5] bg-[#FDFEF9] px-4 py-3 text-left"
-                        style={{ borderLeftWidth: 4, borderLeftColor: accentColor }}
+                  return (
+                    <div
+                      key={service}
+                      className="min-w-[250px] flex-1 rounded-lg border border-[#E6EDE5] bg-[#FDFEF9] px-4 py-3 text-left"
+                      style={{ borderLeftWidth: 4, borderLeftColor: accentColor }}
+                    >
+                      <p
+                        className="text-sm font-semibold"
+                        style={{ color: accentColor }}
                       >
-                        <p
-                          className="text-sm font-semibold"
-                          style={{ color: accentColor }}
-                        >
-                          {service}
-                        </p>
+                        {service}
+                      </p>
+                      <p className="mt-2 text-xs text-gray-500">
+                        Aktual: {formatNumber(stats.actual_month_to_date)}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Sisa bulan:{" "}
+                        {formatNumber(stats.forecast_remaining_month)}
+                      </p>
+                      {stats.has_model === false ? (
                         <p className="mt-2 text-xs text-gray-500">
-                          Aktual: {formatNumber(stats.actual_month_to_date)}
+                          Belum ada model prediksi
                         </p>
-                        <p className="mt-1 text-xs text-gray-500">
-                          Sisa bulan:{" "}
-                          {formatNumber(stats.forecast_remaining_month)}
+                      ) : (
+                        <p className="mt-2 text-xs text-gray-600">
+                          Total perkiraan:{" "}
+                          <span
+                            className="font-medium"
+                            style={{ color: accentColor }}
+                          >
+                            {formatNumber(stats.forecast_month_total)}
+                          </span>
                         </p>
-                        {stats.has_model === false ? (
-                          <p className="mt-2 text-xs text-gray-500">
-                            Belum ada model prediksi
-                          </p>
-                        ) : (
-                          <p className="mt-2 text-xs text-gray-600">
-                            Total perkiraan:{" "}
-                            <span
-                              className="font-medium"
-                              style={{ color: accentColor }}
-                            >
-                              {formatNumber(stats.forecast_month_total)}
-                            </span>
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                {forecastData && (
-                  <p className="mt-5 w-full border-t border-[#E6EDE5] pt-4 text-xs text-gray-600">
-                    Total semua layanan:{" "}
-                    <span className="font-medium text-[#4F6F52]">
-                      {formatNumber(forecastData.monthly_forecast)} kunjungan
-                    </span>
-                  </p>
-                )}
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {forecastData && (
+                <p className="mt-5 w-full border-t border-[#E6EDE5] pt-4 text-xs text-gray-600">
+                  Total semua layanan:{" "}
+                  <span className="font-medium text-[#4F6F52]">
+                    {formatNumber(forecastData.monthly_forecast)} kunjungan
+                  </span>
+                </p>
+              )}
               </div>
 
-              <div className="min-h-[300px] rounded-[10px] bg-[#FFFFFF] px-5 py-6 drop-shadow-lg">
-                <FinancialChart
-                  title="Grafik Keuangan Bulanan"
-                  income={dailyIncome}
-                  expense={dailyExpense}
-                  emptyMessage={
-                    financialError || "Belum ada data keuangan bulan ini"
-                  }
-                />
+              <div className="min-h-[280px] min-w-0 flex-1 rounded-[10px] bg-[#FFFFFF] px-5 py-6 drop-shadow-lg">
+                <h2 className="text-xl font-semibold text-[#4F6F52]">
+                  Top 5 Diagnosa Bulanan
+                </h2>
+                <p className="mt-4 text-sm text-gray-500">
+                  Data diagnosa akan ditampilkan di sini.
+                </p>
               </div>
             </div>
 
-            <div className="flex flex-1 flex-col gap-y-[40px]">
-              <div className="min-h-[320px] flex-1 rounded-[10px] bg-[#FFFFFF] px-5 py-6 text-center drop-shadow-lg">
-                <h1 className="text-xl">Top 5 Diagnosa Bulanan</h1>
-              </div>
+            <div className="min-h-[240px] w-full rounded-[10px] bg-[#FFFFFF] px-5 py-6 drop-shadow-lg">
+              <FinancialChart
+                title="Grafik Keuangan Bulanan"
+                income={dailyIncome}
+                expense={dailyExpense}
+                emptyMessage={
+                  financialError || "Belum ada data keuangan bulan ini"
+                }
+              />
             </div>
           </div>
         </div>

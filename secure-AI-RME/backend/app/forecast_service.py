@@ -377,11 +377,9 @@ def build_forecast_payload(reference: Optional[date] = None) -> dict:
             )
             forecast_total = sum(item["count"] for item in service_forecast)
 
-        service_history = [
-            {"date": day.isoformat(), "count": int(total)}
-            for day, total in sorted(counts.items())
-            if day >= month_start and day <= today
-        ]
+        service_history = _daily_points_for_range(
+            counts, month_start, min(today, month_end)
+        )
 
         by_service[service_type] = {
             "actual_month_to_date": actual_this_month,
@@ -412,8 +410,17 @@ def build_forecast_payload(reference: Optional[date] = None) -> dict:
 
     monthly_forecast = monthly_actual + forecast_remaining_total
 
-    aggregated_history = _aggregate_daily_points(history)
-    aggregated_forecast = _aggregate_daily_points(forecast)
+    aggregated_history = _aggregate_daily_points_for_range(
+        history, month_start, month_end_actual
+    )
+    forecast_range_start = today + timedelta(days=1)
+    aggregated_forecast = (
+        _aggregate_daily_points_for_range(
+            forecast, forecast_range_start, month_end
+        )
+        if forecast_range_start <= month_end
+        else []
+    )
 
     return {
         "month": month_start.strftime("%Y-%m"),
@@ -425,6 +432,21 @@ def build_forecast_payload(reference: Optional[date] = None) -> dict:
     }
 
 
+def _daily_points_for_range(
+    counts: Dict[date, int], start_date: date, end_date: date
+) -> List[dict]:
+    if start_date > end_date:
+        return []
+    points: List[dict] = []
+    current = start_date
+    while current <= end_date:
+        points.append(
+            {"date": current.isoformat(), "count": int(counts.get(current, 0))}
+        )
+        current += timedelta(days=1)
+    return points
+
+
 def _aggregate_daily_points(points: List[dict]) -> List[dict]:
     totals: Dict[str, int] = {}
     for point in points:
@@ -433,3 +455,20 @@ def _aggregate_daily_points(points: List[dict]) -> List[dict]:
         {"date": day, "count": totals[day]}
         for day in sorted(totals.keys())
     ]
+
+
+def _aggregate_daily_points_for_range(
+    points: List[dict], start_date: date, end_date: date
+) -> List[dict]:
+    if start_date > end_date:
+        return []
+    totals: Dict[str, int] = {}
+    for point in points:
+        totals[point["date"]] = totals.get(point["date"], 0) + point["count"]
+    result: List[dict] = []
+    current = start_date
+    while current <= end_date:
+        day = current.isoformat()
+        result.append({"date": day, "count": totals.get(day, 0)})
+        current += timedelta(days=1)
+    return result

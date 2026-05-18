@@ -1,6 +1,11 @@
 "use client";
 
 import { useMemo } from "react";
+import {
+  fillCountPoints,
+  getDaysInMonth,
+  toDateKey,
+} from "@/utils/chart-month-days";
 
 export interface ChartPoint {
   date: string;
@@ -37,13 +42,22 @@ const FALLBACK_COLORS = [
   "#059669",
 ];
 
-const CHART_WIDTH = 720;
-const CHART_HEIGHT = 260;
+const CHART_WIDTH = 900;
+const CHART_HEIGHT = 200;
 const PADDING = { top: 16, right: 16, bottom: 36, left: 44 };
 
 function formatDayLabel(value: string) {
   const parsed = new Date(`${value}T00:00:00`);
-  return parsed.toLocaleDateString("id-ID", { day: "2-digit", month: "short" });
+  return parsed.toLocaleDateString("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatAxisDayLabel(value: string) {
+  const parsed = new Date(`${value}T00:00:00`);
+  return String(parsed.getDate());
 }
 
 function buildPath(
@@ -61,26 +75,37 @@ export function VisitorChart({
   emptyMessage = "Belum ada data kunjungan",
 }: VisitorChartProps) {
   const chart = useMemo(() => {
+    const monthDates = getDaysInMonth();
+    const todayKey = toDateKey();
+    const historyDates = monthDates.filter((date) => date <= todayKey);
+    const forecastDates = monthDates.filter((date) => date > todayKey);
+
     const datedSeries = series.map((item, index) => ({
       ...item,
-      color: item.color || SERVICE_COLORS[item.name] || FALLBACK_COLORS[index % FALLBACK_COLORS.length],
-      points: [...item.history, ...item.forecast].sort((a, b) =>
-        a.date.localeCompare(b.date),
-      ),
+      color:
+        item.color ||
+        SERVICE_COLORS[item.name] ||
+        FALLBACK_COLORS[index % FALLBACK_COLORS.length],
+      history: fillCountPoints(item.history, historyDates),
+      forecast: fillCountPoints(item.forecast, forecastDates),
     }));
 
-    const allDates = Array.from(
-      new Set(
-        datedSeries.flatMap((item) => item.points.map((point) => point.date)),
-      ),
-    ).sort();
+    const hasAnyData = datedSeries.some(
+      (item) =>
+        item.history.some((point) => point.count > 0) ||
+        item.forecast.some((point) => point.count > 0),
+    );
 
-    if (allDates.length === 0) {
+    if (!hasAnyData && monthDates.length === 0) {
       return null;
     }
 
+    const allDates = monthDates;
+
     const maxCount = Math.max(
-      ...datedSeries.flatMap((item) => item.points.map((point) => point.count)),
+      ...datedSeries.flatMap((item) =>
+        [...item.history, ...item.forecast].map((point) => point.count),
+      ),
       1,
     );
 
@@ -102,11 +127,12 @@ export function VisitorChart({
       label: Math.round(maxCount * ratio),
     }));
 
+    const labelStep = Math.max(1, Math.ceil(allDates.length / 8));
     const xLabels = allDates.filter(
       (_, index) =>
         index === 0 ||
         index === allDates.length - 1 ||
-        index % Math.ceil(allDates.length / 6) === 0,
+        index % labelStep === 0,
     );
 
     const lines = datedSeries.map((item) => {
@@ -174,7 +200,7 @@ export function VisitorChart({
       <div className="mt-2 w-full overflow-x-auto">
         <svg
           viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
-          className="min-w-[640px] w-full"
+          className="min-w-[800px] w-full"
           role="img"
           aria-label={title}
         >
@@ -207,7 +233,7 @@ export function VisitorChart({
               textAnchor="middle"
               className="fill-gray-500 text-[10px]"
             >
-              {formatDayLabel(date)}
+              {formatAxisDayLabel(date)}
             </text>
           ))}
 

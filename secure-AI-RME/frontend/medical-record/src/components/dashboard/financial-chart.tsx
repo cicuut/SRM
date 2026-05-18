@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { fillAmountPoints, getDaysInMonth } from "@/utils/chart-month-days";
 
 export interface FinancialChartPoint {
   date: string;
@@ -17,13 +18,22 @@ interface FinancialChartProps {
 const INCOME_COLOR = "#16A34A";
 const EXPENSE_COLOR = "#DC2626";
 
-const CHART_WIDTH = 720;
-const CHART_HEIGHT = 260;
+const CHART_WIDTH = 900;
+const CHART_HEIGHT = 200;
 const PADDING = { top: 16, right: 16, bottom: 36, left: 52 };
 
 function formatDayLabel(value: string) {
   const parsed = new Date(`${value}T00:00:00`);
-  return parsed.toLocaleDateString("id-ID", { day: "2-digit", month: "short" });
+  return parsed.toLocaleDateString("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatAxisDayLabel(value: string) {
+  const parsed = new Date(`${value}T00:00:00`);
+  return String(parsed.getDate());
 }
 
 function formatAxisAmount(value: number) {
@@ -58,16 +68,21 @@ export function FinancialChart({
   emptyMessage = "Belum ada data keuangan bulan ini",
 }: FinancialChartProps) {
   const chart = useMemo(() => {
-    const allDates = Array.from(
-      new Set([...income.map((p) => p.date), ...expense.map((p) => p.date)]),
-    ).sort();
+    const monthDates = getDaysInMonth();
+    const filledIncome = fillAmountPoints(income, monthDates);
+    const filledExpense = fillAmountPoints(expense, monthDates);
 
-    if (allDates.length === 0) {
+    const hasAnyData =
+      filledIncome.some((point) => point.amount > 0) ||
+      filledExpense.some((point) => point.amount > 0);
+
+    if (!hasAnyData) {
       return null;
     }
 
-    const incomeMap = new Map(income.map((p) => [p.date, p.amount]));
-    const expenseMap = new Map(expense.map((p) => [p.date, p.amount]));
+    const allDates = monthDates;
+    const incomeMap = new Map(filledIncome.map((p) => [p.date, p.amount]));
+    const expenseMap = new Map(filledExpense.map((p) => [p.date, p.amount]));
 
     const maxAmount = Math.max(
       ...allDates.map((date) =>
@@ -94,11 +109,12 @@ export function FinancialChart({
       label: formatAxisAmount(maxAmount * ratio),
     }));
 
+    const labelStep = Math.max(1, Math.ceil(allDates.length / 8));
     const xLabels = allDates.filter(
       (_, index) =>
         index === 0 ||
         index === allDates.length - 1 ||
-        index % Math.ceil(allDates.length / 6) === 0,
+        index % labelStep === 0,
     );
 
     const buildLine = (dataMap: Map<string, number>, color: string) => {
@@ -155,7 +171,7 @@ export function FinancialChart({
       <div className="mt-2 w-full overflow-x-auto">
         <svg
           viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
-          className="min-w-[640px] w-full"
+          className="min-w-[800px] w-full"
           role="img"
           aria-label={title}
         >
@@ -188,7 +204,7 @@ export function FinancialChart({
               textAnchor="middle"
               className="fill-gray-500 text-[10px]"
             >
-              {formatDayLabel(date)}
+              {formatAxisDayLabel(date)}
             </text>
           ))}
 
