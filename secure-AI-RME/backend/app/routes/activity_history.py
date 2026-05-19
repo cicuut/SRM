@@ -176,16 +176,45 @@ def get_record_id_from_values(old_values, new_values):
     return "-"
 
 
+def get_raw_record_id_from_values(old_values, new_values):
+    candidate_keys = [
+        "record_id",
+        "transaction_id",
+        "visit_id",
+        "patient_id",
+        "user_id",
+        "clinic_id",
+        "pr_id",
+        "kb_id",
+        "gr_id",
+        "dr_id",
+        "ir_id",
+        "visit_anc_id",
+        "visit_kb_id",
+        "visit_gen_id",
+        "visit_imun_id",
+        "history_id",
+        "id",
+    ]
+
+    if isinstance(new_values, dict):
+        for key in candidate_keys:
+            if new_values.get(key):
+                return to_str(new_values.get(key))
+
+    if isinstance(old_values, dict):
+        for key in candidate_keys:
+            if old_values.get(key):
+                return to_str(old_values.get(key))
+
+    return "-"
+
+
 def get_display_label(key):
     if key in FIELD_LABELS:
         return FIELD_LABELS[key]
 
-    return (
-        str(key)
-        .replace("_", " ")
-        .replace("-", " ")
-        .title()
-    )
+    return str(key).replace("_", " ").replace("-", " ").title()
 
 
 def format_display_value(value):
@@ -231,6 +260,34 @@ def get_display_keys(old_values, new_values):
     return sorted(keys)
 
 
+def changed_field_list(old_values, new_values):
+    if not isinstance(old_values, dict):
+        old_values = {}
+
+    if not isinstance(new_values, dict):
+        new_values = {}
+
+    fields = []
+
+    for key in get_display_keys(old_values, new_values):
+        old_value = format_display_value(old_values.get(key))
+        new_value = format_display_value(new_values.get(key))
+
+        if old_value == new_value:
+            continue
+
+        fields.append(
+            {
+                "key": key,
+                "label": get_display_label(key),
+                "old_value": old_value,
+                "new_value": new_value,
+            }
+        )
+
+    return fields
+
+
 def format_created_new_value(new_values):
     if not isinstance(new_values, dict) or not new_values:
         return "Data baru dibuat."
@@ -239,7 +296,6 @@ def format_created_new_value(new_values):
 
     for key in get_display_keys({}, new_values):
         value = format_display_value(new_values.get(key))
-
         lines.append(f"• {get_display_label(key)}: {value}")
 
     return "\n".join(lines)
@@ -253,7 +309,6 @@ def format_deleted_old_value(old_values):
 
     for key in get_display_keys(old_values, {}):
         value = format_display_value(old_values.get(key))
-
         lines.append(f"• {get_display_label(key)}: {value}")
 
     return "\n".join(lines)
@@ -275,7 +330,6 @@ def format_updated_old_value(old_values, new_values):
             continue
 
         value = format_display_value(old_values.get(key))
-
         lines.append(f"• {get_display_label(key)}: {value}")
 
     return "\n".join(lines)
@@ -297,7 +351,6 @@ def format_updated_new_value(old_values, new_values):
             continue
 
         value = format_display_value(new_values.get(key))
-
         lines.append(f"• {get_display_label(key)}: {value}")
 
     return "\n".join(lines)
@@ -321,6 +374,82 @@ def friendly_old_new_value(action, old_values, new_values):
     return stringify_json(old_values), stringify_json(new_values)
 
 
+def make_table_summary(action, old_values, new_values):
+    normalized_action = str(action or "").lower()
+
+    if not isinstance(old_values, dict):
+        old_values = {}
+
+    if not isinstance(new_values, dict):
+        new_values = {}
+
+    if normalized_action.startswith("create"):
+        record_code = (
+            new_values.get("record_code")
+            or new_values.get("transaction_number")
+            or new_values.get("visit_number")
+            or new_values.get("record_number")
+            or new_values.get("patient_number")
+        )
+
+        if record_code:
+            return "-", f"Data baru dibuat: {record_code}"
+
+        return "-", "Data baru dibuat"
+
+    if normalized_action.startswith("delete"):
+        record_code = (
+            old_values.get("record_code")
+            or old_values.get("transaction_number")
+            or old_values.get("visit_number")
+            or old_values.get("record_number")
+            or old_values.get("patient_number")
+        )
+
+        if record_code:
+            return f"Data dihapus: {record_code}", "-"
+
+        return "Data dihapus", "-"
+
+    changed_fields = changed_field_list(old_values, new_values)
+
+    if not changed_fields:
+        return "-", "Tidak ada perubahan field"
+
+    old_parts = []
+    new_parts = []
+
+    for item in changed_fields[:3]:
+        old_parts.append(f"{item['label']}: {item['old_value']}")
+        new_parts.append(f"{item['label']}: {item['new_value']}")
+
+    if len(changed_fields) > 3:
+        old_parts.append(f"+{len(changed_fields) - 3} field lainnya")
+        new_parts.append(f"+{len(changed_fields) - 3} field lainnya")
+
+    return "; ".join(old_parts), "; ".join(new_parts)
+
+
+def value_list_from_dict(values, compare_values=None):
+    if not isinstance(values, dict):
+        return []
+
+    compare_values = compare_values if isinstance(compare_values, dict) else {}
+
+    result = []
+
+    for key in get_display_keys(values, compare_values):
+        result.append(
+            {
+                "key": key,
+                "label": get_display_label(key),
+                "value": format_display_value(values.get(key)),
+            }
+        )
+
+    return result
+
+
 def serialize_audit_row(audit, user):
     old_values = audit.old_values or {}
     new_values = audit.new_values or {}
@@ -332,7 +461,7 @@ def serialize_audit_row(audit, user):
         user_name = user.fullname or "-"
         user_email = user.email or "-"
 
-    old_value_text, new_value_text = friendly_old_new_value(
+    old_value_text, new_value_text = make_table_summary(
         audit.action,
         old_values,
         new_values,
@@ -349,6 +478,44 @@ def serialize_audit_row(audit, user):
         "record_id": get_record_id_from_values(old_values, new_values),
         "old_value": old_value_text,
         "new_value": new_value_text,
+    }
+
+
+def serialize_audit_detail(audit, user):
+    old_values = audit.old_values or {}
+    new_values = audit.new_values or {}
+
+    user_name = "-"
+    user_email = "-"
+    user_role = "-"
+
+    if user:
+        user_name = user.fullname or "-"
+        user_email = user.email or "-"
+        user_role = user.user_role or "-"
+
+    old_value_text, new_value_text = friendly_old_new_value(
+        audit.action,
+        old_values,
+        new_values,
+    )
+
+    return {
+        "audit_id": to_str(audit.log_id),
+        "audit_number": audit.audit_number or "-",
+        "date_time": format_datetime(audit.times),
+        "user": user_name,
+        "user_email": user_email,
+        "user_role": user_role,
+        "action": audit.action or "-",
+        "module": get_module_from_values(old_values, new_values),
+        "record_id": get_record_id_from_values(old_values, new_values),
+        "raw_record_id": get_raw_record_id_from_values(old_values, new_values),
+        "old_value": old_value_text,
+        "new_value": new_value_text,
+        "old_items": value_list_from_dict(old_values, new_values),
+        "new_items": value_list_from_dict(new_values, old_values),
+        "changed_fields": changed_field_list(old_values, new_values),
     }
 
 
@@ -420,15 +587,35 @@ def get_all_activity_history():
         return jsonify({"msg": "Invalid date format. Use YYYY-MM-DD"}), 400
 
     except Exception as e:
-        return (
-            jsonify(
-                {
-                    "msg": "Failed to get activity history",
-                    "error": str(e),
-                }
-            ),
-            500,
+        return jsonify({"msg": "Failed to get activity history", "error": str(e)}), 500
+
+
+@activity_history_bp.route("/detail/<audit_id>", methods=["GET"])
+@jwt_required()
+def get_activity_history_detail(audit_id):
+    current_user, error_response = require_admin()
+
+    if error_response:
+        return error_response
+
+    try:
+        row = (
+            db.session.query(Audit, User)
+            .outerjoin(User, Audit.user_id == User.user_id)
+            .filter(Audit.log_id == str(audit_id))
+            .filter(User.clinic_id == current_user.clinic_id)
+            .first()
         )
+
+        if not row:
+            return jsonify({"msg": "Activity log not found"}), 404
+
+        audit, user = row
+
+        return jsonify({"data": serialize_audit_detail(audit, user)}), 200
+
+    except Exception as e:
+        return jsonify({"msg": "Failed to get activity detail", "error": str(e)}), 500
 
 
 @activity_history_bp.route("/actions", methods=["GET"])
@@ -455,12 +642,4 @@ def get_activity_actions():
         return jsonify(actions), 200
 
     except Exception as e:
-        return (
-            jsonify(
-                {
-                    "msg": "Failed to get activity actions",
-                    "error": str(e),
-                }
-            ),
-            500,
-        )
+        return jsonify({"msg": "Failed to get activity actions", "error": str(e)}), 500

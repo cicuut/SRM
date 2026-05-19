@@ -135,22 +135,6 @@ const formatDisplayDate = (dateString: string) => {
     });
 };
 
-const formatShortDate = (dateString: string) => {
-    if (!dateString) return 'Semua Tanggal';
-
-    const date = new Date(`${dateString}T00:00:00`);
-
-    if (Number.isNaN(date.getTime())) {
-        return dateString;
-    }
-
-    return date.toLocaleDateString('id-ID', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-    });
-};
-
 const formatDateTime = (value: string) => {
     if (!value) return '-';
 
@@ -533,7 +517,6 @@ const ActivityHistory = () => {
 
         return auditLogs.filter((log) => {
             const logDate = normalizeDateFromDateTime(log.date_time);
-
             const matchesDate = selectedDate ? logDate === selectedDate : true;
 
             const searchableText = [
@@ -693,6 +676,12 @@ const ActivityHistory = () => {
         setSelectedDate(today);
         setCalendarMonth(new Date(`${today}T00:00:00`));
         setIsCalendarOpen(false);
+    };
+
+    const goToDetail = (auditId: string) => {
+        if (!auditId) return;
+
+        router.push(`/activity-history/${auditId}`);
     };
 
     const handleDownload = () => {
@@ -1043,8 +1032,10 @@ const ActivityHistory = () => {
                             </div>
                         ) : (
                             currentAuditLogs.map((log) => (
-                                <div
+                                <button
                                     key={log.audit_id || log.audit_number}
+                                    type="button"
+                                    onClick={() => goToDetail(log.audit_id)}
                                     className="w-full rounded-[16px] border border-[#E4E8E1] bg-white px-4 py-4 text-left shadow-sm transition-all hover:border-[#86A789] hover:bg-[#F8FAF6]"
                                 >
                                     <div className="flex items-start justify-between gap-3">
@@ -1145,7 +1136,7 @@ const ActivityHistory = () => {
                                             </p>
                                         </div>
                                     </div>
-                                </div>
+                                </button>
                             ))
                         )}
                     </div>
@@ -1198,7 +1189,8 @@ const ActivityHistory = () => {
                                 currentAuditLogs.map((log, rowIndex) => (
                                     <tr
                                         key={log.audit_id || log.audit_number}
-                                        className={`text-center text-black transition-all hover:bg-[#EEF3E9] ${
+                                        onClick={() => goToDetail(log.audit_id)}
+                                        className={`cursor-pointer text-center text-black transition-all hover:bg-[#EEF3E9] ${
                                             rowIndex % 2 === 0
                                                 ? 'bg-white'
                                                 : 'bg-[#FBFCF8]'

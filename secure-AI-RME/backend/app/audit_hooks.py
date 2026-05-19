@@ -1,16 +1,15 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
 
 from flask import has_request_context
 from flask_jwt_extended import get_jwt_identity
 from sqlalchemy import event, inspect, text
-from zoneinfo import ZoneInfo
 
 from app.models import db, Audit
 
 
-JAKARTA_TZ = ZoneInfo("Asia/Jakarta")
+JAKARTA_TZ = timezone(timedelta(hours=7))
 
 AUDIT_SKIP_MODELS = {
     "Audit",
@@ -73,7 +72,6 @@ RECORD_CODE_FIELDS = [
     "patient_number",
     "audit_number",
 ]
-
 
 _AUDIT_HOOKS_REGISTERED = False
 
@@ -302,6 +300,9 @@ def should_skip_auto_audit(session):
     if session.info.get("skip_auto_audit"):
         return True
 
+    if session.info.get("manual_audit_written"):
+        return True
+
     for obj in session.new:
         if obj.__class__.__name__ == "Audit":
             return True
@@ -429,6 +430,11 @@ def before_flush(session, flush_context, instances):
         session.info.pop("skip_auto_audit", None)
 
 
+def clear_audit_session_flags(session):
+    session.info.pop("skip_auto_audit", None)
+    session.info.pop("manual_audit_written", None)
+
+
 def register_audit_hooks():
     global _AUDIT_HOOKS_REGISTERED
 
@@ -436,5 +442,7 @@ def register_audit_hooks():
         return
 
     event.listen(db.session, "before_flush", before_flush)
+    event.listen(db.session, "after_commit", clear_audit_session_flags)
+    event.listen(db.session, "after_rollback", clear_audit_session_flags)
 
     _AUDIT_HOOKS_REGISTERED = True
