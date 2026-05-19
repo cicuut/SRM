@@ -35,6 +35,11 @@ def create_app():
     db.init_app(app)
     JWTManager(app)
 
+    # Register auto audit hook.
+    # Ini yang bikin aktivitas create/update/delete dari ORM otomatis masuk audit log.
+    from .audit_hooks import register_audit_hooks
+    register_audit_hooks()
+
     from .routes.auth import auth_bp
     from .routes.medical_record import medical_record_bp
     from .routes.visit_report import visit_report_bp

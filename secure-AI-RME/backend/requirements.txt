@@ -11,3 +11,4 @@ Werkzeug==3.1.6
 PyJWT==2.12.1
 pycryptodome==3.23.0
 pytz
+pip install tzdata
