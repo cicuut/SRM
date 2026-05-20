@@ -191,7 +191,7 @@ const VisitFamilyPlanningDetail = () => {
             </label>
             <label className="flex flex-col text-sm gap-2">
               <span className="text-[12px] font-bold text-[#2F3A2F]">
-                Tekanan Darah
+                Tekanan Darah (mmHg)
               </span>
               <input
                 name="blood_pressure"

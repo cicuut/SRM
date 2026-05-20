@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import Cookies from 'js-cookie';
-import { House, UsersRound, HeartPulse, Wallet, UserCog, Settings, History    } from 'lucide-react';
+import { House, UsersRound, HeartPulse, Wallet, UserCog, Settings, History } from 'lucide-react';
 
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
@@ -60,7 +60,7 @@ const navItems: NavItem[] = [
         roles: ['admin', 'midwife'],
     },
     {
-        label: 'Pengaturan Manajemen',
+        label: 'Kelola Manajemen',
         href: '/management-setting',
         icon: UserCog,
         roles: ['admin'],
@@ -68,13 +68,13 @@ const navItems: NavItem[] = [
     {
         label: 'Pengaturan Akun',
         href: '/account-setting',
-        icon: Settings ,
+        icon: Settings,
         roles: ['admin', 'midwife', 'asisten'],
     },
     {
         label: 'Riwayat Aktivitas',
         href: '/activity-history',
-        icon:History ,
+        icon: History,
         roles: ['admin'],
     },
 ];
@@ -179,15 +179,24 @@ const Sidebar = () => {
     return (
         <aside>
             <div className="fixed left-0 top-0 flex h-screen w-64 flex-col border-r border-white/5 bg-[#FDFEF9] drop-shadow-lg">
-                <div className="ml-4 mt-4 flex items-center">
+                <div className="ml-4 mt-4 flex items-center w-full">
                     <Image
-                        src="/IBI-logo.webp"
-                        alt="RME Logo"
-                        width={80}
-                        height={80}
+                        src="/logo.jpg"
+                        alt="Logo"
+                        width={70}
+                        height={70}
                     />
-
-                    <h1 className="text-3xl">RME</h1>
+                    <div className="flex flex-col leading-tight select-none">
+                        <span className="text-[15px] font-bold text-black">
+                           System  
+                        </span>
+                          <span className="text-[15px] font-bold text-black">
+                          Management
+                        </span>
+                        <span className="text-[15px] font-bold text-black">
+                            Bidan Evi Susanti
+                        </span>
+                    </div>
                 </div>
 
                 <div className="mx-6 mt-5 rounded-[18px] bg-[#D2E3C8] px-4 py-3">
@@ -214,15 +223,14 @@ const Sidebar = () => {
                             <Link
                                 key={item.label}
                                 href={item.href}
-                                className={`flex w-full items-center gap-4 rounded-4xl px-5 py-4 transition-all ${
-                                    active
+                                className={`flex w-full items-center gap-4 rounded-4xl px-5 py-4 transition-all ${active
                                         ? 'bg-[#739072] text-white'
                                         : 'text-black hover:bg-[#D2E3C8]'
-                                }`}
+                                    }`}
                             >
-                                <item.icon 
-                                        size={20} 
-                                        className={`${active ? "text-white" : "text-black"} transition-colors`}/>
+                                <item.icon
+                                    size={20}
+                                    className={`${active ? "text-white" : "text-black"} transition-colors`} />
 
                                 <span className="relative z-10 text-[14px] font-medium">
                                     {item.label}

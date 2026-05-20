@@ -225,7 +225,7 @@ const VisitImmunizationDetail = () => {
             </label>
             <label className="flex flex-col text-sm gap-2">
               <span className="text-[12px] font-bold text-[#2F3A2F]">
-                Suhu Tubuh
+                Suhu Tubuh  (°C)
               </span>
               <input
                 name="body_temperature"
@@ -238,7 +238,7 @@ const VisitImmunizationDetail = () => {
             </label>
             <label className="flex flex-col text-sm gap-2">
               <span className="text-[12px] font-bold text-[#2F3A2F]">
-                Lingkar Kepala
+                Lingkar Kepala (cm)
               </span>
               <input
                 name="head_circumference"

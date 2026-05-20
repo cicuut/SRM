@@ -116,39 +116,45 @@ const MedicalRecord = () => {
     }
   };
 
+  const handleViewRecordDetail = (rmId: string) => {
+    router.push(`/medical-record/${rmId}`);
+  };
+
+  // Search function to search for patients based on the input query
   const handleSearch = async (query: string) => {
-    if (query.length < 3) return;
+    if (query.length < 3) return; // Minimal 3 characters to search
+    // Call the search API endpoint with the query
     try {
       const response = await api.get(
         `/medical-record/search-patients?query=${query}`,
       );
-      setFilteredResults(response.data);
+      setFilteredResults(response.data); // Update the filtered results state with the response data
     } catch (err: any) {
+      // Extract error message from response or use a default message
       const msg =
         err.response?.data?.msg || err.message || "Gagal mencari pasien";
       setError(msg);
     }
   };
-
-  const handleViewRecordDetail = (rmId: string) => {
-    router.push(`/medical-record/${rmId}`);
-  };
-
+  // Function to handle filtering medical records by type
   const handleFilterChange = async (type: string, label: string) => {
     setSelectedRMValue(type);
     setSelectedRMLabel(label);
     setLoading(true);
+    // Call the API endpoint to filter medical records by the selected type
     try {
       const response = await api.get(
         `/medical-record/filter-rm-type?type=${type}`,
       );
-      setMedicalRecordList(response.data);
+      setMedicalRecordList(response.data); // Update the medical record list state with the filtered data
     } catch (err) {
+      // Log the error 
       console.error("Gagal filter", err);
     } finally {
       setLoading(false);
     }
   };
+
   const getPageNumbers = () => {
     const pageNumbers = [];
 
@@ -276,16 +282,15 @@ const MedicalRecord = () => {
                 {currentItems.map((item, index) => (
                   <tr
                     key={item.rm_id}
-                    className={`cursor-pointer text-center text-black transition-all hover:bg-[#EEF3E9] ${
-                      index % 2 === 0 ? "bg-white" : "bg-[#FBFCF8]"
-                    }`}
+                    className={`cursor-pointer text-center text-black transition-all hover:bg-[#EEF3E9] ${index % 2 === 0 ? "bg-white" : "bg-[#FBFCF8]"
+                      }`}
                     onClick={() => handleViewRecordDetail(item.rm_id)}
                   >
                     <td className="px-6 py-4">{item.record_number}</td>
                     <td className="px-6 py-4">{item.record_type}</td>
                     <td className="px-6 py-4">{item.patient_name}</td>
                     <td className="px-6 py-4 text-center">{item.nik}</td>
-                     <td className="px-6 py-4 text-center">{item.birth_date}</td>
+                    <td className="px-6 py-4 text-center">{item.birth_date}</td>
                     <td className="px-6 py-4 text-center">
                       <span
                         className={`px-3 py-1 rounded-full text-[10px] font-bold ${item.status === "Active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}
@@ -345,11 +350,10 @@ const MedicalRecord = () => {
                 <button
                   key={`page-${page}`}
                   onClick={() => setCurrentPage(Number(page))}
-                  className={`w-8 h-8 text-[12px] font-bold rounded-full flex items-center justify-center transition-all ${
-                    currentPage === page
-                      ? "bg-[#739072] text-white shadow-md scale-105" // Bubble Aktif
-                      : "text-gray-600 bg-transparent hover:bg-[#EEF3E9] hover:text-[#4F6F52]" // Bubble Inaktif
-                  }`}
+                  className={`w-8 h-8 text-[12px] font-bold rounded-full flex items-center justify-center transition-all ${currentPage === page
+                    ? "bg-[#739072] text-white shadow-md scale-105" // Bubble Aktif
+                    : "text-gray-600 bg-transparent hover:bg-[#EEF3E9] hover:text-[#4F6F52]" // Bubble Inaktif
+                    }`}
                 >
                   {page}
                 </button>

@@ -242,7 +242,7 @@ const FamilyInformation = () => {
                 type="text"
                 disabled
                 className="mt-1 h-10.5 w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10"
-                placeholder="Masukkan nama pasien"
+                placeholder="Masukkan umur pasien"
               />
             </label>
             <label className="flex flex-col text-sm gap-2">
@@ -411,7 +411,7 @@ const FamilyInformation = () => {
                 type="text"
                 disabled
                 className="mt-1 h-10.5 w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10"
-                placeholder="Masukkan nama pasien"
+                placeholder="Masukkan umur pasien"
               />
             </label>
             <label className="flex flex-col text-sm gap-2">

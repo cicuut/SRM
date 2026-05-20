@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import Accordion from "@mui/material/Accordion";
 import AccordionDetails from "@mui/material/AccordionDetails";
 import AccordionSummary from "@mui/material/AccordionSummary";
-import { ChevronDown } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import api from "@/utils/app";
 
 interface VisitFamilyPlanningAccorditionList {
@@ -83,22 +83,25 @@ const VisitFamilyPlanningAccordition = () => {
             }}
           >
             <AccordionSummary
-              expandIcon={
-                <ChevronDown className="text-[#739072] text-[15px]" />
-              }
-              aria-controls={`panel-${visitFamilyPlanning.visit_id}-content`}
-              id={`panel-${visitFamilyPlanning.visit_id}-header`}
-              sx={{
-                backgroundColor: "white",
-                flexDirection: "row-reverse",
-                borderRadius: "12px !important",
-                "& .MuiAccordionSummary-expandIconWrapper": {
-                  marginRight: "16px",
-                },
-                "& .MuiAccordionSummary-content": {
-                  marginLeft: "0px",
-                },
-              }}
+             expandIcon={
+                            <ChevronRight className="text-[#739072] text-[15px]" />
+                          }
+                          aria-controls={`panel-${visitFamilyPlanning.visit_id}-content`}
+                          id={`panel-${visitFamilyPlanning.visit_id}-header`}
+                          sx={{
+                            backgroundColor: "white",
+                            flexDirection: "row-reverse",
+                            borderRadius: "12px !important",
+                            "&.Mui-expanded .MuiAccordionSummary-expandIconWrapper": {
+                              transform: "rotate(90deg)", 
+                            },
+                            "& .MuiAccordionSummary-expandIconWrapper": {
+                              marginRight: "16px",
+                            },
+                            "& .MuiAccordionSummary-content": {
+                              marginLeft: "0px",
+                            },
+                          }}
             >
               <div className="flex items-center gap-4">
                 <p className="font-bold text-[#4F6F52] text-[15px]">
@@ -134,7 +137,7 @@ const VisitFamilyPlanningAccordition = () => {
                       <td>{visitFamilyPlanning.follow_up_visit}</td>
                     </tr>
                     <tr>
-                      <td>complaint</td>
+                      <td>Complaint</td>
                       <td colSpan={2}> : </td>
                     </tr>
                   </tbody>

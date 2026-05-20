@@ -36,25 +36,25 @@ const PregnancyRecord = () => {
   const handlePatientUpdate = (data: any) => setPatientData(data);
   const handleFamilyUpdate = (data: any) => setFamilyData(data);
 
-    const fetchRmNumber = async () => {
-        try {
-           const response = await api.get(
-                `/medical-record/rm-number?type=${recordType}`
-            );
-            setRmNumber(response.data.next_rm_number);
-        } catch (error) {
-            console.error("Error fetching RM number:", error);
-            setRmNumber("Failed to generate RM Number");
-        }
-    };
+  const fetchRmNumber = async () => {
+    try {
+      const response = await api.get(
+        `/medical-record/rm-number?type=${recordType}`
+      );
+      setRmNumber(response.data.next_rm_number);
+    } catch (error) {
+      console.error("Error fetching RM number:", error);
+      setRmNumber("Failed to generate RM Number");
+    }
+  };
 
-    useEffect(() => {
-        fetchRmNumber();
-    }, [recordType]);
+  useEffect(() => {
+    fetchRmNumber();
+  }, [recordType]);
 
-    const handlePregnancyCountChange = (count: string) => {
-        const num = parseInt(count) || 0;
-        setPreviousPregnancy(count);
+  const handlePregnancyCountChange = (count: string) => {
+    const num = parseInt(count) || 0;
+    setPreviousPregnancy(count);
 
     const newHistory = Array.from({ length: num }, (_, i) => ({
       pregnancy_no: i + 1,
@@ -69,15 +69,15 @@ const PregnancyRecord = () => {
       postpartum_complications: "",
     }));
 
-        setObstetricHistory(newHistory);
-        if (num > 0) setIsModalOpen(true);
-    };
+    setObstetricHistory(newHistory);
+    if (num > 0) setIsModalOpen(true);
+  };
 
-    const updateHistoryItem = (index: number, field: string, value: string) => {
-        const updated = [...obstetricHistory];
-        updated[index][field] = value;
-        setObstetricHistory(updated);
-    };
+  const updateHistoryItem = (index: number, field: string, value: string) => {
+    const updated = [...obstetricHistory];
+    updated[index][field] = value;
+    setObstetricHistory(updated);
+  };
 
   useEffect(() => {
     if (lastMenstrualPeriod) {
@@ -105,57 +105,57 @@ const PregnancyRecord = () => {
     }
   }, [lastMenstrualPeriod]);
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setError("");
-        setLoading(true);
-        try {
-            const payload = {
-                ...patientData,
-                ...familyData,
-                record_number: rmNumber,
-                record_type: recordType,
-                pre_preg_weight_kg: prePregnancyWeight,
-                pre_preg_muac_cm: prePregnancyMUAC,
-                contraceptive_history: contraceptiveHistory,
-                family_med_history: geneticDiseaseHistory,
-                pregnancy_no: previousPregnancy,
-                last_menstrual_period: lastMenstrualPeriod,
-                expected_due_date: estimatedDate,
-                diagnosis: diagnosis,
-                registration_date: date,
-                height_cm: height,
-                weight_kg: weight,
-                tt_screening: ttScreening,
-                lab_results: labResult,
-                muac_cm: muac,
-                obstetric_list: obstetricHistory
-            };
-            const response = await api.post("/medical-record/add-pregnancy", payload );
-            if (response.status === 201) {
-                Swal.fire({
-                    title: "Success",
-                    text: "Rekam medis kehamilan berhasil disimpan",
-                    icon: "success",
-                     showConfirmButton: false,
-                timer: 2000
-                });
-                fetchRmNumber();
-            } router.push('/medical-record');
-        } catch (err: any) {
-            console.error(err);
-            setLoading(false);
-            const errorMessage = err.response?.data?.msg || "Something went wrong";
-            Swal.fire({
-                title: "Gagal Menyimpan!",
-                text: errorMessage,
-                icon: "error",
-                showConfirmButton: false,
-                timer: 2000
-            });
-            setError(errorMessage);
-        }
-    };
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      const payload = {
+        ...patientData,
+        ...familyData,
+        record_number: rmNumber,
+        record_type: recordType,
+        pre_preg_weight_kg: prePregnancyWeight,
+        pre_preg_muac_cm: prePregnancyMUAC,
+        contraceptive_history: contraceptiveHistory,
+        family_med_history: geneticDiseaseHistory,
+        pregnancy_no: previousPregnancy,
+        last_menstrual_period: lastMenstrualPeriod,
+        expected_due_date: estimatedDate,
+        diagnosis: diagnosis,
+        registration_date: date,
+        height_cm: height,
+        weight_kg: weight,
+        tt_screening: ttScreening,
+        lab_results: labResult,
+        muac_cm: muac,
+        obstetric_list: obstetricHistory
+      };
+      const response = await api.post("/medical-record/add-pregnancy", payload);
+      if (response.status === 201) {
+        Swal.fire({
+          title: "Success",
+          text: "Rekam medis kehamilan berhasil disimpan",
+          icon: "success",
+          showConfirmButton: false,
+          timer: 2000
+        });
+        fetchRmNumber();
+      } router.push('/medical-record');
+    } catch (err: any) {
+      console.error(err);
+      setLoading(false);
+      const errorMessage = err.response?.data?.msg || "Something went wrong";
+      Swal.fire({
+        title: "Gagal Menyimpan!",
+        text: errorMessage,
+        icon: "error",
+        showConfirmButton: false,
+        timer: 2000
+      });
+      setError(errorMessage);
+    }
+  };
 
   return (
     <div className="min-h-screen flex bg-[#FDFEF9]">
@@ -343,7 +343,7 @@ const PregnancyRecord = () => {
                           <input
                             type="number"
                             value={item.baby_weight}
-                             placeholder="Tanpa satuan"
+                            placeholder="Tanpa satuan"
                             onChange={(e) =>
                               updateHistoryItem(
                                 index,

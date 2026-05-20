@@ -7,6 +7,7 @@ import uuid
 from . import db
 from sqlalchemy import text
 
+# Count existing records of a specific type for the current year to generate the next record number
 def get_latest_record_count(record_type):
     from app.models import MedicalRecord
 
@@ -19,7 +20,7 @@ def get_latest_record_count(record_type):
 
     return count
 
-
+# Generate a unique medical record number based on the type and count of existing records
 def generate_record_number(record_type, latest_count):
     mapping = {
         "Kehamilan": "RMH",

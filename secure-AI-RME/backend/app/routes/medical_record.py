@@ -40,8 +40,9 @@ def add_pregnancy_record():
     data = request.get_json()
     
     # required input validation
-    required_fields = ['family_name', 'family_birth_date', 'family_national_id', 'family_gender', 'family_address', 'family_number', 'relation',
-                       'patient_name', 'birth_date', 'national_id', 'gender', 'patient_number', 'address']
+    required_fields = ['family_name', 'family_birth_date', 'family_national_id', 'family_gender', 'family_address', 
+                       'family_number', 'relation','patient_name', 'birth_date', 'national_id', 'gender', 'patient_number', 
+                       'address']
 
     for field in required_fields:
         if not data.get(field):
@@ -164,8 +165,9 @@ def add_family_planning_record():
     data = request.get_json()
     
     # Validasi input
-    required_fields = ['family_name', 'family_birth_date', 'family_national_id', 'family_gender', 'family_address', 'family_number', 'relation',
-                       'patient_name', 'birth_date', 'national_id', 'gender', 'patient_number', 'address']
+    required_fields = ['family_name', 'family_birth_date', 'family_national_id', 'family_gender', 
+                       'family_address', 'family_number', 'relation', 'patient_name', 'birth_date', 
+                       'national_id', 'gender', 'patient_number', 'address']
 
     for field in required_fields:
         if not data.get(field):
@@ -257,8 +259,9 @@ def add_general_record():
     
     data = request.get_json()
     
-    required_fields = ['family_name', 'family_birth_date', 'family_national_id', 'family_gender', 'family_address', 'family_number', 'relation',
-                       'patient_name', 'birth_date', 'national_id', 'gender', 'patient_number', 'address']
+    required_fields = ['family_name', 'family_birth_date', 'family_national_id', 'family_gender',
+                       'family_address', 'family_number', 'relation', 'patient_name', 'birth_date', 
+                       'national_id', 'gender', 'patient_number', 'address']
 
     for field in required_fields:
         if not data.get(field):
@@ -338,8 +341,9 @@ def add_immunization_record():
     
     data = request.get_json()
     
-    required_fields = ['family_name', 'family_birth_date', 'family_national_id', 'family_gender', 'family_address', 'family_number', 'relation',
-                       'patient_name', 'birth_date', 'national_id', 'gender', 'patient_number', 'address']
+    required_fields = ['family_name', 'family_birth_date', 'family_national_id', 'family_gender', 
+                       'family_address', 'family_number', 'relation', 'patient_name', 'birth_date',
+                       'national_id', 'gender', 'patient_number', 'address']
 
     for field in required_fields:
         if not data.get(field):
@@ -430,8 +434,9 @@ def add_delivery_record():
     data = request.get_json()
     
     # Validasi input
-    required_fields = ['family_name', 'family_birth_date', 'family_national_id', 'family_gender', 'family_address', 'family_number', 'relation',
-                       'patient_name', 'birth_date', 'national_id', 'gender', 'patient_number', 'address']
+    required_fields = ['family_name', 'family_birth_date', 'family_national_id', 'family_gender', 
+                       'family_address', 'family_number', 'relation', 'patient_name', 'birth_date',
+                       'national_id', 'gender', 'patient_number', 'address']
 
     for field in required_fields:
         if not data.get(field):
@@ -958,43 +963,47 @@ def get_general_visit_data(uuid):
 @jwt_required()
 def search_patients():
     try:
+        #take the search query from frontend and make it lowercase for case-insensitive search
         search_query = request.args.get('query', '').lower()
         
+        # pull all medical records with patient data
         results = db.session.query(MedicalRecord, Patient)\
             .join(Patient, MedicalRecord.patient_id == Patient.patient_id)\
             .all()
 
         matched_records = []
-
+        
+        # search in every record to look for a match
         for record, patient in results:
+            #Logic to decryp the query (name, nik, date of birth)
             decrypted_name = decrypt_data(patient.patient_name).lower()
             decrypted_nik = str(decrypt_data(patient.national_id)).strip().lower()
-            
             decrypted_birthdate = decrypt_data(patient.birth_date)
             
             dob_searchable = ""
             dob_display = "-"
             
+            #logic to set dob format
             if decrypted_birthdate:
                 decrypted_str = str(decrypted_birthdate)
                 
                 try:
-                    dob_obj = datetime.strptime(decrypted_str, '%Y-%m-%d')
-                    
-                    #searchable birth of date format
+                    dob_obj = datetime.strptime(decrypted_str, '%Y-%m-%d')   
                     dob_searchable = f"{dob_obj.strftime('%d-%m-%Y')} {dob_obj.strftime('%d/%m/%Y')} {dob_obj.strftime('%Y-%m-%d')} {dob_obj.strftime('%d %B %Y')}".lower()
-                    #displayed birth of date
+                    #human readable day of birth
                     dob_display = dob_obj.strftime('%d %B %Y')
-                    
+                
+                #fallback
                 except Exception:
                     dob_searchable = decrypted_str
                     dob_display = decrypted_str
             
-            #logic only name, nik, dob
+            #check if the search query is in either name, nik, or date of birth
             if (search_query in decrypted_name or 
                 search_query in decrypted_nik or 
                 search_query in dob_searchable):
                 
+                # if match show the record in the search result in array
                 matched_records.append({
                     "rm_id": record.record_id,
                     "record_number": record.record_number,
@@ -1009,27 +1018,33 @@ def search_patients():
 
         return jsonify(matched_records), 200
 
+    # if error return the error message
     except Exception as e:
         print(f"Search Error: {str(e)}")
         return jsonify({"msg": "Server error", "error": str(e)}), 500
-
-# RM Type
+    
+# filter RM by type
 @medical_record_bp.route('/filter-rm-type', methods=['GET'])
 @jwt_required()
 def filter_rm_type():
     try:
+        #take the selected record type from frontend
         selected_type = request.args.get('type')
-    
+
+        #pull all medical records with patient data 
         query = db.session.query(MedicalRecord, Patient).\
                 join(Patient, MedicalRecord.patient_id == Patient.patient_id)
-
+        
+        # if the selected type is not "All", filter the records by the selected type
         if selected_type and selected_type != "All":
             query = query.filter(MedicalRecord.record_type == selected_type)
 
+        # Sort by newest records first
         results = query.order_by(MedicalRecord.created_at.desc()).all()
 
         filtered_data = []
-
+        
+        #decrypt the data and prepare the response data to be sent to frontend 
         for record, patient in results:
             raw_name = decrypt_data(patient.patient_name)
             raw_nik = decrypt_data(patient.national_id)

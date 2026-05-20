@@ -138,10 +138,10 @@ const Login = () => {
     return (
         <div className="container bg-[#D2E3C8]">
             <div className="flex w-1/2 flex-col items-center justify-center gap-4">
-                <Image src="/icon-1.png" alt="Icon" width={300} height={300} />
+                <Image src="/logo.png" alt="Icon" width={300} height={300} />
                 <div className="w-1/2 text-center">
                     <p className="text-4xl text-[#739072]">
-                        Clinic Management Information System
+                       System Management Bidan Evi Susanti
                     </p>
                 </div>
             </div>

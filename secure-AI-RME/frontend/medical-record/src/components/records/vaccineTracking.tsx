@@ -90,12 +90,12 @@ const VaccineTracking = () => {
       <div className="rounded-[14px] border border-[#D2D8CF] bg-white shadow-sm">
         <div className="border-b border-[#E4E8E1] px-5 py-4">
           <h2 className="text-[16px] font-bold text-[#4F6F52]">
-            Informasi Kehamilan Saat Ini
+            Informasi Vaksin 
           </h2>
           <p>Tidak dapat diedit, edit hanya dapat dilakukan melalui data kunjungan</p>
         </div>
         <div className="flex flex-wrap gap-4 p-4 justify-center">
-          <ImmuneBox title="HBO" doses={[data?.hbo_1 || ""]} />
+          <ImmuneBox title="HB0" doses={[data?.hbo_1 || ""]} />
           <ImmuneBox title="BCG" doses={[data?.bcg_1 || ""]} />
 
           <ImmuneBox
