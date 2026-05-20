@@ -8,65 +8,95 @@ from sqlalchemy.ext.hybrid import hybrid_property
 import sqlalchemy as sa
 from sqlalchemy.types import TypeDecorator, Text
 from sqlalchemy import text
-from sqlalchemy.dialects.postgresql import  UUID, JSONB
+from sqlalchemy.dialects.postgresql import UUID, JSONB
+
 
 class EncryptedText(TypeDecorator):
     impl = Text
-   
+
+    cache_ok = True
+
     def process_bind_param(self, value, dialect):
         if value is not None:
-           return encrypt_data(value)
+            return encrypt_data(value)
         return value
-   
+
     def process_result_value(self, value, dialect):
         if value is not None:
             return decrypt_data(value)
         return value
-   
+
 
 class Clinic(db.Model):
     __tablename__ = 'clinic'
-    
-    clinic_id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    clinic_id = db.Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
     clinic_name = db.Column(db.String(255), nullable=False)
     clinic_address = db.Column(EncryptedText, nullable=False)
-    license_number = db.Column(EncryptedText, nullable = False)
+    license_number = db.Column(EncryptedText, nullable=False)
     clinic_email = db.Column(db.String(255), nullable=False)
-    clinic_phone = db.Column(EncryptedText, nullable=False)    
-    
+    clinic_phone = db.Column(EncryptedText, nullable=False)
+
+
 class User(db.Model):
     __tablename__ = 'users'
-    
-    user_id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    clinic_id =db.Column(UUID(as_uuid=True), db.ForeignKey('clinic.clinic_id', ondelete='CASCADE'))
+
+    user_id = db.Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    clinic_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('clinic.clinic_id', ondelete='CASCADE'),
+        nullable=True,
+    )
     fullname = db.Column(db.String(50), nullable=False)
     password_hash = db.Column(db.String(128), nullable=False)
     user_role = db.Column(db.String(20), nullable=False)
-    strnumber = db.Column(EncryptedText, nullable = True)
+    strnumber = db.Column(EncryptedText, nullable=True)
     email = db.Column(db.String(255), nullable=False)
     is_active = db.Column(db.Boolean, default=True)
-    last_login = db.Column(db.DateTime, 
-        nullable=False, 
-        server_default=text("timezone('Asia/Jakarta', now())")
+    profile_photo = db.Column(db.Text, nullable=True)
+
+    last_login = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=text("timezone('Asia/Jakarta', now())"),
     )
     created_at = db.Column(
-        db.DateTime, 
-        nullable=False, 
-        server_default=text("timezone('Asia/Jakarta', now())")
+        db.DateTime,
+        nullable=False,
+        server_default=text("timezone('Asia/Jakarta', now())"),
     )
-    server_default=text("timezone('Asia/Jakarta', now())")
-    
+
     def set_password(self, password):
-      self.password_hash = bcrypt.hash(password[:72])
-        
+        self.password_hash = bcrypt.hash(password[:72])
+
     def check_password(self, password):
         return bcrypt.verify(password[:72], self.password_hash)
-    
+
+
 class Patient(db.Model):
     __tablename__ = 'patient'
-    patient_id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    clinic_id = db.Column(UUID(as_uuid=True), db.ForeignKey('clinic.clinic_id', ondelete='CASCADE'))
-    family_link_id =  db.Column(UUID(as_uuid=True), db.ForeignKey('patient.patient_id', ondelete='CASCADE'))
+
+    patient_id = db.Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    clinic_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('clinic.clinic_id', ondelete='CASCADE'),
+    )
+    family_link_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('patient.patient_id', ondelete='CASCADE'),
+    )
     patient_name = db.Column(EncryptedText, nullable=False)
     birth_date = db.Column(db.Date, nullable=False)
     role = db.Column(db.String(20), default='self')
@@ -79,36 +109,61 @@ class Patient(db.Model):
     insurance_number = db.Column(EncryptedText, nullable=True)
     primary_health_facility = db.Column(db.String(255), nullable=True)
     relation = db.Column(db.String(50))
-    
+
     family_members = db.relationship(
-        'Patient', 
+        'Patient',
         backref=db.backref('parent_link', remote_side=[patient_id]),
-        cascade="all, delete-orphan"
+        cascade='all, delete-orphan',
     )
-    
+
     @hybrid_property
     def age(self):
         if self.birth_date:
             today = datetime.today()
-            return today.year - self.birth_date.year - ((today.month, today.day) < (self.birth_date.month, self.birth_date.day))
+            return (
+                today.year
+                - self.birth_date.year
+                - ((today.month, today.day) < (self.birth_date.month, self.birth_date.day))
+            )
+
         return 0
-    
+
+
 class MedicalRecord(db.Model):
     __tablename__ = 'medical_record'
-    
-    record_id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    patient_id = db.Column(UUID(as_uuid=True), db.ForeignKey('patient.patient_id', ondelete='CASCADE'))
+
+    record_id = db.Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    patient_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('patient.patient_id', ondelete='CASCADE'),
+    )
     record_number = db.Column(db.String(20), unique=True, nullable=False)
     record_type = db.Column(db.String(50), nullable=False)
     status = db.Column(db.String(20), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    last_update = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+    last_update = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+
 class PregnancyRecord(db.Model):
     __tablename__ = 'pregnancy_record'
-    
-    pr_id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    record_id = db.Column(UUID(as_uuid=True), db.ForeignKey('medical_record.record_id', ondelete='CASCADE'))
+
+    pr_id = db.Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    record_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('medical_record.record_id', ondelete='CASCADE'),
+    )
     contraceptive_history = db.Column(EncryptedText, nullable=True)
     family_med_history = db.Column(EncryptedText, nullable=True)
     last_menstrual_period = db.Column(db.Date, nullable=True)
@@ -122,12 +177,20 @@ class PregnancyRecord(db.Model):
     lab_results = db.Column(EncryptedText, nullable=True)
     pre_preg_muac_cm = db.Column(db.Float, nullable=True)
     pre_preg_weight_kg = db.Column(db.Float, nullable=True)
-    
+
+
 class ObstetricHistory(db.Model):
     __tablename__ = 'obstetric_history'
-    
-    history_id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    pr_id = db.Column(UUID(as_uuid=True), db.ForeignKey('pregnancy_record.pr_id', ondelete='CASCADE'))
+
+    history_id = db.Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    pr_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('pregnancy_record.pr_id', ondelete='CASCADE'),
+    )
     pregnancy_no = db.Column(db.Integer, nullable=True)
     gestational_age = db.Column(db.String(50), nullable=True)
     pregnancy_complications = db.Column(EncryptedText, nullable=True)
@@ -138,27 +201,51 @@ class ObstetricHistory(db.Model):
     baby_complications = db.Column(EncryptedText, nullable=True)
     postpartum_status = db.Column(EncryptedText, nullable=True)
     postpartum_complications = db.Column(EncryptedText, nullable=True)
-    
+
+
 class FamilyPlanningRecord(db.Model):
     __tablename__ = 'kb_record'
-    
-    kb_id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    record_id = db.Column(UUID(as_uuid=True), db.ForeignKey('medical_record.record_id', ondelete='CASCADE'))
-    number_of_children= db.Column(db.Integer, nullable=True)
-    youngest_child_age= db.Column(db.Text, nullable=True)
+
+    kb_id = db.Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    record_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('medical_record.record_id', ondelete='CASCADE'),
+    )
+    number_of_children = db.Column(db.Integer, nullable=True)
+    youngest_child_age = db.Column(db.Text, nullable=True)
     family_med_history = db.Column(EncryptedText, nullable=True)
+
 
 class GeneralRecord(db.Model):
     __tablename__ = 'general_record'
-    
-    gr_id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    record_id = db.Column(UUID(as_uuid=True), db.ForeignKey('medical_record.record_id', ondelete='CASCADE'))
+
+    gr_id = db.Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    record_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('medical_record.record_id', ondelete='CASCADE'),
+    )
+
 
 class DeliveryRecord(db.Model):
     __tablename__ = 'delivery_record'
-    
-    dr_id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    record_id = db.Column(UUID(as_uuid=True), db.ForeignKey('medical_record.record_id', ondelete='CASCADE'))
+
+    dr_id = db.Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    record_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('medical_record.record_id', ondelete='CASCADE'),
+    )
     delivery_date = db.Column(db.Date, nullable=True)
     delivery_type = db.Column(db.String(100), nullable=True)
     deliver_complications = db.Column(EncryptedText, nullable=True)
@@ -172,11 +259,19 @@ class DeliveryRecord(db.Model):
     eye_ointment = db.Column(db.Boolean, default=False, nullable=False)
     imd = db.Column(db.Boolean, default=False, nullable=False)
 
+
 class ImmunizationRecord(db.Model):
     __tablename__ = 'immunization_record'
-    
-    ir_id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    record_id = db.Column(UUID(as_uuid=True), db.ForeignKey('medical_record.record_id', ondelete='CASCADE'))
+
+    ir_id = db.Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    record_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('medical_record.record_id', ondelete='CASCADE'),
+    )
     hbo_1 = db.Column(db.Date, nullable=True)
     bcg_1 = db.Column(db.Date, nullable=True)
     polio_1 = db.Column(db.Date, nullable=True)
@@ -184,7 +279,7 @@ class ImmunizationRecord(db.Model):
     polio_3 = db.Column(db.Date, nullable=True)
     polio_4 = db.Column(db.Date, nullable=True)
     dpt_1 = db.Column(db.Date, nullable=True)
-    dpt_2= db.Column(db.Date, nullable=True)
+    dpt_2 = db.Column(db.Date, nullable=True)
     dpt_3 = db.Column(db.Date, nullable=True)
     dpt_4 = db.Column(db.Date, nullable=True)
     pcv_1 = db.Column(db.Date, nullable=True)
@@ -197,53 +292,96 @@ class ImmunizationRecord(db.Model):
     rotavirus_1 = db.Column(db.Date, nullable=True)
     rotavirus_2 = db.Column(db.Date, nullable=True)
     rotavirus_3 = db.Column(db.Date, nullable=True)
-    
-    
+
+
 class VisitMaster(db.Model):
     __tablename__ = 'visit_master'
-    
-    visit_id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    record_id = db.Column(UUID(as_uuid=True), db.ForeignKey('medical_record.record_id', ondelete='CASCADE'))
-    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.user_id', ondelete='CASCADE'))
+
+    visit_id = db.Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    record_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('medical_record.record_id', ondelete='CASCADE'),
+    )
+    user_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('users.user_id', ondelete='CASCADE'),
+    )
     visit_number = db.Column(db.String(20), unique=True, nullable=False)
-    visit_date = db.Column(db.Date, default=datetime.utcnow) 
+    visit_date = db.Column(db.Date, default=datetime.utcnow)
     visit_time = db.Column(db.DateTime(timezone=True), default=datetime.utcnow)
-    
+
+
 class VisitPregnancy(db.Model):
     __tablename__ = 'pregnancy_visit'
-    
-    visit_anc_id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    visit_id = db.Column(UUID(as_uuid=True), db.ForeignKey('visit_master.visit_id', ondelete='CASCADE'))
-    pr_id = db.Column(UUID(as_uuid=True), db.ForeignKey('pregnancy_record.pr_id', ondelete='CASCADE'))
+
+    visit_anc_id = db.Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    visit_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('visit_master.visit_id', ondelete='CASCADE'),
+    )
+    pr_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('pregnancy_record.pr_id', ondelete='CASCADE'),
+    )
     blood_pressure = db.Column(db.String(10), nullable=True)
     weight_kg = db.Column(db.Float, nullable=True)
     height_cm = db.Column(db.Float, nullable=True)
     body_temperature = db.Column(db.Float, nullable=True)
     respiratory_rate = db.Column(db.Float, nullable=True)
     heart_rate = db.Column(db.Float, nullable=True)
-    subjective= db.Column(EncryptedText, nullable=True)
+    subjective = db.Column(EncryptedText, nullable=True)
     objective = db.Column(EncryptedText, nullable=True)
     assessment = db.Column(EncryptedText, nullable=True)
     plan = db.Column(EncryptedText, nullable=True)
 
+
 class VisitFamilyPlanning(db.Model):
     __tablename__ = 'kb_visit'
-    
-    visit_kb_id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    visit_id = db.Column(UUID(as_uuid=True), db.ForeignKey('visit_master.visit_id', ondelete='CASCADE'))
-    kb_id = db.Column(UUID(as_uuid=True), db.ForeignKey('kb_record.kb_id', ondelete='CASCADE'))
+
+    visit_kb_id = db.Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    visit_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('visit_master.visit_id', ondelete='CASCADE'),
+    )
+    kb_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('kb_record.kb_id', ondelete='CASCADE'),
+    )
     weight_kg = db.Column(db.Float, nullable=True)
     blood_pressure = db.Column(db.String(10), nullable=True)
     kb_method = db.Column(db.String(50), nullable=True)
     return_visit_date = db.Column(db.Date, nullable=True)
     complaint = db.Column(EncryptedText, nullable=True)
 
+
 class VisitImunization(db.Model):
     __tablename__ = 'immunization_visit'
-    
-    visit_imun_id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    visit_id = db.Column(UUID(as_uuid=True), db.ForeignKey('visit_master.visit_id', ondelete='CASCADE'))
-    ir_id = db.Column(UUID(as_uuid=True), db.ForeignKey('immunization_record.ir_id', ondelete='CASCADE'))
+
+    visit_imun_id = db.Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    visit_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('visit_master.visit_id', ondelete='CASCADE'),
+    )
+    ir_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('immunization_record.ir_id', ondelete='CASCADE'),
+    )
     baby_weight = db.Column(db.String(20), nullable=True)
     baby_height = db.Column(db.String(20), nullable=True)
     body_temp = db.Column(db.String(20), nullable=True)
@@ -252,46 +390,88 @@ class VisitImunization(db.Model):
     dosage_given = db.Column(db.String(50), nullable=True)
     vaccine_given = db.Column(db.String(50), nullable=True)
 
+
 class VisitGeneral(db.Model):
     __tablename__ = 'general_visit'
-    
-    visit_gen_id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    visit_id = db.Column(UUID(as_uuid=True), db.ForeignKey('visit_master.visit_id', ondelete='CASCADE'))
-    gr_id = db.Column(UUID(as_uuid=True), db.ForeignKey('general_record.gr_id', ondelete='CASCADE'))
-    subjective= db.Column(EncryptedText, nullable=True)
+
+    visit_gen_id = db.Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    visit_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('visit_master.visit_id', ondelete='CASCADE'),
+    )
+    gr_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('general_record.gr_id', ondelete='CASCADE'),
+    )
+    subjective = db.Column(EncryptedText, nullable=True)
     objective = db.Column(EncryptedText, nullable=True)
     assessment = db.Column(EncryptedText, nullable=True)
     plan = db.Column(EncryptedText, nullable=True)
 
+
 class Audit(db.Model):
     __tablename__ = 'audit'
-  
-    log_id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.user_id'))
+
+    log_id = db.Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    user_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('users.user_id'),
+    )
     audit_number = db.Column(db.String(50), nullable=False)
     times = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     action = db.Column(db.String(100), nullable=False)
     old_values = db.Column(JSONB, nullable=True)
     new_values = db.Column(JSONB, nullable=True)
-    user = db.relationship('User', backref=db.backref('audit_logs', cascade="all, delete-orphan"))
+
+    user = db.relationship(
+        'User',
+        backref=db.backref('audit_logs', cascade='all, delete-orphan'),
+    )
 
     def __repr__(self):
-        return f"<Audit {self.audit_number} - {self.action}>"
+        return f'<Audit {self.audit_number} - {self.action}>'
 
 
 class Financial(db.Model):
-    __tablename__ ='financial'
+    __tablename__ = 'financial'
 
-    transaction_id =db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    visit_id = db.Column(UUID(as_uuid=True), db.ForeignKey('visit_master.visit_id'))
-    clinic_id = db.Column(UUID(as_uuid=True), db.ForeignKey('clinic.clinic_id'))
-    user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.user_id'))
-    patient_id = db.Column(UUID(as_uuid=True), db.ForeignKey('patient.patient_id'))
+    transaction_id = db.Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    visit_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('visit_master.visit_id'),
+        nullable=True,
+    )
+    clinic_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('clinic.clinic_id'),
+        nullable=True,
+    )
+    user_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('users.user_id'),
+        nullable=True,
+    )
+    patient_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('patient.patient_id'),
+        nullable=True,
+    )
     transaction_number = db.Column(db.String(50), nullable=False)
     trans_type = db.Column(db.String(20), nullable=False)
     amount = db.Column(db.Float, nullable=True)
-    payment_method = db.Column(db.String(20), nullable=False)
+    payment_method = db.Column(db.String(20), nullable=True)
     status = db.Column(db.String(20), nullable=False)
-    payment_date =db.Column(db.Date, nullable=False)
-    description = db.Column(EncryptedText)   
-   
+    payment_date = db.Column(db.Date, nullable=False)
+    description = db.Column(EncryptedText, nullable=True)

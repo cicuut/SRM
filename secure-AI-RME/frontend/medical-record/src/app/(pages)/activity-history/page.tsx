@@ -1,17 +1,18 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import type { FormEvent, ChangeEvent } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
-import LoadingOverlay from '@/components/loading';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-    faSearch,
-    faFilter,
-    faCalendarDays,
-    faFileArrowDown,
-} from '@fortawesome/free-solid-svg-icons';
+    CalendarDays,
+    ChevronLeft,
+    ChevronRight,
+    FileDown,
+    Filter,
+    Search,
+} from 'lucide-react';
+import LoadingOverlay from '@/components/loading';
 
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
@@ -53,66 +54,56 @@ type TableKey =
 type TableHeader = {
     label: string;
     key: TableKey;
-    width: string;
-    hasBorder: boolean;
+};
+
+type CalendarDay = {
+    dateString: string;
+    dayNumber: number;
+    isCurrentMonth: boolean;
 };
 
 const tableHeaders: TableHeader[] = [
-    {
-        label: 'Audit ID',
-        key: 'audit_number',
-        width: 'w-[12%]',
-        hasBorder: true,
-    },
-    {
-        label: 'Date & Time',
-        key: 'date_time',
-        width: 'w-[12%]',
-        hasBorder: true,
-    },
-    {
-        label: 'User',
-        key: 'user',
-        width: 'w-[10%]',
-        hasBorder: true,
-    },
-    {
-        label: 'Action',
-        key: 'action',
-        width: 'w-[16%]',
-        hasBorder: true,
-    },
-    {
-        label: 'Module',
-        key: 'module',
-        width: 'w-[14%]',
-        hasBorder: true,
-    },
-    {
-        label: 'Record ID',
-        key: 'record_id',
-        width: 'w-[14%]',
-        hasBorder: true,
-    },
-    {
-        label: 'Old Value (Before)',
-        key: 'old_value',
-        width: 'w-[11%]',
-        hasBorder: true,
-    },
-    {
-        label: 'New Value (After)',
-        key: 'new_value',
-        width: 'w-[11%]',
-        hasBorder: false,
-    },
+    { label: 'Audit ID', key: 'audit_number' },
+    { label: 'Tanggal', key: 'date_time' },
+    { label: 'User', key: 'user' },
+    { label: 'Action', key: 'action' },
+    { label: 'Module', key: 'module' },
+    { label: 'Record ID', key: 'record_id' },
+    { label: 'Old Value', key: 'old_value' },
+    { label: 'New Value', key: 'new_value' },
 ];
+
+const monthNames = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+];
+
+const dayLabels = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
 const getTodayInputValue = () => {
     const date = new Date();
     date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
 
     return date.toISOString().split('T')[0];
+};
+
+const toInputDateValue = (date: Date) => {
+    const clonedDate = new Date(date);
+    clonedDate.setMinutes(
+        clonedDate.getMinutes() - clonedDate.getTimezoneOffset(),
+    );
+
+    return clonedDate.toISOString().split('T')[0];
 };
 
 const readJson = async (response: Response) => {
@@ -128,16 +119,16 @@ const escapeCsvValue = (value: string | number | null | undefined) => {
 };
 
 const formatDisplayDate = (dateString: string) => {
-    if (!dateString) return 'All Dates';
+    if (!dateString) return 'Semua Tanggal';
 
     const date = new Date(`${dateString}T00:00:00`);
 
     if (Number.isNaN(date.getTime())) {
-        return 'Invalid Date';
+        return 'Tanggal Tidak Valid';
     }
 
-    return date.toLocaleDateString('en-GB', {
-        weekday: 'short',
+    return date.toLocaleDateString('id-ID', {
+        weekday: 'long',
         day: '2-digit',
         month: 'long',
         year: 'numeric',
@@ -162,6 +153,15 @@ const formatDateTime = (value: string) => {
     });
 };
 
+const normalizeDateFromDateTime = (value: string) => {
+    if (!value) return '';
+
+    if (value.includes('T')) return value.split('T')[0];
+    if (value.includes(' ')) return value.split(' ')[0];
+
+    return value;
+};
+
 const truncateValue = (value: string, maxLength = 80) => {
     if (!value) return '-';
 
@@ -172,10 +172,98 @@ const truncateValue = (value: string, maxLength = 80) => {
     return `${value.slice(0, maxLength)}...`;
 };
 
+const formatActionLabel = (value: string) => {
+    if (!value) return '-';
+
+    return value
+        .replace(/_/g, ' ')
+        .split(' ')
+        .filter(Boolean)
+        .map(
+            (word) =>
+                word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
+        )
+        .join(' ');
+};
+
+const getActionBadgeClassName = (action: string) => {
+    const normalizedAction = action.toLowerCase();
+
+    if (
+        normalizedAction.includes('delete') ||
+        normalizedAction.includes('remove')
+    ) {
+        return 'bg-red-50 text-red-600';
+    }
+
+    if (
+        normalizedAction.includes('add') ||
+        normalizedAction.includes('create') ||
+        normalizedAction.includes('register')
+    ) {
+        return 'bg-[#D2E3C8] text-[#4F6F52]';
+    }
+
+    if (
+        normalizedAction.includes('update') ||
+        normalizedAction.includes('change') ||
+        normalizedAction.includes('edit')
+    ) {
+        return 'bg-[#EAF1E4] text-[#5F785F]';
+    }
+
+    if (normalizedAction.includes('login')) {
+        return 'bg-[#F3E8C8] text-[#7A5A00]';
+    }
+
+    return 'bg-[#F2F2F2] text-[#5F5F5F]';
+};
+
+const getCalendarDays = (calendarMonth: Date): CalendarDay[] => {
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
+
+    const firstDayOfMonth = new Date(year, month, 1);
+    const startDate = new Date(firstDayOfMonth);
+    startDate.setDate(firstDayOfMonth.getDate() - firstDayOfMonth.getDay());
+
+    const days: CalendarDay[] = [];
+
+    for (let index = 0; index < 42; index += 1) {
+        const date = new Date(startDate);
+        date.setDate(startDate.getDate() + index);
+
+        days.push({
+            dateString: toInputDateValue(date),
+            dayNumber: date.getDate(),
+            isCurrentMonth: date.getMonth() === month,
+        });
+    }
+
+    return days;
+};
+
+const getUniqueOptions = (values: Array<string | null | undefined>) => {
+    return Array.from(
+        new Set(
+            values
+                .map((value) => String(value || '').trim())
+                .filter(Boolean),
+        ),
+    ).sort((a, b) => a.localeCompare(b));
+};
+
 const ActivityHistory = () => {
     const router = useRouter();
+    const today = getTodayInputValue();
+    const calendarRef = useRef<HTMLDivElement | null>(null);
 
-    const [selectedDate, setSelectedDate] = useState(getTodayInputValue());
+    const [selectedDate, setSelectedDate] = useState(today);
+    const [calendarMonth, setCalendarMonth] = useState(
+        new Date(`${today}T00:00:00`),
+    );
+    const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+
     const [searchQuery, setSearchQuery] = useState('');
     const [actionFilter, setActionFilter] = useState('all');
     const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -188,13 +276,16 @@ const ActivityHistory = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
 
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
+
     const formattedSelectedDate = useMemo(() => {
         return formatDisplayDate(selectedDate);
     }, [selectedDate]);
 
-    const activeFilterCount = useMemo(() => {
-        return actionFilter !== 'all' ? 1 : 0;
-    }, [actionFilter]);
+    const calendarDays = useMemo(() => {
+        return getCalendarDays(calendarMonth);
+    }, [calendarMonth]);
 
     const showLoadingOverlay = isCheckingAccess || isLoading;
 
@@ -398,6 +489,137 @@ const ActivityHistory = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [hasAccess, selectedDate, actionFilter]);
 
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (
+                calendarRef.current &&
+                !calendarRef.current.contains(event.target as Node)
+            ) {
+                setIsCalendarOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
+
+    const fallbackActionOptions = useMemo(() => {
+        if (actionOptions.length > 0) return actionOptions;
+
+        return getUniqueOptions(auditLogs.map((log) => log.action));
+    }, [actionOptions, auditLogs]);
+
+    const filteredAuditLogs = useMemo(() => {
+        const normalizedSearch = searchQuery.trim().toLowerCase();
+
+        return auditLogs.filter((log) => {
+            const logDate = normalizeDateFromDateTime(log.date_time);
+            const matchesDate = selectedDate ? logDate === selectedDate : true;
+
+            const searchableText = [
+                log.audit_number,
+                log.date_time,
+                log.user,
+                log.user_email,
+                log.action,
+                log.module,
+                log.record_id,
+                log.old_value,
+                log.new_value,
+            ]
+                .join(' ')
+                .toLowerCase();
+
+            const matchesSearch =
+                !normalizedSearch ||
+                searchableText.includes(normalizedSearch);
+
+            const matchesAction =
+                actionFilter === 'all' || log.action === actionFilter;
+
+            return matchesDate && matchesSearch && matchesAction;
+        });
+    }, [auditLogs, selectedDate, searchQuery, actionFilter]);
+
+    const totalPages = Math.max(
+        1,
+        Math.ceil(filteredAuditLogs.length / itemsPerPage),
+    );
+
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+
+    const currentAuditLogs = filteredAuditLogs.slice(
+        indexOfFirstItem,
+        indexOfLastItem,
+    );
+
+    const showingStart =
+        filteredAuditLogs.length === 0 ? 0 : indexOfFirstItem + 1;
+    const showingEnd = Math.min(indexOfLastItem, filteredAuditLogs.length);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [selectedDate, searchQuery, actionFilter, auditLogs]);
+
+    useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
+    }, [currentPage, totalPages]);
+
+    const activeFilterCount = useMemo(() => {
+        return actionFilter !== 'all' ? 1 : 0;
+    }, [actionFilter]);
+
+    const getPageNumbers = () => {
+        const pageNumbers: Array<number | string> = [];
+
+        if (totalPages <= 4) {
+            for (let page = 1; page <= totalPages; page += 1) {
+                pageNumbers.push(page);
+            }
+        } else if (currentPage <= 2) {
+            pageNumbers.push(1);
+            pageNumbers.push(2);
+
+            if (currentPage === 2) pageNumbers.push(3);
+
+            pageNumbers.push('...');
+            pageNumbers.push(totalPages);
+        } else if (currentPage === 3) {
+            pageNumbers.push(1);
+            pageNumbers.push(2);
+            pageNumbers.push(3);
+            pageNumbers.push(4);
+            pageNumbers.push('...');
+            pageNumbers.push(totalPages);
+        } else if (currentPage >= totalPages - 1) {
+            pageNumbers.push(1);
+            pageNumbers.push('...');
+
+            if (currentPage === totalPages - 1) {
+                pageNumbers.push(totalPages - 2);
+            }
+
+            pageNumbers.push(totalPages - 1);
+            pageNumbers.push(totalPages);
+        } else {
+            pageNumbers.push(1);
+            pageNumbers.push('...');
+            pageNumbers.push(currentPage - 1);
+            pageNumbers.push(currentPage);
+            pageNumbers.push(currentPage + 1);
+            pageNumbers.push('...');
+            pageNumbers.push(totalPages);
+        }
+
+        return pageNumbers;
+    };
+
     const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         fetchAuditLogs();
@@ -407,23 +629,59 @@ const ActivityHistory = () => {
         setSearchQuery(event.target.value);
     };
 
-    const handleDateChange = (event: ChangeEvent<HTMLInputElement>) => {
-        setSelectedDate(event.target.value);
+    const handleSelectDate = (dateString: string) => {
+        setSelectedDate(dateString);
+        setCalendarMonth(new Date(`${dateString}T00:00:00`));
+        setIsCalendarOpen(false);
+    };
+
+    const handlePreviousMonth = () => {
+        setCalendarMonth((currentMonth) => {
+            const nextMonth = new Date(currentMonth);
+            nextMonth.setMonth(currentMonth.getMonth() - 1);
+
+            return nextMonth;
+        });
+    };
+
+    const handleNextMonth = () => {
+        setCalendarMonth((currentMonth) => {
+            const nextMonth = new Date(currentMonth);
+            nextMonth.setMonth(currentMonth.getMonth() + 1);
+
+            return nextMonth;
+        });
     };
 
     const handleReset = () => {
-        setSelectedDate(getTodayInputValue());
+        setSelectedDate(today);
+        setCalendarMonth(new Date(`${today}T00:00:00`));
         setSearchQuery('');
         setActionFilter('all');
         setIsFilterOpen(false);
+        setIsCalendarOpen(false);
+        setCurrentPage(1);
     };
 
     const handleShowAllDates = () => {
         setSelectedDate('');
+        setIsCalendarOpen(false);
     };
 
     const handleClearFilter = () => {
         setActionFilter('all');
+    };
+
+    const handleTodayDate = () => {
+        setSelectedDate(today);
+        setCalendarMonth(new Date(`${today}T00:00:00`));
+        setIsCalendarOpen(false);
+    };
+
+    const goToDetail = (auditId: string) => {
+        if (!auditId) return;
+
+        router.push(`/activity-history/${auditId}`);
     };
 
     const handleDownload = () => {
@@ -431,7 +689,7 @@ const ActivityHistory = () => {
             .map((header) => escapeCsvValue(header.label))
             .join(',');
 
-        const dataRows = auditLogs.map((log) =>
+        const dataRows = filteredAuditLogs.map((log) =>
             tableHeaders
                 .map((header) => {
                     const value =
@@ -444,7 +702,19 @@ const ActivityHistory = () => {
                 .join(','),
         );
 
-        const csvContent = [headerRow, ...dataRows].join('\n');
+        const summaryRows = [
+            '',
+            [
+                escapeCsvValue('Tanggal Terpilih'),
+                escapeCsvValue(formattedSelectedDate),
+            ].join(','),
+            [
+                escapeCsvValue('Total Records'),
+                escapeCsvValue(filteredAuditLogs.length),
+            ].join(','),
+        ];
+
+        const csvContent = [headerRow, ...dataRows, ...summaryRows].join('\n');
 
         const blob = new Blob([`\uFEFF${csvContent}`], {
             type: 'text/csv;charset=utf-8;',
@@ -460,9 +730,36 @@ const ActivityHistory = () => {
         URL.revokeObjectURL(url);
     };
 
+    const renderTableValue = (log: AuditLog, key: TableKey) => {
+        if (key === 'date_time') {
+            return formatDateTime(log.date_time);
+        }
+
+        if (key === 'action') {
+            return (
+                <span
+                    className={`inline-flex max-w-[160px] justify-center rounded-full px-3 py-1 text-[10px] font-bold ${getActionBadgeClassName(
+                        log.action,
+                    )}`}
+                    title={log.action || '-'}
+                >
+                    <span className="truncate">
+                        {formatActionLabel(log.action)}
+                    </span>
+                </span>
+            );
+        }
+
+        if (key === 'old_value' || key === 'new_value') {
+            return truncateValue(log[key], 80);
+        }
+
+        return log[key] || '-';
+    };
+
     if (isCheckingAccess) {
         return (
-            <div className="relative min-h-[calc(100dvh-150px)] w-full">
+            <div className="relative flex min-h-[calc(100dvh-48px)] w-full items-center justify-center">
                 <LoadingOverlay />
             </div>
         );
@@ -473,108 +770,189 @@ const ActivityHistory = () => {
     }
 
     return (
-        <div className="relative box-border flex w-full max-w-none min-w-0 flex-col overflow-x-hidden">
+        <div className="relative flex w-full min-w-0 flex-col gap-5">
             {showLoadingOverlay && <LoadingOverlay />}
-            <div className="flex w-full max-w-full flex-col">
-                <div className="flex w-full items-center gap-[24px] py-8">
+
+            <section className="w-full rounded-[22px] border border-[#D2D8CF] bg-white px-5 py-5 shadow-sm sm:px-6">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                     <form
                         onSubmit={handleSearchSubmit}
-                        className="relative flex-1 rounded-lg px-4 py-2 shadow-sm outline outline-1 outline-gray-300 transition-all focus-within:outline-[#739072]"
+                        className="relative min-w-0 flex-1 rounded-[50px] border border-[#D2D8CF] bg-[#FDFEF9] px-5 py-[12px] shadow-sm transition-all focus-within:border-[#739072] xl:max-w-[680px]"
                     >
-                        <FontAwesomeIcon
-                            icon={faSearch}
-                            className="absolute left-4 top-1/2 w-4 -translate-y-1/2 text-gray-400"
-                        />
+                        <Search className="absolute left-5 top-1/2 w-4 -translate-y-1/2 text-gray-400" />
 
                         <input
                             type="text"
                             value={searchQuery}
                             onChange={handleSearchChange}
-                            placeholder="Cari Data Riwayat Aktivitas"
-                            className="w-full bg-transparent pl-8 text-gray-700 placeholder-gray-400 focus:outline-none"
+                            placeholder="Cari audit ID, user, action, module, record ID..."
+                            className="w-full bg-transparent pl-8 text-[13px] text-gray-700 outline-none placeholder-gray-400"
                         />
                     </form>
-                </div>
 
-                <h2 className="text-[24px] font-semibold leading-none text-[#5F785F]">
-                    Audit Log
-                </h2>
+                    <div className="flex flex-wrap items-center gap-[10px]">
+                        <div className="rounded-[50px] bg-[#D2E3C8] px-[20px] py-[11px] text-center text-[12px] font-bold text-black shadow-sm">
+                            {formattedSelectedDate}
+                        </div>
 
-                <div className="mt-[18px] flex w-full flex-row flex-wrap gap-x-5 gap-y-4">
-                    <div className="min-w-[150px] rounded-[50px] bg-[#D2E3C8] p-2 text-center font-bold text-black">
-                        {formattedSelectedDate}
+                        <div ref={calendarRef} className="relative inline-block">
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setIsCalendarOpen((current) => !current)
+                                }
+                                className="rounded-[50px] border border-[#BFC7BB] bg-white px-[18px] py-[11px] text-[12px] font-bold text-[#4B4B4B] shadow-sm transition-all hover:border-[#739072] hover:bg-[#F9FBF7]"
+                            >
+                                <span>Filter Tanggal</span>
+
+                                <CalendarDays className="ml-[10px] inline-block w-4 text-black" />
+                            </button>
+
+                            {isCalendarOpen && (
+                                <div className="absolute left-1/2 top-[calc(100%+12px)] z-[70] w-[320px] max-w-[calc(100vw-32px)] -translate-x-1/2 rounded-b-[18px] bg-white shadow-[0_16px_32px_rgba(0,0,0,0.14)]">
+                                    <div className="absolute left-1/2 top-[-12px] h-0 w-0 -translate-x-1/2 border-x-[11px] border-b-[12px] border-x-transparent border-b-[#D2E3C8]" />
+
+                                    <div className="flex items-center justify-between rounded-t-[18px] bg-[#D2E3C8] px-4 py-3">
+                                        <button
+                                            type="button"
+                                            onClick={handlePreviousMonth}
+                                            className="flex h-8 w-8 items-center justify-center rounded-full text-[#4F6F52] transition-all hover:bg-white/40"
+                                            aria-label="Bulan sebelumnya"
+                                        >
+                                            <ChevronLeft className="w-5" />
+                                        </button>
+
+                                        <p className="text-[18px] font-extrabold text-black">
+                                            {
+                                                monthNames[
+                                                    calendarMonth.getMonth()
+                                                ]
+                                            }{' '}
+                                            {calendarMonth.getFullYear()}
+                                        </p>
+
+                                        <button
+                                            type="button"
+                                            onClick={handleNextMonth}
+                                            className="flex h-8 w-8 items-center justify-center rounded-full text-[#4F6F52] transition-all hover:bg-white/40"
+                                            aria-label="Bulan berikutnya"
+                                        >
+                                            <ChevronRight className="w-5" />
+                                        </button>
+                                    </div>
+
+                                    <div className="px-4 pb-4 pt-4">
+                                        <div className="grid grid-cols-7 text-center">
+                                            {dayLabels.map((dayLabel) => (
+                                                <div
+                                                    key={dayLabel}
+                                                    className="pb-2 text-[14px] font-extrabold text-[#5F785F]"
+                                                >
+                                                    {dayLabel}
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <div className="grid grid-cols-7 gap-y-2 text-center">
+                                            {calendarDays.map((day) => {
+                                                const isSelected =
+                                                    day.dateString ===
+                                                    selectedDate;
+                                                const isToday =
+                                                    day.dateString === today;
+
+                                                return (
+                                                    <button
+                                                        key={day.dateString}
+                                                        type="button"
+                                                        onClick={() =>
+                                                            handleSelectDate(
+                                                                day.dateString,
+                                                            )
+                                                        }
+                                                        className={`mx-auto flex h-[34px] w-[34px] items-center justify-center rounded-[8px] text-[15px] font-medium transition-all ${
+                                                            isSelected
+                                                                ? 'border border-[#739072] bg-white text-[#739072]'
+                                                                : isToday
+                                                                  ? 'bg-[#EEF3E9] text-[#4F6F52]'
+                                                                  : day.isCurrentMonth
+                                                                    ? 'text-black hover:bg-[#EEF3E9]'
+                                                                    : 'text-black/70 hover:bg-[#EEF3E9]'
+                                                        }`}
+                                                    >
+                                                        {day.dayNumber}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+
+                                        <div className="mt-4 flex flex-wrap justify-between gap-2 border-t border-[#E4E8E1] pt-3">
+                                            <button
+                                                type="button"
+                                                onClick={handleTodayDate}
+                                                className="rounded-[30px] border border-[#BFC7BB] bg-white px-3 py-2 text-[11px] font-bold text-[#4B4B4B] hover:bg-[#F4F4F4]"
+                                            >
+                                                Hari Ini
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={handleShowAllDates}
+                                                className="rounded-[30px] border border-[#BFC7BB] bg-white px-3 py-2 text-[11px] font-bold text-[#4B4B4B] hover:bg-[#F4F4F4]"
+                                            >
+                                                Semua
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    setIsCalendarOpen(false)
+                                                }
+                                                className="rounded-[30px] bg-[#86A789] px-3 py-2 text-[11px] font-bold text-white hover:bg-[#739072]"
+                                            >
+                                                Selesai
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() =>
+                                setIsFilterOpen((current) => !current)
+                            }
+                            className={`rounded-[50px] border px-[18px] py-[11px] text-[12px] font-bold shadow-sm transition-all ${
+                                isFilterOpen || activeFilterCount > 0
+                                    ? 'border-[#739072] bg-[#EEF3E9] text-[#4F6F52]'
+                                    : 'border-[#BFC7BB] bg-white text-[#4B4B4B] hover:border-[#739072] hover:bg-[#F9FBF7]'
+                            }`}
+                        >
+                            <span>
+                                Filter
+                                {activeFilterCount > 0
+                                    ? ` (${activeFilterCount})`
+                                    : ''}
+                            </span>
+
+                            <Filter className="ml-[10px] inline-block w-4 text-black" />
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={handleReset}
+                            className="rounded-[50px] border border-[#BFC7BB] bg-white px-[18px] py-[11px] text-[12px] font-bold text-[#4B4B4B] shadow-sm transition-all hover:bg-[#F4F4F4]"
+                        >
+                            Reset
+                        </button>
                     </div>
-
-                    <label className="relative min-w-[150px] cursor-pointer overflow-hidden rounded-[50px] border border-gray-400 bg-transparent p-2 text-center text-[#4B4B4B]">
-                        <span>Select Date</span>
-                        <FontAwesomeIcon
-                            icon={faCalendarDays}
-                            className="ml-[10px] w-4 text-black"
-                        />
-
-                        <input
-                            type="date"
-                            value={selectedDate}
-                            onChange={handleDateChange}
-                            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                        />
-                    </label>
-
-                    <button
-                        type="button"
-                        onClick={() => setIsFilterOpen((current) => !current)}
-                        className={`min-w-[120px] cursor-pointer rounded-[50px] border border-gray-400 bg-transparent p-2 text-center text-[#4B4B4B] ${
-                            activeFilterCount > 0
-                                ? 'border-[#739072] bg-[#EEF3E9]'
-                                : ''
-                        }`}
-                    >
-                        <span>
-                            Filter
-                            {activeFilterCount > 0
-                                ? ` (${activeFilterCount})`
-                                : ''}
-                        </span>
-                        <FontAwesomeIcon
-                            icon={faFilter}
-                            className="ml-[10px] w-4 text-black"
-                        />
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={handleDownload}
-                        disabled={isLoading || auditLogs.length === 0}
-                        className="min-w-[150px] cursor-pointer rounded-[50px] border border-gray-400 bg-transparent p-2 text-center text-[#4B4B4B] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                        <span>Download</span>
-                        <FontAwesomeIcon
-                            icon={faFileArrowDown}
-                            className="ml-[10px] w-4 text-black"
-                        />
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={handleReset}
-                        className="min-w-[150px] cursor-pointer rounded-[50px] border border-gray-400 bg-transparent p-2 text-center text-[#4B4B4B]"
-                    >
-                        Reset Today
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={handleShowAllDates}
-                        className="min-w-[150px] cursor-pointer rounded-[50px] border border-gray-400 bg-transparent p-2 text-center text-[#4B4B4B]"
-                    >
-                        All Dates
-                    </button>
                 </div>
 
                 {isFilterOpen && (
-                    <div className="mt-[14px] w-full rounded-lg border border-gray-200 bg-white p-4">
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_auto] md:items-end">
-                            <label className="block">
+                    <div className="mt-[18px] rounded-[16px] border border-[#E4E8E1] bg-[#F8FAF6] px-4 py-[18px]">
+                        <div className="grid w-full min-w-0 grid-cols-1 gap-[14px] md:grid-cols-[1fr_auto_auto] md:items-end">
+                            <label className="block min-w-0">
                                 <span className="text-[11px] font-bold text-black">
                                     Action
                                 </span>
@@ -584,13 +962,13 @@ const ActivityHistory = () => {
                                     onChange={(event) =>
                                         setActionFilter(event.target.value)
                                     }
-                                    className="mt-[8px] h-[34px] w-full rounded-[4px] border border-[#BFC7BB] bg-white px-3 text-[12px] text-black outline-none focus:border-[#739072] focus:ring-1 focus:ring-[#739072]"
+                                    className="mt-[8px] h-[36px] w-full min-w-0 rounded-[8px] border border-[#BFC7BB] bg-white px-3 text-[12px] text-black outline-none focus:border-[#739072] focus:ring-1 focus:ring-[#739072]"
                                 >
                                     <option value="all">All Action</option>
 
-                                    {actionOptions.map((action) => (
+                                    {fallbackActionOptions.map((action) => (
                                         <option key={action} value={action}>
-                                            {action}
+                                            {formatActionLabel(action)}
                                         </option>
                                     ))}
                                 </select>
@@ -598,33 +976,182 @@ const ActivityHistory = () => {
 
                             <button
                                 type="button"
-                                onClick={handleClearFilter}
-                                className="h-[34px] rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white transition-all hover:bg-[#739072]"
+                                onClick={handleShowAllDates}
+                                className="h-[36px] rounded-[50px] border border-[#BFC7BB] bg-white px-[18px] text-[12px] font-bold text-[#4B4B4B] transition-all hover:bg-[#F4F4F4]"
                             >
-                                Clear Filter
+                                Semua Tanggal
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={handleClearFilter}
+                                className="h-[36px] rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white transition-all hover:bg-[#739072]"
+                            >
+                                Hapus Filter
                             </button>
                         </div>
                     </div>
                 )}
+            </section>
 
-                {errorMessage && (
-                    <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[12px] text-red-700">
-                        {errorMessage}
+            {errorMessage && (
+                <div className="w-full rounded-[10px] border border-red-200 bg-red-50 px-[16px] py-[12px] text-[12px] font-medium text-red-700">
+                    {errorMessage}
+                </div>
+            )}
+
+            <section className="min-h-[600px] w-full overflow-hidden rounded-[22px] border border-[#D2D8CF] bg-white shadow-sm">
+                <div className="flex flex-col gap-[16px] border-b border-[#E4E8E1] px-5 py-[20px] sm:px-[26px] lg:flex-row lg:items-center lg:justify-between">
+                    <div className="min-w-0">
+                        <h2 className="text-[20px] font-extrabold leading-none text-[#5F785F]">
+                            Audit Log
+                        </h2>
                     </div>
-                )}
 
-                <div className="mt-5 w-full overflow-x-auto bg-white">
-                    <table className="min-w-full divide-y divide-gray-200 text-[11px]">
-                        <thead className="bg-[#D2E3C8] font-semibold text-gray-700 drop-shadow-lg">
-                            <tr>
-                                {tableHeaders.map((header) => (
+                    <button
+                        type="button"
+                        onClick={handleDownload}
+                        disabled={isLoading || filteredAuditLogs.length === 0}
+                        className="flex min-h-[38px] items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        <FileDown className="w-4" />
+                        <span>Download</span>
+                    </button>
+                </div>
+
+                <div className="block lg:hidden">
+                    <div className="grid grid-cols-1 gap-[12px] px-4 py-4 sm:grid-cols-2">
+                        {isLoading ? (
+                            <div className="col-span-full rounded-[14px] border border-[#E4E8E1] bg-[#F8FAF6] px-4 py-8 text-center text-[12px] text-gray-500">
+                                Memuat activity history...
+                            </div>
+                        ) : currentAuditLogs.length === 0 ? (
+                            <div className="col-span-full rounded-[14px] border border-[#E4E8E1] bg-[#F8FAF6] px-4 py-8 text-center text-[12px] text-gray-500">
+                                Tidak ada activity history untuk{' '}
+                                {formattedSelectedDate}
+                            </div>
+                        ) : (
+                            currentAuditLogs.map((log) => (
+                                <button
+                                    key={log.audit_id || log.audit_number}
+                                    type="button"
+                                    onClick={() => goToDetail(log.audit_id)}
+                                    className="w-full rounded-[16px] border border-[#E4E8E1] bg-white px-4 py-4 text-left shadow-sm transition-all hover:border-[#86A789] hover:bg-[#F8FAF6]"
+                                >
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <p className="truncate text-[13px] font-bold text-black">
+                                                {log.audit_number || '-'}
+                                            </p>
+
+                                            <p className="mt-[5px] text-[11px] font-medium text-[#6B6B6B]">
+                                                {formatDateTime(log.date_time)}
+                                            </p>
+                                        </div>
+
+                                        <span
+                                            className={`inline-flex max-w-[130px] shrink-0 rounded-full px-3 py-1 text-[10px] font-bold ${getActionBadgeClassName(
+                                                log.action,
+                                            )}`}
+                                            title={log.action || '-'}
+                                        >
+                                            <span className="truncate">
+                                                {formatActionLabel(log.action)}
+                                            </span>
+                                        </span>
+                                    </div>
+
+                                    <div className="mt-[14px] grid grid-cols-2 gap-x-4 gap-y-3">
+                                        <div className="min-w-0">
+                                            <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">
+                                                User
+                                            </p>
+
+                                            <p className="mt-[4px] truncate text-[11px] font-semibold text-black">
+                                                {log.user || '-'}
+                                            </p>
+                                        </div>
+
+                                        <div className="min-w-0">
+                                            <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">
+                                                Module
+                                            </p>
+
+                                            <p className="mt-[4px] truncate text-[11px] font-semibold text-black">
+                                                {log.module || '-'}
+                                            </p>
+                                        </div>
+
+                                        <div className="min-w-0">
+                                            <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">
+                                                Record ID
+                                            </p>
+
+                                            <p className="mt-[4px] truncate text-[11px] font-semibold text-black">
+                                                {log.record_id || '-'}
+                                            </p>
+                                        </div>
+
+                                        <div className="min-w-0">
+                                            <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">
+                                                Email
+                                            </p>
+
+                                            <p className="mt-[4px] truncate text-[11px] font-semibold text-black">
+                                                {log.user_email || '-'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-[14px] grid grid-cols-1 gap-3">
+                                        <div>
+                                            <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">
+                                                Old Value
+                                            </p>
+
+                                            <p
+                                                className="mt-[4px] break-words rounded-[10px] bg-[#F8FAF6] px-3 py-2 text-[11px] leading-relaxed text-[#4B4B4B]"
+                                                title={log.old_value || '-'}
+                                            >
+                                                {truncateValue(
+                                                    log.old_value,
+                                                    120,
+                                                )}
+                                            </p>
+                                        </div>
+
+                                        <div>
+                                            <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">
+                                                New Value
+                                            </p>
+
+                                            <p
+                                                className="mt-[4px] break-words rounded-[10px] bg-[#F8FAF6] px-3 py-2 text-[11px] leading-relaxed text-[#4B4B4B]"
+                                                title={log.new_value || '-'}
+                                            >
+                                                {truncateValue(
+                                                    log.new_value,
+                                                    120,
+                                                )}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </button>
+                            ))
+                        )}
+                    </div>
+                </div>
+
+                <div className="hidden w-full overflow-x-auto lg:block">
+                    <table className="w-full min-w-[1120px] border-separate border-spacing-0 text-[12px]">
+                        <thead className="bg-[#FDFEF9] text-[10px] font-bold uppercase text-[#5F785F]">
+                            <tr className="bg-[#D2E3C8] text-gray-700">
+                                {tableHeaders.map((header, index) => (
                                     <th
-                                        key={header.label}
-                                        className={`whitespace-nowrap border-r border-gray-200 px-6 py-4 text-center ${
-                                            header.width
-                                        } ${
-                                            !header.hasBorder
-                                                ? 'border-r-0'
+                                        key={header.key}
+                                        className={`px-6 py-4 text-center font-bold ${
+                                            index !== tableHeaders.length - 1
+                                                ? 'border-r border-gray-200'
                                                 : ''
                                         }`}
                                     >
@@ -634,80 +1161,142 @@ const ActivityHistory = () => {
                             </tr>
                         </thead>
 
-                        <tbody>
+                        <tbody className="divide-y divide-gray-100">
                             {isLoading ? (
                                 <tr>
                                     <td
                                         colSpan={tableHeaders.length}
-                                        className="px-6 py-8 text-center text-gray-500"
+                                        className="px-6 py-20 text-center text-gray-400"
                                     >
-                                        Loading activity data...
+                                        Memuat activity history...
                                     </td>
                                 </tr>
-                            ) : auditLogs.length === 0 ? (
+                            ) : currentAuditLogs.length === 0 ? (
                                 <tr>
                                     <td
                                         colSpan={tableHeaders.length}
-                                        className="px-6 py-8 text-center text-gray-500"
+                                        className="px-6 py-20 text-center text-gray-400"
                                     >
-                                        Tidak ada data activity history
+                                        <div className="flex flex-col items-center justify-center gap-2">
+                                            <p className="text-sm">
+                                                Tidak ada activity history untuk{' '}
+                                                {formattedSelectedDate}
+                                            </p>
+                                        </div>
                                     </td>
                                 </tr>
                             ) : (
-                                auditLogs.map((log) => (
+                                currentAuditLogs.map((log, rowIndex) => (
                                     <tr
-                                        key={log.audit_id}
-                                        className="border-b border-gray-100 text-center text-black hover:bg-[#F8FAF6]"
+                                        key={log.audit_id || log.audit_number}
+                                        onClick={() => goToDetail(log.audit_id)}
+                                        className={`cursor-pointer text-center text-black transition-all hover:bg-[#EEF3E9] ${
+                                            rowIndex % 2 === 0
+                                                ? 'bg-white'
+                                                : 'bg-[#FBFCF8]'
+                                        }`}
                                     >
-                                        {tableHeaders.map((header) => {
-                                            const rawValue =
-                                                header.key === 'date_time'
-                                                    ? formatDateTime(
-                                                          log.date_time,
-                                                      )
-                                                    : log[header.key];
-
-                                            return (
-                                                <td
-                                                    key={header.key}
-                                                    className={`px-6 py-4 ${
-                                                        header.hasBorder
-                                                            ? 'border-r border-gray-100'
-                                                            : ''
-                                                    }`}
-                                                    title={rawValue || '-'}
-                                                >
-                                                    <div className="truncate">
-                                                        {header.key ===
-                                                            'old_value' ||
-                                                        header.key ===
-                                                            'new_value'
-                                                            ? truncateValue(
-                                                                  rawValue,
-                                                                  70,
-                                                              )
-                                                            : rawValue || '-'}
-                                                    </div>
-                                                </td>
-                                            );
-                                        })}
+                                        {tableHeaders.map((header) => (
+                                            <td
+                                                key={header.key}
+                                                className="px-4 py-4"
+                                                title={
+                                                    typeof log[header.key] ===
+                                                    'string'
+                                                        ? log[header.key]
+                                                        : ''
+                                                }
+                                            >
+                                                <div className="mx-auto max-w-[180px] truncate">
+                                                    {renderTableValue(
+                                                        log,
+                                                        header.key,
+                                                    )}
+                                                </div>
+                                            </td>
+                                        ))}
                                     </tr>
                                 ))
                             )}
                         </tbody>
                     </table>
                 </div>
+            </section>
 
-                <p className="mt-[14px] text-[11px] text-[#5F5F5F]">
-                    Showing{' '}
-                    <span className="font-bold text-black">
-                        {auditLogs.length}
-                    </span>{' '}
-                    activity log(s)
-                    {selectedDate
-                        ? ` on ${formattedSelectedDate}`
-                        : ' for all dates'}
-                </p>
+            <div className="flex items-center justify-between border-t px-4 py-4 sm:px-6">
+                <div className="hidden sm:block">
+                    <p className="text-[11px] text-gray-500">
+                        Showing{' '}
+                        <span className="font-semibold text-black">
+                            {showingStart}
+                        </span>{' '}
+                        to{' '}
+                        <span className="font-semibold text-black">
+                            {showingEnd}
+                        </span>{' '}
+                        of{' '}
+                        <span className="font-semibold text-black">
+                            {filteredAuditLogs.length}
+                        </span>{' '}
+                        records
+                    </p>
+                </div>
+
+                <div className="flex items-center gap-x-1.5">
+                    <button
+                        type="button"
+                        onClick={() =>
+                            setCurrentPage((prev) => Math.max(prev - 1, 1))
+                        }
+                        disabled={currentPage === 1}
+                        className="flex items-center gap-x-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-[12px] font-bold text-gray-600 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        <ChevronLeft className="h-4 w-4" />
+                        <span>Previous</span>
+                    </button>
+
+                    {getPageNumbers().map((page, index) => {
+                        if (page === '...') {
+                            return (
+                                <span
+                                    key={`ellipsis-${index}`}
+                                    className="flex h-8 w-8 items-center justify-center text-[12px] text-gray-400"
+                                >
+                                    ...
+                                </span>
+                            );
+                        }
+
+                        return (
+                            <button
+                                key={`page-${page}`}
+                                type="button"
+                                onClick={() => setCurrentPage(Number(page))}
+                                className={`flex h-8 w-8 items-center justify-center rounded-full text-[12px] font-bold transition-all ${
+                                    currentPage === page
+                                        ? 'scale-105 bg-[#739072] text-white shadow-md'
+                                        : 'bg-transparent text-gray-600 hover:bg-[#EEF3E9] hover:text-[#4F6F52]'
+                                }`}
+                            >
+                                {page}
+                            </button>
+                        );
+                    })}
+
+                    <button
+                        type="button"
+                        onClick={() =>
+                            setCurrentPage((prev) =>
+                                Math.min(prev + 1, totalPages),
+                            )
+                        }
+                        disabled={currentPage === totalPages}
+                        className="flex items-center gap-x-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-[12px] font-bold text-gray-600 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        <span>Next</span>
+                        <ChevronRight className="h-4 w-4" />
+                    </button>
+                </div>
             </div>
         </div>
     );

@@ -10,6 +10,8 @@ auth_bp = Blueprint("auth", __name__)
 ALLOWED_ROLES = ["admin", "midwife", "asisten"]
 ADMIN_ROLE = "admin"
 
+PROFILE_PHOTO_MAX_LENGTH = 3_500_000
+
 
 def to_str(value):
     if value is None:
@@ -57,6 +59,44 @@ def parse_bool(value, default=True):
     return bool(value)
 
 
+def normalize_profile_photo(value):
+    if value is None:
+        return None
+
+    if not isinstance(value, str):
+        raise ValueError("Profile photo must be a string")
+
+    photo = value.strip()
+
+    if photo == "":
+        return None
+
+    if len(photo) > PROFILE_PHOTO_MAX_LENGTH:
+        raise ValueError("Profile photo is too large. Maximum size is around 2MB image file.")
+
+    if photo.startswith("data:image/"):
+        return photo
+
+    if photo.startswith("http://") or photo.startswith("https://"):
+        return photo
+
+    raise ValueError("Profile photo must be an image data URL or image URL")
+
+
+def user_has_profile_photo_column(user):
+    return hasattr(user, "profile_photo")
+
+
+def get_user_profile_photo(user):
+    if not user:
+        return None
+
+    if not user_has_profile_photo_column(user):
+        return None
+
+    return getattr(user, "profile_photo", None)
+
+
 def create_token_for_user(user):
     return create_access_token(
         identity=str(user.user_id),
@@ -90,9 +130,11 @@ def serialize_user(user, current_user_id=None):
         "fullname": user.fullname,
         "email": user.email,
         "role": user.user_role,
+        "user_role": user.user_role,
         "strnumber": user.strnumber,
         "clinic_id": to_str(user.clinic_id),
         "is_active": bool(user.is_active),
+        "profile_photo": get_user_profile_photo(user),
         "created_at": user.created_at.isoformat() if user.created_at else None,
         "last_login": user.last_login.isoformat() if user.last_login else None,
         "is_current_user": str(user.user_id) == str(current_user_id)
@@ -197,6 +239,7 @@ def user_old_values(user, module="User Access"):
         "role": user.user_role,
         "strnumber": user.strnumber,
         "is_active": bool(user.is_active),
+        "profile_photo_present": bool(get_user_profile_photo(user)),
     }
 
 
@@ -301,6 +344,7 @@ def register():
                 "role": new_user.user_role,
                 "strnumber": new_user.strnumber,
                 "is_active": bool(new_user.is_active),
+                "profile_photo_present": bool(get_user_profile_photo(new_user)),
             },
         )
 
@@ -461,6 +505,7 @@ def login():
                 "email": user.email,
                 "role": user.user_role,
                 "last_login": user.last_login.isoformat(),
+                "profile_photo_present": bool(get_user_profile_photo(user)),
             },
         )
 
@@ -510,6 +555,7 @@ def update_current_user():
     fullname = data.get("fullname")
     email = data.get("email")
     strnumber = data.get("strnumber")
+    profile_photo_was_provided = "profile_photo" in data
 
     try:
         old_values = user_old_values(user, module="Account Setting")
@@ -554,11 +600,39 @@ def update_current_user():
 
             user.strnumber = strnumber
 
+        if profile_photo_was_provided:
+            if not user_has_profile_photo_column(user):
+                return (
+                    jsonify(
+                        {
+                            "msg": "Column profile_photo belum ada di model User. Tambahkan profile_photo = db.Column(db.Text, nullable=True) di app/models.py dan jalankan ALTER TABLE users ADD COLUMN profile_photo TEXT."
+                        }
+                    ),
+                    400,
+                )
+
+            normalized_photo = normalize_profile_photo(data.get("profile_photo"))
+            user.profile_photo = normalized_photo
+
+        action_name = (
+            "UPDATE_PROFILE_PHOTO"
+            if profile_photo_was_provided
+            and fullname is None
+            and email is None
+            and strnumber is None
+            else "UPDATE_ACCOUNT_PROFILE"
+        )
+
+        new_values = user_old_values(user, module="Account Setting")
+
+        if profile_photo_was_provided:
+            new_values["profile_photo_updated"] = True
+
         write_audit_log(
             user_id=user.user_id,
-            action="UPDATE_ACCOUNT_PROFILE",
+            action=action_name,
             old_values=old_values,
-            new_values=user_old_values(user, module="Account Setting"),
+            new_values=new_values,
         )
 
         db.session.commit()
@@ -573,6 +647,10 @@ def update_current_user():
             ),
             200,
         )
+
+    except ValueError as e:
+        db.session.rollback()
+        return jsonify({"msg": str(e)}), 400
 
     except Exception as e:
         db.session.rollback()

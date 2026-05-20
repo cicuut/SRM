@@ -433,6 +433,8 @@ def update_familyplanning_visit_report(uuid):
         current_familyplanning_visit = VisitFamilyPlanning.query.filter_by(visit_id=uuid).first()
         if not current_familyplanning_visit:
             return jsonify({"msg": "Data KB tidak ditemukan"}), 404
+        
+        
 
         new_weight = data.get('weight_kg', '')
         new_blood_pressure = data.get('blood_pressure', '')
@@ -561,6 +563,7 @@ def get_immunization_visit(uuid):
         if not  current_immunization_visit:
             return jsonify({"msg": "Data Imunisasi tidak ditemukan"}), 404
         
+        
 
         return jsonify({
             "weight_kg": current_immunization_visit.baby_weight or "-",
@@ -575,6 +578,78 @@ def get_immunization_visit(uuid):
     except Exception as e:
         return jsonify({"msg": "Server error", "error": str(e)}), 500
 
+@visit_report_bp.route('/update-visit-immunization/<uuid>', methods=['PUT'])
+@jwt_required()
+def update_immunization_visit(uuid):
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"msg": "Payload data tidak boleh kosong"}), 400
+
+        current_immunization_visit = VisitImunization.query.filter_by(visit_id=uuid).first()
+        if not current_immunization_visit:
+            return jsonify({"msg": "Data Imunisasi tidak ditemukan"}), 404
+        
+        current_imm_record = ImmunizationRecord.query.get(current_immunization_visit.ir_id)
+        if not current_imm_record:
+            return jsonify({"msg": "Data Rekam Imunisasi tidak ditemukan"}), 404
+
+        new_vaccine_given = data.get('vaccine_given', '')
+        new_dosage_given = data.get('dosage_given', '')
+        
+        if (current_immunization_visit.vaccine_given != new_vaccine_given) or \
+           (current_immunization_visit.dosage_given != new_dosage_given):
+            
+            if current_immunization_visit.vaccine_given and current_immunization_visit.dosage_given:
+                old_col_name = get_column_name(
+                    current_immunization_visit.vaccine_given, 
+                    current_immunization_visit.dosage_given
+                )
+                
+                if old_col_name and hasattr(current_imm_record, old_col_name):
+                    setattr(current_imm_record, old_col_name, None)
+        
+        if new_vaccine_given and new_dosage_given:
+            col_name = get_column_name(new_vaccine_given, new_dosage_given)
+        
+            if col_name and hasattr(current_imm_record, col_name):
+                from app.models import VisitMaster
+                master_visit = VisitMaster.query.get(uuid)
+                target_date = master_visit.visit_date if master_visit else datetime.now().date()
+                
+                setattr(current_imm_record, col_name, target_date)
+            else:
+                return jsonify({"msg": f"Jenis vaksin '{new_vaccine_given}' atau dosis tidak dikenali sistem"}), 400
+            
+        new_weight = data.get('weight_kg', '')
+        new_height = data.get('height_cm', '')
+        new_body_temperature = data.get('body_temperature', '')
+        new_head_circumference = data.get('head_circumference', '')
+        new_abdominal_circumference = data.get('abdominal_circumference', '')
+      
+        current_immunization_visit.weight_kg = new_weight
+        current_immunization_visit.height_cm = new_height
+        current_immunization_visit.body_temp = new_body_temperature
+        current_immunization_visit.head_circumference = new_head_circumference
+        current_immunization_visit.abdominal_circumference = new_abdominal_circumference
+        current_immunization_visit.vaccine_given = new_vaccine_given
+        current_immunization_visit.dosage_given = new_dosage_given
+
+        db.session.commit()
+
+        return jsonify({
+            "msg": "Catatan medis imunisasi berhasil diperbarui",
+            "visit_id": uuid
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "msg": "Terjadi kesalahan pada server", 
+            "error": str(e)
+        }), 500
+        
+        
 @visit_report_bp.route('/add-visit-general', methods=['POST'])
 @jwt_required()
 def add_visit_general():

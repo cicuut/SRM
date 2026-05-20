@@ -181,7 +181,7 @@ const Sidebar = () => {
             <div className="fixed left-0 top-0 flex h-screen w-64 flex-col border-r border-white/5 bg-[#FDFEF9] drop-shadow-lg">
                 <div className="ml-4 mt-4 flex items-center w-full">
                     <Image
-                        src="/logo.jpg"
+                        src="/logo.png"
                         alt="Logo"
                         width={70}
                         height={70}
