@@ -246,8 +246,8 @@ const Login = () => {
                             priority
                         />
                         <div className={styles.logoText}>
-                            <h2>Clinic Nadi</h2>
-                            <p>Clinic Management System</p>
+                            <h2>Praktek Bidan Mandiri</h2>
+                            <p>Bidan Evi Susanti</p>
                         </div>
                     </div>
                 </div>
@@ -256,7 +256,7 @@ const Login = () => {
                     <div className={styles.heroText}>
                         <p className={styles.badge}>Sistem Klinik Digital</p>
 
-                        <h1>Clinic Management</h1>
+                        <h1>Sistem Manajemen</h1>
 
                         <p className={styles.description}>
                             Sistem yang membantu klinik mengelola data pasien,
