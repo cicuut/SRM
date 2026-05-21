@@ -4,11 +4,11 @@ import { useState, useEffect } from "react";
 import { emit } from "process";
 import Cookies from "js-cookie";
 import { useParams } from "next/navigation";
-import Accordion from '@mui/material/Accordion';
-import AccordionDetails from '@mui/material/AccordionDetails';
-import AccordionSummary from '@mui/material/AccordionSummary';
-import { ChevronDown } from 'lucide-react';
-import api from "@/utils/app"
+import Accordion from "@mui/material/Accordion";
+import AccordionDetails from "@mui/material/AccordionDetails";
+import AccordionSummary from "@mui/material/AccordionSummary";
+import { ChevronDown } from "lucide-react";
+import api from "@/utils/app";
 
 interface VisitImmunizationAccorditionList {
   visit_id?: string;
@@ -31,31 +31,46 @@ const VisitImmunizationAccordition = () => {
     VisitImmunizationAccorditionList[]
   >([]);
 
-    useEffect(() => {
-        const visitDate = async () => {
-            if (!uuid) return;
-            try {
-                const response = await api.get(`/medical-record/get-immunization-visit-data/${uuid}`);
-                const data = response.data ;
-                  const actualData = data || [];
-                if (actualData.length === 0) {
-          setError("Belum ada kunjungan");
-        }
-                setVisitImmunization(data);
-            } catch (err: any) {
-            const msg = err.response?.data?.msg || err.message || "Terjadi kesalahan";
-            setError(msg);
-        } finally {
-            setLoading(false);
-        }
+  useEffect(() => {
+    const visitDate = async () => {
+      if (!uuid) {
+        setLoading(false);
+        return;
+      }
+      try {
+        setLoading(true);
+        const response = await api.get(
+          `/medical-record/get-immunization-visit-data/${uuid}`,
+        );
+        const data = response.data;
+        const actualData = data || [];
+        setError("");
+        setVisitImmunization(actualData);
+      } catch (err: any) {
+        const msg =
+          err.response?.data?.msg || err.message || "Terjadi kesalahan";
+        setError(msg);
+      } finally {
+        setLoading(false);
+      }
     };
-        visitDate();
-    }, [uuid]);
+    visitDate();
+  }, [uuid]);
 
-    if (loading) return <div className="p-8 text-center text-blue-600 animate-pulse">Sedang mengambil data medis...</div>;
-    if (error) return <div className="p-8 text-center text-red-500">Error: {error}</div>;
+  if (loading)
     return (
-        <div className="w-full">
+      <div className="p-8 text-center text-[#739072] animate-pulse">
+        Sedang mengambil data medis...
+      </div>
+    );
+  if (error)
+    return (
+      <div className="p-8 text-center text-red-500 font-bold">
+        Error: {error}
+      </div>
+    );
+  return (
+    <div className="w-full">
       {visitImmunization && visitImmunization.length > 0 ? (
         visitImmunization.map((visitImmunization) => (
           <Accordion
@@ -145,7 +160,7 @@ const VisitImmunizationAccordition = () => {
           </Accordion>
         ))
       ) : (
-      <div className="text-center p-10" >
+        <div className="text-center p-10">
           <p className="text-gray-500 font-medium">
             Belum ada riwayat kunjungan untuk pasien ini.
           </p>

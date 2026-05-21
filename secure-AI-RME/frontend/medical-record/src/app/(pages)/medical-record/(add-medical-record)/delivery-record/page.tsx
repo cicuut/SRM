@@ -120,7 +120,7 @@ const DeliveryRecord = () => {
                     onDataChange={handleFamilyUpdate}
                 />
                 <div className="flex flex-col gap-0">
-                    <h2 className="text-md text-[#4F6F52] mt-10 underline leading-none !font-lexend">Riwayat Persalinan</h2>
+                    <h2 className="text-md text-[#4F6F52] mt-10 underline leading-none font-lexend!">Riwayat Persalinan</h2>
                     <hr className="mt-0"></hr>
                 </div>
                 <div className="flex flex-col mt-4 gap-y-4">
@@ -147,7 +147,7 @@ const DeliveryRecord = () => {
 
                 </div>
                 <div className="flex flex-col gap-0">
-                    <h2 className="text-md text-[#4F6F52] mt-10 underline leading-none !font-lexend">Riwayat Bayi Baru Lahir</h2>
+                    <h2 className="text-md text-[#4F6F52] mt-10 underline leading-none font-lexend!">Riwayat Bayi Baru Lahir</h2>
                     <hr className="mt-0"></hr>
                 </div>
                 <div className="flex flex-col mt-4 gap-y-4">

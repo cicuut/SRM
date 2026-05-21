@@ -1,16 +1,29 @@
-from datetime import datetime
+from datetime import date, datetime, timedelta, timezone
 import os
 import base64
+import json
+import uuid
+
 from Crypto.Cipher import AES
 from dotenv import load_dotenv
-import uuid
+from sqlalchemy import text
+
+from . import db
+
+
+JAKARTA_TZ = timezone(timedelta(hours=7))
+
+
+def get_jakarta_now():
+    return datetime.now(JAKARTA_TZ).replace(tzinfo=None)
+
 from . import db
 from sqlalchemy import text
 
 def get_latest_record_count(record_type):
     from app.models import MedicalRecord
 
-    current_year = datetime.now().year
+    current_year = get_jakarta_now().year
 
     count = MedicalRecord.query.filter(
         MedicalRecord.record_type == record_type,
@@ -19,7 +32,7 @@ def get_latest_record_count(record_type):
 
     return count
 
-
+# Generate a unique medical record number based on the type and count of existing records
 def generate_record_number(record_type, latest_count):
     mapping = {
         "Kehamilan": "RMH",
@@ -30,22 +43,22 @@ def generate_record_number(record_type, latest_count):
     }
 
     prefix = mapping.get(record_type, "RMG")
-    year = datetime.now().year
+    year = get_jakarta_now().year
     sequence = f"{(latest_count + 1):03d}"
 
     return f"{prefix}-{year}-{sequence}"
 
 
 def get_latest_visits_count():
-    from app.models import VisitMaster 
-    
+    from app.models import VisitMaster
+
     count = VisitMaster.query.count()
     return count
 
 
 def generate_visit_number(latest_count):
     prefix = "VIS"
-    year = datetime.now().year
+    year = get_jakarta_now().year
     sequence = f"{(latest_count + 1):03d}"
 
     return f"{prefix}-{year}-{sequence}"
@@ -54,10 +67,11 @@ def generate_visit_number(latest_count):
 def generate_financial_number(year, sequence_number):
     prefix = "INV"
     sequence = f"{int(sequence_number):04d}"
+    current_year = get_jakarta_now().year
 
     year = datetime.now().year
 
-    return f"{prefix}-{int(year)}-{sequence}"
+    return f"{prefix}-{int(current_year)}-{sequence}"
 
 
 load_dotenv()
@@ -75,7 +89,7 @@ def encrypt_data(plain_text):
         return None
 
     cipher = AES.new(secret_key, AES.MODE_GCM)
-    ciphertext, tag = cipher.encrypt_and_digest(plain_text.encode())
+    ciphertext, tag = cipher.encrypt_and_digest(str(plain_text).encode())
 
     combined = cipher.nonce + tag + ciphertext
 
@@ -101,29 +115,43 @@ def decrypt_data(encrypted_text):
     except (ValueError, KeyError, TypeError) as e:
         print(f"Decryption failed (likely old data or wrong key): {e}")
         return encrypted_text
-    
+
+
 def clean_float(value):
     if value is None or str(value).strip() == "":
         return None
+
     try:
         return float(value)
     except (ValueError, TypeError):
         return None
-    
+
+
 def format_date(date_obj):
-    if date_obj:
-        return date_obj.strftime('%d %B %Y')
+    if not date_obj:
+        return None
+
+    if isinstance(date_obj, datetime):
+        return date_obj.strftime("%d %B %Y, %H:%M")
+
+    if isinstance(date_obj, date):
+        return date_obj.strftime("%d %B %Y")
+
     return None
+
 
 def parse_date(date_str):
     if not date_str:
         return None
-    for fmt in ('%Y-%m-%d', '%d/%m/%Y'): 
+
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
         try:
-            return datetime.strptime(date_str.strip(), fmt).date()
+            return datetime.strptime(str(date_str).strip(), fmt).date()
         except (ValueError, TypeError):
             continue
+
     return None
+
 
 def get_max_existing_sequence(year):
     result = db.session.execute(
@@ -189,25 +217,40 @@ def reserve_next_sequence(year):
     return int(result.scalar_one())
 
 
-
-def make_audit_number():
-    import uuid
-
-    now = datetime.utcnow()
-    short_id = str(uuid.uuid4()).split("-")[0].upper()
-
-    return f"AUD-{now.strftime('%Y%m%d')}-{short_id}"
-
 def get_column_name(vaccine, dosage):
-    v_name = vaccine.lower()
-    d_num = ''.join(filter(str.isdigit, dosage)) 
-    
+    v_name = str(vaccine or "").lower()
+    d_num = "".join(filter(str.isdigit, str(dosage or "")))
+
     return f"{v_name}_{d_num}"
 
 
-def clean_audit_json(value):
-    import json
+def generate_next_audit_number():
+    current_year = get_jakarta_now().year
 
+    next_number = db.session.execute(
+        text(
+            """
+            INSERT INTO public.audit_sequence (year, last_number)
+            VALUES (:year, 1)
+            ON CONFLICT (year)
+            DO UPDATE SET
+                last_number = public.audit_sequence.last_number + 1
+            RETURNING last_number
+            """
+        ),
+        {
+            "year": current_year,
+        },
+    ).scalar_one()
+
+    return f"AUD-{current_year}-{int(next_number):04d}"
+
+
+def make_audit_number():
+    return generate_next_audit_number()
+
+
+def clean_audit_json(value):
     if value is None:
         return {}
 
@@ -230,13 +273,13 @@ def write_audit_log(user_id, action, old_values=None, new_values=None):
     """
 
     if not user_id:
-        return
+        return None
 
-    import json
-    from sqlalchemy import text
-    from app import db
-    
-    
+    db.session.info["manual_audit_written"] = True
+
+    audit_log_id = str(uuid.uuid4())
+    audit_number = generate_next_audit_number()
+
     db.session.execute(
         text(
             """
@@ -250,23 +293,28 @@ def write_audit_log(user_id, action, old_values=None, new_values=None):
                 new_values
             )
             VALUES (
-                :log_id,
+                CAST(:log_id AS uuid),
                 CAST(:user_id AS uuid),
                 :audit_number,
                 :times,
                 :action,
-                CAST(:old_values AS json),
-                CAST(:new_values AS json)
+                CAST(:old_values AS jsonb),
+                CAST(:new_values AS jsonb)
             )
             """
         ),
         {
-            "log_id": str(uuid.uuid4()),
+            "log_id": audit_log_id,
             "user_id": str(user_id),
-            "audit_number": make_audit_number(),
-            "times": datetime.utcnow(),
+            "audit_number": audit_number,
+            "times": get_jakarta_now(),
             "action": action,
             "old_values": json.dumps(clean_audit_json(old_values), default=str),
             "new_values": json.dumps(clean_audit_json(new_values), default=str),
         },
     )
+
+    return {
+        "log_id": audit_log_id,
+        "audit_number": audit_number,
+    }

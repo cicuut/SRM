@@ -38,7 +38,7 @@ type FinancialDetail = {
     description: string;
     visit_display?: string;
     visit_number?: string;
-    visit_date?: string;
+    visit_date?: string | null;
     record_number: string;
     record_type: string;
     patient_name: string;
@@ -78,7 +78,7 @@ const readJson = async (response: Response) => {
     }
 };
 
-const normalizeDateInput = (value: string) => {
+const normalizeDateInput = (value?: string | null) => {
     if (!value) return '';
 
     return value.includes('T') ? value.split('T')[0] : value;
@@ -94,7 +94,7 @@ const formatRupiah = (value: string | number) => {
     }).format(Number.isNaN(numericValue) ? 0 : numericValue);
 };
 
-const formatDateDisplay = (value: string) => {
+const formatDateDisplay = (value?: string | null) => {
     if (!value || value === '-') return '-';
 
     const normalizedDate = normalizeDateInput(value);
@@ -537,9 +537,7 @@ const DetailInvoicePage = () => {
                         </h1>
 
                         <p className="mt-1 text-[12px] text-[#6B6B6B]">
-                            Edit data pembayaran invoice. Data pasien, rekam
-                            medis, dan kunjungan tidak dapat diubah dari halaman
-                            ini.
+                            Edit data pembayaran invoice.
                         </p>
                     </div>
 
@@ -574,11 +572,6 @@ const DetailInvoicePage = () => {
                         <h2 className="text-[16px] font-bold text-[#4F6F52]">
                             Data Invoice
                         </h2>
-
-                        <p className="mt-1 text-[11px] text-[#6B6B6B]">
-                            Kolom abu-abu adalah data referensi dan tidak dapat
-                            diubah.
-                        </p>
                     </div>
 
                     <div className="grid grid-cols-1 gap-4 px-5 py-5 md:grid-cols-2 xl:grid-cols-3">
@@ -700,7 +693,9 @@ const DetailInvoicePage = () => {
                                     )}
                                 </p>
 
-                                <p>{formatDateDisplay(formData.payment_date)}</p>
+                                <p>
+                                    {formatDateDisplay(formData.payment_date)}
+                                </p>
                             </div>
                         </div>
 
@@ -819,38 +814,6 @@ const DetailInvoicePage = () => {
                                     className={readonlyClassName}
                                 />
                             </label>
-
-                            <label className="block md:col-span-2 xl:col-span-1">
-                                <span className={labelClassName}>
-                                    Referensi Invoice
-                                </span>
-
-                                <input
-                                    type="text"
-                                    value={
-                                        detail?.visit_display ||
-                                        detail?.visit_number ||
-                                        detail?.record_number ||
-                                        '-'
-                                    }
-                                    readOnly
-                                    className={readonlyClassName}
-                                />
-                            </label>
-
-                            <label className="block md:col-span-2 xl:col-span-4">
-                                <span className={labelClassName}>
-                                    Catatan
-                                </span>
-
-                                <div className="mt-2 rounded-[10px] border border-[#E4E8E1] bg-[#F8FAF6] px-3 py-3 text-[12px] leading-relaxed text-[#6B6B6B]">
-                                    Data pasien, rekam medis, dan laporan
-                                    kunjungan tidak bisa diubah dari detail
-                                    invoice. Jika invoice salah pasien atau
-                                    salah kunjungan, hapus invoice ini lalu buat
-                                    invoice baru.
-                                </div>
-                            </label>
                         </div>
                     </div>
 
@@ -890,7 +853,7 @@ const DetailInvoicePage = () => {
 
             {showDeleteConfirm && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-                    <div className="w-full max-w-[420px] rounded-[16px] bg-white px-6 py-6 shadow-xl">
+                    <div className="w-full max-w-[420px] rounded-2xl bg-white px-6 py-6 shadow-xl">
                         <h2 className="text-[20px] font-bold text-[#2F3A2F]">
                             Hapus Invoice?
                         </h2>

@@ -1,9 +1,10 @@
-"use client";
-import React, { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
-import Cookies from "js-cookie";
-import api from "@/utils/app";
-import LoadingOverlay from "@/components/loading";
+'use client';
+
+import React, { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
+import Cookies from 'js-cookie';
+import api from '@/utils/app';
+import LoadingOverlay from '@/components/loading';
 import {
   FinancialChart,
   FinancialChartPoint,
@@ -24,38 +25,43 @@ const FALLBACK_SERVICE_COLORS = [
 ];
 
 interface DateLabelProps {
-  className?: string;
-  emptyValue?: string;
+    className?: string;
+    emptyValue?: string;
 }
 
 export const DateLabel = ({
-  className,
-  emptyValue = "\u00A0",
+    className,
+    emptyValue = '\u00A0',
 }: DateLabelProps) => {
-  const [dateLabel, setDateLabel] = useState<string>("");
+    const [dateLabel, setDateLabel] = useState<string>('');
 
-  const dateFormatter = useMemo(
-    () =>
-      new Intl.DateTimeFormat("id-ID", {
-        weekday: "long",
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-      }),
-    [],
-  );
+    const dateFormatter = useMemo(
+        () =>
+            new Intl.DateTimeFormat('id-ID', {
+                weekday: 'long',
+                day: '2-digit',
+                month: 'long',
+                year: 'numeric',
+            }),
+        [],
+    );
 
-  useEffect(() => {
-    setDateLabel(dateFormatter.format(new Date()));
-  }, [dateFormatter]);
+    useEffect(() => {
+        setDateLabel(dateFormatter.format(new Date()));
+    }, [dateFormatter]);
 
-  return <p className={className}>{dateLabel || emptyValue}</p>;
+    return <p className={className}>{dateLabel || emptyValue}</p>;
 };
 
 interface CurrentUser {
-  fullname: string;
-  role: string;
+    fullname: string;
+    role: string;
+    profile_photo?: string | null;
 }
+
+type AuthMeResponse = {
+    user: CurrentUser;
+};
 
 interface ChartPoint {
   date: string;
@@ -82,11 +88,28 @@ interface ForecastResponse {
 }
 
 function formatDisplayRole(role: string): string {
-  if (!role.trim()) return "";
-  return role
-    .split(/[\s_-]+/)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ");
+    if (!role.trim()) return '';
+
+    if (role === 'asisten') return 'Asisten';
+
+    return role
+        .split(/[\s_-]+/)
+        .filter(Boolean)
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+}
+
+function getInitials(name: string): string {
+    const initials = name
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((word) => word.charAt(0))
+        .join('')
+        .slice(0, 2)
+        .toUpperCase();
+
+    return initials || 'U';
 }
 
 function formatNumber(value: number) {
@@ -127,9 +150,21 @@ interface TopAssessmentsResponse {
 }
 
 const Dashboard = () => {
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [forecastData, setForecastData] = useState<ForecastResponse | null>(
+    const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+    const [profilePhoto, setProfilePhoto] = useState('');
+    const [loading, setLoading] = useState(true);
+
+    const displayName = currentUser?.fullname?.trim() || '';
+    const displayRole = currentUser?.role
+        ? formatDisplayRole(currentUser.role)
+        : '';
+    const initials = getInitials(displayName);
+
+    const loadLocalProfilePhoto = () => {
+        setProfilePhoto(localStorage.getItem('profile_photo') || '');
+    };
+
+    const [forecastData, setForecastData] = useState<ForecastResponse | null>(
     null,
   );
   const [forecastError, setForecastError] = useState<string | null>(null);
@@ -146,23 +181,41 @@ const Dashboard = () => {
   const [assessmentError, setAssessmentError] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    const token = Cookies.get("access_token");
-    if (!token) {
-      setLoading(false);
-      return;
-    }
+        let cancelled = false;
 
-    (async () => {
-      try {
-        const userResponse = await api.get<{ user: CurrentUser }>("/auth/me", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!cancelled) {
-          setCurrentUser(userResponse.data.user);
+        const token = Cookies.get('access_token');
+
+        loadLocalProfilePhoto();
+
+        if (!token) {
+              setLoading(false);
+              return;
+          }
+
+        const fetchCurrentUser = async () => {
+            try {
+                const userResponse = await api.get<AuthMeResponse>('/auth/me', {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                });
+
+                if (cancelled) {
+          return;
+
+                setCurrentUser(userResponse.data.user);
         }
-      } catch (err) {
-        console.error("Failed to load current user:", err);
+
+                const backendProfilePhoto = userResponse.data.user?.profile_photo || '';
+
+                if (backendProfilePhoto) {
+                    localStorage.setItem('profile_photo', backendProfilePhoto);
+                    setProfilePhoto(backendProfilePhoto);
+                } else {
+                    loadLocalProfilePhoto();
+                }
+            } catch (error) {
+                console.error('Failed to load current user:', error);
       }
 
       try {
@@ -242,11 +295,11 @@ const Dashboard = () => {
               : apiMessage ?? "Gagal memuat grafik keuangan",
           );
         }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
+            } finally {
+                  if (!cancelled) {
+                      setLoading(false);
+                  }
+              }
 
       try {
         setAssessmentLoading(true);
@@ -297,17 +350,40 @@ const Dashboard = () => {
           setAssessmentLoading(false);
         }
       }
-    })();
+        };
 
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+        fetchCurrentUser();
 
-  const displayName = currentUser?.fullname?.trim() || "";
-  const displayRole = currentUser?.role
-    ? formatDisplayRole(currentUser.role)
-    : "";
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        const handleProfilePhotoUpdated = () => {
+            loadLocalProfilePhoto();
+        };
+
+        const handleStorageChange = () => {
+            loadLocalProfilePhoto();
+        };
+
+        window.addEventListener(
+            'profile-photo-updated',
+            handleProfilePhotoUpdated,
+        );
+        window.addEventListener('storage', handleStorageChange);
+        window.addEventListener('focus', handleProfilePhotoUpdated);
+
+        return () => {
+            window.removeEventListener(
+                'profile-photo-updated',
+                handleProfilePhotoUpdated,
+            );
+            window.removeEventListener('storage', handleStorageChange);
+            window.removeEventListener('focus', handleProfilePhotoUpdated);
+        };
+    }, []);
 
   const forecastServices = forecastData
     ? Object.entries(forecastData.by_service)
@@ -504,4 +580,5 @@ const Dashboard = () => {
     </div>
   );
 };
+
 export default Dashboard;

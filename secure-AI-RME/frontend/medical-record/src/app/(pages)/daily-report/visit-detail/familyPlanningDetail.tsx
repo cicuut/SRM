@@ -1,93 +1,360 @@
-'use client';
-import  { useEffect } from "react";
-import { useState } from "react";
-import { useParams } from "next/dist/client/components/navigation";
+"use client";
+import { useEffect, useState, useMemo } from "react";
+import { useParams, useRouter } from "next/navigation"; 
 import VisitInformation from "@/components/visit/visit-information";
 import api from "@/utils/app";
+import Swal from "sweetalert2";
 
-// Data shape for family planning visit details
 interface VisitFamilyPlanningDetailProps {
-    weight_kg?: string;
-    blood_pressure?: string;
-    contraceptive_method?: string;
-    complaint?: string;
-    return_visit_date?: string;
+  weight_kg?: string;
+  blood_pressure?: string;
+  contraceptive_method?: string;
+  complaint?: string;
+  return_visit_date?: string;
+  finance?: {
+    invoice_number?: string;
+    total_amount?: number;
+    payment_method?: string;
+    status?: string;
+  };
+}
+
+interface MedicalForm {
+  weight_kg: string;
+  blood_pressure: string;
+  contraceptive_method: string;
+  complaint: string;
+  return_visit_date: string;
 }
 
 const VisitFamilyPlanningDetail = () => {
-    // Local state for visit details and loading/error status
-    const [visitFamilyPlanningDetail, setVisitFamilyPlanningDetail] =
-        useState<VisitFamilyPlanningDetailProps | null>(null);
-    const [error, setError] = useState("");
-    const [loading, setLoading] = useState(false);
-    const params = useParams();
-    const uuid = params.id;
+  const [visitFamilyPlanningDetail, setVisitFamilyPlanningDetail] =
+    useState<VisitFamilyPlanningDetailProps | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true); 
+  const params = useParams();
+  const router = useRouter();
 
-    // Fetch visit details when the page loads or ID changes
-    useEffect(() => {
-        const fetchVisitFamilyPlanningData = async () => {
-            if (!uuid) return;
-            try {
-                const response = await api.get(
-                    `/visit-report/get-visit-family-planning/${uuid}`
-                );
-                const data = response.data;
-                setVisitFamilyPlanningDetail(data);
-            } catch (err: any) {
-                setError(err.message);
-            } finally {
-                setLoading(false);
-            }
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const uuid = params.id;
+
+  const [formData, setFormData] = useState<MedicalForm>({
+    weight_kg: "",
+    blood_pressure: "",
+    contraceptive_method: "",
+    complaint: "",
+    return_visit_date: "",
+  });
+
+  const [originalFormData, setOriginalFormData] = useState<MedicalForm | null>(
+    null,
+  );
+
+  const isChanged = useMemo(() => {
+    if (!originalFormData) return false;
+    return JSON.stringify(originalFormData) !== JSON.stringify(formData);
+  }, [formData, originalFormData]);
+  const formatDate = (dateString: string | undefined | null) => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return ""; 
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`; 
+  };
+
+  useEffect(() => {
+    const fetchVisitFamilyPlanningData = async () => {
+      if (!uuid) return;
+      try {
+        setLoading(true);
+        const response = await api.get(
+          `/visit-report/get-visit-family-planning/${uuid}`,
+        );
+        const data = response.data;
+
+        setVisitFamilyPlanningDetail(data);
+
+        const initialFormValues = {
+          weight_kg: data?.weight_kg || "",
+          blood_pressure: data?.blood_pressure || "",
+          contraceptive_method: data?.contraceptive_method || "",
+          complaint: data?.complaint || "",
+          return_visit_date: formatDate(data?.return_visit_date) || "",
         };
 
-        fetchVisitFamilyPlanningData();
-    }, [uuid]);
+        setFormData(initialFormValues);
+        setOriginalFormData(initialFormValues);
+      } catch (err: any) {
+        setError(
+          err.response?.data?.msg || err.message || "Gagal mengambil data",
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchVisitFamilyPlanningData();
+  }, [uuid]);
+
+  const handleInputChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >,
+  ) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleCancelChanges = () => {
+    if (originalFormData) {
+      setFormData(originalFormData);
+    }
+  };
+
+  const handleSaveAll = async () => {
+    if (!uuid) return;
+    try {
+      setIsSaving(true);
+      const response = await api.put(
+        `/visit-report/update-visit-family-planning/${uuid}`,
+        formData,
+      );
+      if (response.status === 200) {
+        await Swal.fire({
+          title: "Berhasil Disimpan",
+          text: "Perubahan data KB berhasil disimpan!",
+          icon: "success",
+          timer: 1400,
+          showConfirmButton: false,
+        });
+
+        setOriginalFormData(formData);
+      }
+    } catch (err: any) {
+      alert(
+        err.response?.data?.msg || err.message || "Gagal menyimpan perubahan",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (loading)
     return (
-        <div className="min-h-screen mt-10 flex flex-col bg-[#FDFEF9] w-full">
-            <VisitInformation />
-            <div className="flex border-b border-gray-200 gap-6 mt-10">
-                <p className="border-b-2 border-[#739072] text-[#739072] font-bold">
-                    Catatan Medis
-                </p>
-            </div>
-            {/* Display family planning visit details */}
-            <div className=" flex flex-row py-5 gap-6">
-                <div className="flex flex-col text-sm gap-2 min-w-[200px]">
-                    <label className="block mb-1 font-bold text-black">Berat Badan</label>
-                    <div className="w-full  p-2 overflow-y-auto text-wrap rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-                        {visitFamilyPlanningDetail?.weight_kg}
-                    </div>
-                </div>
-                <div className="flex flex-col text-sm gap-2 min-w-[200px]">
-                    <label className="block mb-1 font-bold text-black">Tekanan Darah</label>
-                    <div className="w-full  p-2 overflow-y-auto text-wrap rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-                        {visitFamilyPlanningDetail?.blood_pressure}
-                    </div>
-                </div>
-            </div>
-            <div className="flex flex-row py-5 gap-6">
-                <div className="flex flex-col text-sm gap-2 min-w-[200px] ">
-                    <label className="block mb-1 font-bold text-black">Metode KB</label>
-                    <div className="w-full p-2 rounded-md  overflow-y-auto text-wrap   bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-                        {visitFamilyPlanningDetail?.contraceptive_method}
-                    </div>
-                </div>
-                <div className="flex flex-col text-sm gap-2 min-w-[200px]">
-                    <label className="block mb-1 font-bold text-black">Kunjungan Berikutnya</label>
-                    <div className="w-full  p-2 rounded-md  overflow-y-auto text-wrap bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-                        {visitFamilyPlanningDetail?.return_visit_date}
-                    </div>
-                </div>
-            </div>
-            <div className="flex flex-col text-sm gap-2">
-                <label className="block mb-1 font-bold text-black">Keluhan</label>
-                <div className="w-full h-30 p-2 rounded-md  overflow-y-auto text-wrap  bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2">
-                    {visitFamilyPlanningDetail?.complaint}
-                </div>
-            </div>
+      <div className="p-8 text-center text-[#739072] font-bold animate-pulse">
+        Sedang mengambil data medis
+      </div>
+    );
+
+  if (error)
+    return (
+      <div className="p-8 text-center text-red-500 font-bold">
+        Error: {error}
+      </div>
+    );
+
+  return (
+    <div className="min-h-screen mt-5 flex flex-col bg-[#FDFEF9] w-full">
+      <VisitInformation />
+
+      <div className="rounded-[14px] border border-[#D2D8CF] bg-white shadow-sm mt-5">
+        <div className="border-b border-[#E4E8E1] px-5 py-4">
+          <h2 className="text-[16px] font-bold text-[#4F6F52]">
+            Catatan Medis
+          </h2>
+          <p className="mt-1 text-[11px] text-[#6B6B6B]">
+            Informasi ini dapat diubah, silakan ketik untuk memperbarui catatan
+            medis pasien{" "}
+          </p>
         </div>
 
-    )
+        <div className="flex-1 flex flex-col py-5 px-5 gap-6">
+          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <label className="flex flex-col text-sm gap-2">
+              <span className="text-[12px] font-bold text-[#2F3A2F]">
+                Berat Badan (kg)
+              </span>
+              <input
+                name="weight_kg"
+                value={formData.weight_kg}
+                onChange={handleInputChange}
+                type="number"
+                className="mt-1 h-[42px] w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10"
+                placeholder="Masukkan berat badan pasien"
+              />
+            </label>
+            <label className="flex flex-col text-sm gap-2">
+              <span className="text-[12px] font-bold text-[#2F3A2F]">
+                Tekanan Darah (mmHg)
+              </span>
+              <input
+                name="blood_pressure"
+                value={formData.blood_pressure}
+                onChange={handleInputChange}
+                type="text"
+                className="mt-1 h-[42px] w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10"
+                placeholder="Contoh: 120/80 mmHg"
+              />
+            </label>
+            <label className="flex flex-col text-sm gap-2">
+              <span className="text-[12px] font-bold text-[#2F3A2F]">
+                Metode Kontraseptif
+              </span>
+              <select
+                name="contraceptive_method"
+                value={formData.contraceptive_method}
+                onChange={handleInputChange}
+                className="mt-1 h-[42px] w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 cursor-pointer"
+              >
+                <option value="" disabled hidden>
+                   Pilih Metode Kontraseptif 
+                </option>
 
-}
+                <option value="PIL">PIL</option>
+                <option value="Suntik 1 Bulan">Suntik 1 Bulan</option>
+                <option value="Suntik 3 Bulan">Suntik 3 Bulan</option>
+                <option value="IUD">IUD</option>
+                <option value="Inplan">Inplan</option>
+              </select>
+            </label>
+            <label className="flex flex-col text-sm gap-2">
+              <span className="text-[12px] font-bold text-[#2F3A2F]">
+                Tanggal Kunjungan Kembali
+              </span>
+              <input
+                name="return_visit_date"
+                value={formData.return_visit_date}
+                onChange={handleInputChange}
+                type="date"
+                className="mt-2 h-[42px] w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 disabled:cursor-not-allowed disabled:opacity-70"
+                placeholder="Masukkan rencana tanggal kembali"
+              />
+            </label>
+          </div>
+          <label className="flex flex-col text-sm gap-2">
+            <span className="text-[12px] font-bold text-[#2F3A2F]">
+              Keluhan Pasien / Catatan
+            </span>
+            <textarea
+              name="complaint"
+              value={formData.complaint}
+              onChange={handleInputChange}
+              rows={3} 
+              className="mt-1 w-full resize-y rounded-[10px] border border-[#D2D8CF] bg-white px-3 py-3 text-[13px] leading-relaxed text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10"
+              placeholder="Masukkan detail keluhan"
+            />
+          </label>
+        </div>
+
+        <div className="border-t border-[#E4E8E1] px-5 py-4">
+          <h2 className="text-[16px] font-bold text-[#4F6F52]">
+            Data Pembayaran
+          </h2>
+          <p className="text-[11px] text-[#6B6B6B]">
+            Informasi pembayaran untuk kunjungan ini (tidak dapat diubah di
+            sini).
+          </p>
+          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <label className="flex flex-col text-sm gap-2">
+              <span className="text-[12px] font-bold text-[#2F3A2F]">
+                Nomor Transaksi
+              </span>
+              <input
+                type="text"
+                value={visitFamilyPlanningDetail?.finance?.invoice_number || ""}
+                readOnly
+                className="mt-2 h-[42px] w-full cursor-not-allowed rounded-[10px] border border-[#D2D8CF] bg-[#F8FAF6] px-3 text-[13px] text-[#5F5F5F] outline-none"
+              />
+            </label>
+            <label className="flex flex-col text-sm gap-2">
+              <span className="text-[12px] font-bold text-[#2F3A2F]">
+                Total Transaksi
+              </span>
+              <input
+                type="text"
+                value={
+                  visitFamilyPlanningDetail?.finance?.total_amount
+                    ? `Rp ${visitFamilyPlanningDetail.finance.total_amount.toLocaleString()}`
+                    : ""
+                }
+                readOnly
+                className="mt-2 h-[42px] w-full cursor-not-allowed rounded-[10px] border border-[#D2D8CF] bg-[#F8FAF6] px-3 text-[13px] text-[#5F5F5F] outline-none"
+              />
+            </label>
+            <label className="flex flex-col text-sm gap-2">
+              <span className="text-[12px] font-bold text-[#2F3A2F]">
+                Metode Pembayaran
+              </span>
+              <input
+                type="text"
+                value={visitFamilyPlanningDetail?.finance?.payment_method || ""}
+                readOnly
+                className="mt-2 h-[42px] w-full cursor-not-allowed rounded-[10px] border border-[#D2D8CF] bg-[#F8FAF6] px-3 text-[13px] text-[#5F5F5F] outline-none"
+              />
+            </label>
+            <label className="flex flex-col text-sm gap-2">
+              <span className="text-[12px] font-bold text-[#2F3A2F]">
+                Status Pembayaran
+              </span>
+              <input
+                type="text"
+                value={visitFamilyPlanningDetail?.finance?.status || ""}
+                readOnly
+                className="mt-2 h-[42px] w-full cursor-not-allowed rounded-[10px] border border-[#D2D8CF] bg-[#F8FAF6] px-3 text-[13px] text-[#5F5F5F] outline-none"
+              />
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col-reverse gap-3 border-t border-[#E4E8E1] px-5 py-4 sm:flex-row sm:items-center sm:justify-between mt-6 bg-white rounded-[14px] border border-[#D2D8CF] shadow-sm">
+        <button
+          type="button"
+          onClick={() => setShowDeleteConfirm(true)}
+          disabled={isSaving || isDeleting}
+          className="h-[38px] rounded-[30px] border border-red-200 bg-white px-5 text-[12px] font-bold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Hapus Kunjungan
+        </button>
+
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          {isChanged ? (
+            <button
+              type="button"
+              onClick={handleCancelChanges}
+              className="h-[38px] rounded-[30px] border border-gray-300 bg-white px-5 text-[12px] font-bold text-gray-600 hover:bg-gray-50 animate-in fade-in duration-200"
+            >
+              Batal Perubahan
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => router.push("/daily-report")}
+              disabled={isSaving || isDeleting}
+              className="h-[38px] rounded-[30px] border border-[#BFC7BB] bg-white px-5 text-[12px] font-bold text-[#4B4B4B] hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Kembali
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={handleSaveAll}
+            disabled={isSaving || isDeleting || !isChanged}
+            className="h-[38px] rounded-[30px] bg-[#739072] px-5 text-[12px] font-bold text-white hover:bg-[#5F785F] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+          >
+            {isSaving ? "Menyimpan" : "Simpan Perubahan"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default VisitFamilyPlanningDetail;

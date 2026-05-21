@@ -1,28 +1,21 @@
 'use client';
-import React from "react";
 import { useState } from "react";
-import { emit } from "process";
-import PatientInformationDetail from "../../../../components/records/patientInformationDetail";
-import FamilyInformation from "../../../../components/records/familyInformationDetail";
-import PastObstecticHistoryDetail from "@/components/records/pastObstetricHistoryDetail";
-import CurrentPregnancyDetail from "@/components/records/currentPregnancyDetail";
-import GeneralExainationDetail from "@/components/records/generalExaminationDetail";
+import FamilyInformation from "../../../../components/records/patientFamilyInformationDetail";
+import PastObstecticHistoryDetail from "@/components/records/obstetricInformation";
 import VisitPregnancyAccordition from "@/components/records/visitPregnancy";
 
 const PregnancyDetail = () => {
-    const [activeTab, setActiveTab] = useState('Identitas Keluarga');
+    const [activeTab, setActiveTab] = useState('Identitas Pasien dan Keluarga');
 
     const tabs = [
-        'Identitas Keluarga',
-        'Riwayat Kehamilan Sebelumnya',
-        'Kehamilan Saat Ini',
-        'Pemeriksaan Umum',
+        'Identitas Pasien dan Keluarga',
+        'Informasi Kehamilan',
         'Pemeriksaan Obstetri'
     ];
     return (
-        <div className="min-h-screen mt-10 flex flex-col bg-[#FDFEF9] w-full">
-            <PatientInformationDetail />
-            <div className="flex border-b border-gray-200 gap-6 mt-10">
+        <div className="min-h-screen mt-5 flex flex-col bg-[#FDFEF9] w-full">
+           
+            <div className="flex border-b border-gray-200 gap-6 ">
                 {tabs.map((tab) => (
                     <button
                         key={tab}
@@ -37,10 +30,8 @@ const PregnancyDetail = () => {
                 ))}
             </div>
             <div className="mt-6">
-                {activeTab === 'Identitas Keluarga' && <FamilyInformation />}
-                {activeTab === 'Riwayat Kehamilan Sebelumnya' && <PastObstecticHistoryDetail />}
-                {activeTab === 'Kehamilan Saat Ini' && <CurrentPregnancyDetail />}
-                {activeTab === 'Pemeriksaan Umum' && <GeneralExainationDetail />}
+                {activeTab === 'Identitas Pasien dan Keluarga' && <FamilyInformation />}
+                {activeTab === 'Informasi Kehamilan' && <PastObstecticHistoryDetail />}
                 {activeTab === 'Pemeriksaan Obstetri' && <VisitPregnancyAccordition />}
 
             </div>
