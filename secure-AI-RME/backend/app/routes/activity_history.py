@@ -519,6 +519,33 @@ def serialize_audit_detail(audit, user):
     }
 
 
+def apply_search_filter(serialized_rows, search_query):
+    if not search_query:
+        return serialized_rows
+
+    filtered_rows = []
+
+    for row in serialized_rows:
+        searchable_text = " ".join(
+            [
+                row.get("audit_number", ""),
+                row.get("date_time", ""),
+                row.get("user", ""),
+                row.get("user_email", ""),
+                row.get("action", ""),
+                row.get("module", ""),
+                row.get("record_id", ""),
+                row.get("old_value", ""),
+                row.get("new_value", ""),
+            ]
+        ).lower()
+
+        if search_query in searchable_text:
+            filtered_rows.append(row)
+
+    return filtered_rows
+
+
 @activity_history_bp.route("/get-all", methods=["GET"])
 @jwt_required()
 def get_all_activity_history():
@@ -528,7 +555,7 @@ def get_all_activity_history():
         return error_response
 
     try:
-        date_filter = request.args.get("date")
+        date_filter = (request.args.get("date") or "").strip()
         search_query = (request.args.get("search") or "").strip().lower()
         action_filter = (request.args.get("action") or "").strip()
 
@@ -551,35 +578,22 @@ def get_all_activity_history():
         if action_filter and action_filter != "all":
             query = query.filter(Audit.action == action_filter)
 
-        rows = query.order_by(Audit.times.desc()).all()
+        rows = (
+            query
+            .order_by(
+                Audit.times.desc(),
+                Audit.audit_number.desc(),
+                Audit.log_id.desc(),
+            )
+            .all()
+        )
 
         serialized_rows = [
             serialize_audit_row(audit, user)
             for audit, user in rows
         ]
 
-        if search_query:
-            filtered_rows = []
-
-            for row in serialized_rows:
-                searchable_text = " ".join(
-                    [
-                        row.get("audit_number", ""),
-                        row.get("date_time", ""),
-                        row.get("user", ""),
-                        row.get("user_email", ""),
-                        row.get("action", ""),
-                        row.get("module", ""),
-                        row.get("record_id", ""),
-                        row.get("old_value", ""),
-                        row.get("new_value", ""),
-                    ]
-                ).lower()
-
-                if search_query in searchable_text:
-                    filtered_rows.append(row)
-
-            serialized_rows = filtered_rows
+        serialized_rows = apply_search_filter(serialized_rows, search_query)
 
         return jsonify(serialized_rows), 200
 

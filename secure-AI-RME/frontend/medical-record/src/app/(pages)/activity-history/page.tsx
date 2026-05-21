@@ -162,6 +162,47 @@ const normalizeDateFromDateTime = (value: string) => {
     return value;
 };
 
+const getAuditLogTimestamp = (value: string) => {
+    if (!value) return 0;
+
+    const normalizedValue = value.includes(' ')
+        ? value.replace(' ', 'T')
+        : value;
+
+    const timestamp = new Date(normalizedValue).getTime();
+
+    if (!Number.isNaN(timestamp)) {
+        return timestamp;
+    }
+
+    return 0;
+};
+
+const getAuditSequenceNumber = (auditNumber: string) => {
+    const match = String(auditNumber || '').match(/^AUD-\d{4}-(\d+)$/);
+
+    if (!match) return 0;
+
+    return Number(match[1]) || 0;
+};
+
+const sortAuditNewestFirst = (logs: AuditLog[]) => {
+    return [...logs].sort((a, b) => {
+        const timeDifference =
+            getAuditLogTimestamp(b.date_time) -
+            getAuditLogTimestamp(a.date_time);
+
+        if (timeDifference !== 0) {
+            return timeDifference;
+        }
+
+        return (
+            getAuditSequenceNumber(b.audit_number) -
+            getAuditSequenceNumber(a.audit_number)
+        );
+    });
+};
+
 const truncateValue = (value: string, maxLength = 80) => {
     if (!value) return '-';
 
@@ -258,7 +299,7 @@ const ActivityHistory = () => {
     const today = getTodayInputValue();
     const calendarRef = useRef<HTMLDivElement | null>(null);
 
-    const [selectedDate, setSelectedDate] = useState(today);
+    const [selectedDate, setSelectedDate] = useState('');
     const [calendarMonth, setCalendarMonth] = useState(
         new Date(`${today}T00:00:00`),
     );
@@ -456,7 +497,7 @@ const ActivityHistory = () => {
                 throw new Error(data?.msg || 'Gagal mengambil activity history');
             }
 
-            setAuditLogs(Array.isArray(data) ? data : []);
+            setAuditLogs(sortAuditNewestFirst(Array.isArray(data) ? data : []));
         } catch (error) {
             const message =
                 error instanceof Error
@@ -515,7 +556,7 @@ const ActivityHistory = () => {
     const filteredAuditLogs = useMemo(() => {
         const normalizedSearch = searchQuery.trim().toLowerCase();
 
-        return auditLogs.filter((log) => {
+        const filteredLogs = auditLogs.filter((log) => {
             const logDate = normalizeDateFromDateTime(log.date_time);
             const matchesDate = selectedDate ? logDate === selectedDate : true;
 
@@ -542,6 +583,8 @@ const ActivityHistory = () => {
 
             return matchesDate && matchesSearch && matchesAction;
         });
+
+        return sortAuditNewestFirst(filteredLogs);
     }, [auditLogs, selectedDate, searchQuery, actionFilter]);
 
     const totalPages = Math.max(
@@ -654,7 +697,7 @@ const ActivityHistory = () => {
     };
 
     const handleReset = () => {
-        setSelectedDate(today);
+        setSelectedDate('');
         setCalendarMonth(new Date(`${today}T00:00:00`));
         setSearchQuery('');
         setActionFilter('all');

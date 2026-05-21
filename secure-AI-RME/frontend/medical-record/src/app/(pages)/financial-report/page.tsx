@@ -301,13 +301,48 @@ const isDateBetween = (date: string, startDate: string, endDate: string) => {
     return date >= startDate && date <= endDate;
 };
 
+const getTransactionTimestamp = (paymentDate?: string | null) => {
+    const normalizedDate = normalizeDateInput(paymentDate);
+
+    if (!normalizedDate) return 0;
+
+    const timestamp = new Date(`${normalizedDate}T00:00:00`).getTime();
+
+    return Number.isNaN(timestamp) ? 0 : timestamp;
+};
+
+const getTransactionSequenceNumber = (transactionNumber?: string | null) => {
+    const match = String(transactionNumber || '').match(/^INV-\d{4}-(\d+)$/);
+
+    if (!match) return 0;
+
+    return Number(match[1]) || 0;
+};
+
+const sortFinancialNewestFirst = (items: FinancialTransaction[]) => {
+    return [...items].sort((a, b) => {
+        const dateDifference =
+            getTransactionTimestamp(b.payment_date) -
+            getTransactionTimestamp(a.payment_date);
+
+        if (dateDifference !== 0) {
+            return dateDifference;
+        }
+
+        return (
+            getTransactionSequenceNumber(b.transaction_number) -
+            getTransactionSequenceNumber(a.transaction_number)
+        );
+    });
+};
+
 const FinancialReport = () => {
     const router = useRouter();
     const today = getTodayInputValue();
     const calendarRef = useRef<HTMLDivElement | null>(null);
 
-    const [selectedStartDate, setSelectedStartDate] = useState(today);
-    const [selectedEndDate, setSelectedEndDate] = useState(today);
+    const [selectedStartDate, setSelectedStartDate] = useState('');
+    const [selectedEndDate, setSelectedEndDate] = useState('');
 
     const [calendarMonth, setCalendarMonth] = useState(
         new Date(`${today}T00:00:00`),
@@ -457,7 +492,9 @@ const FinancialReport = () => {
                 throw new Error(data?.msg || 'Gagal mengambil data keuangan');
             }
 
-            setTransactions(Array.isArray(data) ? data : data?.data || []);
+            const rawTransactions = Array.isArray(data) ? data : data?.data || [];
+
+            setTransactions(sortFinancialNewestFirst(rawTransactions));
         } catch (error) {
             const message =
                 error instanceof Error
@@ -517,7 +554,7 @@ const FinancialReport = () => {
     const filteredTransactions = useMemo(() => {
         const normalizedSearch = searchQuery.trim().toLowerCase();
 
-        return transactions.filter((transaction) => {
+        const filteredItems = transactions.filter((transaction) => {
             const transactionDate = normalizeDateInput(
                 transaction.payment_date,
             );
@@ -579,6 +616,8 @@ const FinancialReport = () => {
                 matchesStatus
             );
         });
+
+        return sortFinancialNewestFirst(filteredItems);
     }, [
         transactions,
         selectedStartDate,
@@ -676,10 +715,7 @@ const FinancialReport = () => {
     };
 
     const handleSelectDate = (dateString: string) => {
-        if (
-            !selectedStartDate ||
-            (selectedStartDate && selectedEndDate)
-        ) {
+        if (!selectedStartDate || (selectedStartDate && selectedEndDate)) {
             setSelectedStartDate(dateString);
             setSelectedEndDate('');
             setCalendarMonth(new Date(`${dateString}T00:00:00`));
@@ -724,8 +760,8 @@ const FinancialReport = () => {
     };
 
     const handleResetAll = () => {
-        setSelectedStartDate(today);
-        setSelectedEndDate(today);
+        setSelectedStartDate('');
+        setSelectedEndDate('');
         setCalendarMonth(new Date(`${today}T00:00:00`));
         setSearchQuery('');
         setTypeFilter('all');
@@ -888,7 +924,7 @@ const FinancialReport = () => {
                             onChange={(event) =>
                                 setSearchQuery(event.target.value)
                             }
-                            placeholder="Cari invoice, visit, metode, status, pasien, nominal..."
+                            placeholder="Cari invoice, visit, record, tipe, metode, status..."
                             className="w-full bg-transparent pl-8 text-[13px] text-gray-700 outline-none placeholder-gray-400"
                         />
                     </div>
