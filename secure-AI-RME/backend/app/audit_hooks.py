@@ -65,6 +65,21 @@ MODEL_PREFIX_MAP = {
     "Financial": "INV",
 }
 
+VISIT_RELATED_MODELS = {
+    "VisitMaster",
+    "VisitPregnancy",
+    "VisitFamilyPlanning",
+    "VisitImunization",
+    "VisitGeneral",
+}
+
+VISIT_DETAIL_MODELS = {
+    "VisitPregnancy",
+    "VisitFamilyPlanning",
+    "VisitImunization",
+    "VisitGeneral",
+}
+
 RECORD_CODE_FIELDS = [
     "transaction_number",
     "visit_number",
@@ -151,16 +166,223 @@ def get_model_prefix(obj):
     return MODEL_PREFIX_MAP.get(obj.__class__.__name__, "REC")
 
 
-def get_existing_record_code(obj):
-    for field_name in RECORD_CODE_FIELDS:
-        if hasattr(obj, field_name):
-            try:
-                value = getattr(obj, field_name)
-            except Exception:
-                value = None
+def get_object_value(obj, field_name):
+    if not hasattr(obj, field_name):
+        return None
 
-            if value:
-                return str(value)
+    try:
+        value = getattr(obj, field_name)
+    except Exception:
+        return None
+
+    return value
+
+
+def get_existing_direct_record_code(obj):
+    for field_name in RECORD_CODE_FIELDS:
+        value = get_object_value(obj, field_name)
+
+        if value:
+            return str(value)
+
+    return None
+
+
+def get_visit_id_from_obj(obj):
+    class_name = obj.__class__.__name__
+
+    if class_name == "VisitMaster":
+        visit_id = get_object_value(obj, "visit_id")
+        return str(visit_id) if visit_id else None
+
+    possible_fields = [
+        "visit_id",
+        "visit_master_id",
+    ]
+
+    for field_name in possible_fields:
+        visit_id = get_object_value(obj, field_name)
+
+        if visit_id:
+            return str(visit_id)
+
+    try:
+        mapper = inspect(obj.__class__)
+
+        for column in mapper.columns:
+            if column.key == "visit_id":
+                visit_id = getattr(obj, column.key, None)
+
+                if visit_id:
+                    return str(visit_id)
+    except Exception:
+        return None
+
+    return None
+
+
+def get_visit_data_from_relationship(obj):
+    possible_relationships = [
+        "visit_master",
+        "visit",
+        "visitMaster",
+        "master_visit",
+    ]
+
+    for relationship_name in possible_relationships:
+        related_obj = get_object_value(obj, relationship_name)
+
+        if not related_obj:
+            continue
+
+        visit_number = get_object_value(related_obj, "visit_number")
+        visit_id = get_object_value(related_obj, "visit_id")
+        visit_date = get_object_value(related_obj, "visit_date")
+        visit_time = get_object_value(related_obj, "visit_time")
+        record_id = get_object_value(related_obj, "record_id")
+
+        if visit_number or visit_id:
+            return {
+                "visit_id": str(visit_id) if visit_id else None,
+                "visit_number": str(visit_number) if visit_number else None,
+                "visit_date": safe_to_string(visit_date),
+                "visit_time": safe_to_string(visit_time),
+                "record_id": str(record_id) if record_id else None,
+                "record_number": None,
+                "record_type": None,
+            }
+
+    return None
+
+
+def find_visit_master_in_session(session, visit_id):
+    if not session or not visit_id:
+        return None
+
+    for obj in list(session.new) + list(session.dirty):
+        if obj.__class__.__name__ != "VisitMaster":
+            continue
+
+        obj_visit_id = get_object_value(obj, "visit_id")
+
+        if obj_visit_id and str(obj_visit_id) == str(visit_id):
+            visit_number = get_object_value(obj, "visit_number")
+            visit_date = get_object_value(obj, "visit_date")
+            visit_time = get_object_value(obj, "visit_time")
+            record_id = get_object_value(obj, "record_id")
+
+            return {
+                "visit_id": str(obj_visit_id),
+                "visit_number": str(visit_number) if visit_number else None,
+                "visit_date": safe_to_string(visit_date),
+                "visit_time": safe_to_string(visit_time),
+                "record_id": str(record_id) if record_id else None,
+                "record_number": None,
+                "record_type": None,
+            }
+
+    return None
+
+
+def fetch_visit_master_data(session, visit_id):
+    if not session or not visit_id:
+        return None
+
+    try:
+        with session.no_autoflush:
+            row = session.execute(
+                text(
+                    """
+                    SELECT
+                        vm.visit_id::text AS visit_id,
+                        vm.visit_number,
+                        vm.visit_date,
+                        vm.visit_time,
+                        vm.record_id::text AS record_id,
+                        mr.record_number,
+                        mr.record_type::text AS record_type
+                    FROM visit_master vm
+                    LEFT JOIN medical_record mr
+                        ON mr.record_id::text = vm.record_id::text
+                    WHERE vm.visit_id::text = :visit_id
+                    LIMIT 1
+                    """
+                ),
+                {
+                    "visit_id": str(visit_id),
+                },
+            ).mappings().first()
+
+        if not row:
+            return None
+
+        return dict(row)
+    except Exception:
+        return None
+
+
+def get_visit_master_data(obj, session=None):
+    class_name = obj.__class__.__name__
+
+    if class_name not in VISIT_RELATED_MODELS:
+        return None
+
+    if class_name == "VisitMaster":
+        visit_id = get_object_value(obj, "visit_id")
+        visit_number = get_object_value(obj, "visit_number")
+        visit_date = get_object_value(obj, "visit_date")
+        visit_time = get_object_value(obj, "visit_time")
+        record_id = get_object_value(obj, "record_id")
+
+        visit_data = {
+            "visit_id": str(visit_id) if visit_id else None,
+            "visit_number": str(visit_number) if visit_number else None,
+            "visit_date": safe_to_string(visit_date),
+            "visit_time": safe_to_string(visit_time),
+            "record_id": str(record_id) if record_id else None,
+            "record_number": None,
+            "record_type": None,
+        }
+
+        if visit_data.get("record_id") and session:
+            db_visit_data = fetch_visit_master_data(session, visit_data["visit_id"])
+
+            if db_visit_data:
+                visit_data["record_number"] = db_visit_data.get("record_number")
+                visit_data["record_type"] = db_visit_data.get("record_type")
+
+        return visit_data
+
+    relationship_data = get_visit_data_from_relationship(obj)
+
+    if relationship_data and relationship_data.get("visit_number"):
+        return relationship_data
+
+    visit_id = get_visit_id_from_obj(obj)
+
+    session_data = find_visit_master_in_session(session, visit_id)
+
+    if session_data and session_data.get("visit_number"):
+        return session_data
+
+    database_data = fetch_visit_master_data(session, visit_id)
+
+    if database_data:
+        return database_data
+
+    return None
+
+
+def get_existing_record_code(obj, session=None):
+    direct_record_code = get_existing_direct_record_code(obj)
+
+    if direct_record_code:
+        return direct_record_code
+
+    visit_data = get_visit_master_data(obj, session)
+
+    if visit_data and visit_data.get("visit_number"):
+        return str(visit_data.get("visit_number"))
 
     return None
 
@@ -215,17 +437,53 @@ def generate_record_code_from_audit_number(audit_number, prefix="REC"):
     return str(audit_number).replace("AUD", prefix, 1)
 
 
-def serialize_object(obj):
+def enrich_with_visit_master_data(values, obj, session=None):
+    if not isinstance(values, dict):
+        return values
+
+    visit_data = get_visit_master_data(obj, session)
+
+    if not visit_data:
+        return values
+
+    visit_number = visit_data.get("visit_number")
+
+    if visit_number:
+        values["visit_number"] = visit_number
+        values["record_code"] = visit_number
+
+    if visit_data.get("visit_id"):
+        values["visit_id"] = visit_data.get("visit_id")
+
+    if visit_data.get("visit_date"):
+        values["visit_date"] = safe_to_string(visit_data.get("visit_date"))
+
+    if visit_data.get("visit_time"):
+        values["visit_time"] = safe_to_string(visit_data.get("visit_time"))
+
+    if visit_data.get("record_id"):
+        values["medical_record_id"] = visit_data.get("record_id")
+
+    if visit_data.get("record_number"):
+        values["record_number"] = visit_data.get("record_number")
+
+    if visit_data.get("record_type"):
+        values["record_type"] = visit_data.get("record_type")
+
+    return values
+
+
+def serialize_object(obj, session=None):
     result = {
         "module": get_module_name(obj),
         "record_id": get_primary_key_value(obj),
-        "record_code": get_existing_record_code(obj),
+        "record_code": get_existing_record_code(obj, session),
     }
 
     try:
         mapper = inspect(obj.__class__)
     except Exception:
-        return result
+        return enrich_with_visit_master_data(result, obj, session)
 
     for column in mapper.columns:
         field_name = column.key
@@ -237,27 +495,32 @@ def serialize_object(obj):
 
         result[field_name] = clean_value(field_name, value)
 
+    result = enrich_with_visit_master_data(result, obj, session)
+
     return result
 
 
-def serialize_updated_values(obj):
+def serialize_updated_values(obj, session=None):
     old_values = {
         "module": get_module_name(obj),
         "record_id": get_primary_key_value(obj),
-        "record_code": get_existing_record_code(obj),
+        "record_code": get_existing_record_code(obj, session),
     }
 
     new_values = {
         "module": get_module_name(obj),
         "record_id": get_primary_key_value(obj),
-        "record_code": get_existing_record_code(obj),
+        "record_code": get_existing_record_code(obj, session),
     }
 
     try:
         mapper = inspect(obj.__class__)
         state = inspect(obj)
     except Exception:
-        return old_values, new_values
+        return (
+            enrich_with_visit_master_data(old_values, obj, session),
+            enrich_with_visit_master_data(new_values, obj, session),
+        )
 
     for column in mapper.columns:
         field_name = column.key
@@ -276,6 +539,9 @@ def serialize_updated_values(obj):
         old_values[field_name] = clean_value(field_name, old_raw)
         new_values[field_name] = clean_value(field_name, new_raw)
 
+    old_values = enrich_with_visit_master_data(old_values, obj, session)
+    new_values = enrich_with_visit_master_data(new_values, obj, session)
+
     return old_values, new_values
 
 
@@ -284,6 +550,12 @@ def has_real_changes(old_values, new_values):
         "module",
         "record_id",
         "record_code",
+        "visit_number",
+        "visit_date",
+        "visit_time",
+        "medical_record_id",
+        "record_number",
+        "record_type",
     }
 
     old_keys = set(old_values.keys()) - ignored_keys
@@ -310,8 +582,21 @@ def should_skip_auto_audit(session):
     return False
 
 
+def should_generate_fallback_record_code(obj):
+    if obj is None:
+        return True
+
+    if obj.__class__.__name__ in VISIT_RELATED_MODELS:
+        return False
+
+    return True
+
+
 def ensure_record_code(values, record_code):
     if not isinstance(values, dict):
+        return values
+
+    if not record_code:
         return values
 
     if not values.get("record_code"):
@@ -328,15 +613,17 @@ def add_audit_log(session, user_id, action, old_values, new_values, obj=None):
     existing_record_code = None
 
     if isinstance(new_values, dict):
-        existing_record_code = new_values.get("record_code")
+        existing_record_code = new_values.get("record_code") or new_values.get("visit_number")
 
     if not existing_record_code and isinstance(old_values, dict):
-        existing_record_code = old_values.get("record_code")
+        existing_record_code = old_values.get("record_code") or old_values.get("visit_number")
 
-    record_code = existing_record_code or generate_record_code_from_audit_number(
-        audit_number,
-        prefix,
-    )
+    if existing_record_code:
+        record_code = existing_record_code
+    elif should_generate_fallback_record_code(obj):
+        record_code = generate_record_code_from_audit_number(audit_number, prefix)
+    else:
+        record_code = None
 
     old_values = ensure_record_code(old_values, record_code)
     new_values = ensure_record_code(new_values, record_code)
@@ -373,7 +660,7 @@ def before_flush(session, flush_context, instances):
                 "obj": obj,
                 "action": make_action("CREATE", obj),
                 "old_values": {},
-                "new_values": serialize_object(obj),
+                "new_values": serialize_object(obj, session),
             }
         )
 
@@ -384,7 +671,7 @@ def before_flush(session, flush_context, instances):
         if not session.is_modified(obj, include_collections=False):
             continue
 
-        old_values, new_values = serialize_updated_values(obj)
+        old_values, new_values = serialize_updated_values(obj, session)
 
         if not has_real_changes(old_values, new_values):
             continue
@@ -406,7 +693,7 @@ def before_flush(session, flush_context, instances):
             {
                 "obj": obj,
                 "action": make_action("DELETE", obj),
-                "old_values": serialize_object(obj),
+                "old_values": serialize_object(obj, session),
                 "new_values": {},
             }
         )
