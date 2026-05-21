@@ -13,6 +13,7 @@ import {
   ServiceSeries,
   VisitorChart,
 } from "@/components/dashboard/visitor-chart";
+import { TopAssessmentList } from "@/components/dashboard/top-assessment-list";
 
 const FALLBACK_SERVICE_COLORS = [
   "#2563EB",
@@ -108,6 +109,23 @@ interface MonthlyFinancialSummary {
   daily_expense: FinancialChartPoint[];
 }
 
+interface TopAssessmentItem {
+  rank: number;
+  assessment: string;
+  count: number;
+  percentage: number;
+  variants?: string[];
+}
+
+interface TopAssessmentsResponse {
+  month: string;
+  total_visits_with_assessment: number;
+  summary?: string;
+  top_assessments: TopAssessmentItem[];
+  msg?: string;
+  error?: string;
+}
+
 const Dashboard = () => {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -120,6 +138,12 @@ const Dashboard = () => {
   const [dailyIncome, setDailyIncome] = useState<FinancialChartPoint[]>([]);
   const [dailyExpense, setDailyExpense] = useState<FinancialChartPoint[]>([]);
   const [financialError, setFinancialError] = useState<string | null>(null);
+  const [topAssessments, setTopAssessments] = useState<TopAssessmentItem[]>([]);
+  const [assessmentMonth, setAssessmentMonth] = useState<string | null>(null);
+  const [assessmentSummary, setAssessmentSummary] = useState<string | null>(null);
+  const [assessmentVisitCount, setAssessmentVisitCount] = useState(0);
+  const [assessmentLoading, setAssessmentLoading] = useState(true);
+  const [assessmentError, setAssessmentError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -221,6 +245,56 @@ const Dashboard = () => {
       } finally {
         if (!cancelled) {
           setLoading(false);
+        }
+      }
+
+      try {
+        setAssessmentLoading(true);
+        const assessmentResponse = await api.get<TopAssessmentsResponse>(
+          "/dashboard/top-assessments",
+        );
+        if (!cancelled) {
+          setTopAssessments(assessmentResponse.data.top_assessments ?? []);
+          setAssessmentMonth(assessmentResponse.data.month ?? null);
+          setAssessmentSummary(assessmentResponse.data.summary ?? null);
+          setAssessmentVisitCount(
+            assessmentResponse.data.total_visits_with_assessment ?? 0,
+          );
+          setAssessmentError(null);
+        }
+      } catch (err: unknown) {
+        console.error("Failed to load top assessments:", err);
+        if (!cancelled) {
+          const apiMessage =
+            typeof err === "object" &&
+            err !== null &&
+            "response" in err &&
+            typeof (err as { response?: { data?: { msg?: string; error?: string } } })
+              .response?.data?.msg === "string"
+              ? (err as { response: { data: { msg: string; error?: string } } })
+                  .response.data.msg
+              : null;
+          const apiDetail =
+            typeof err === "object" &&
+            err !== null &&
+            "response" in err &&
+            typeof (err as { response?: { data?: { error?: string } } }).response
+              ?.data?.error === "string"
+              ? (err as { response: { data: { error: string } } }).response.data.error
+              : null;
+          setTopAssessments([]);
+          setAssessmentMonth(null);
+          setAssessmentSummary(null);
+          setAssessmentVisitCount(0);
+          setAssessmentError(
+            apiDetail
+              ? `${apiMessage ?? "Gagal memuat top assessment"}: ${apiDetail}`
+              : apiMessage ?? "Gagal memuat top assessment",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setAssessmentLoading(false);
         }
       }
     })();
@@ -355,7 +429,7 @@ const Dashboard = () => {
                   return (
                     <div
                       key={service}
-                      className="min-w-[250px] flex-1 rounded-lg border border-[#E6EDE5] bg-[#FDFEF9] px-4 py-3 text-left"
+                      className="min-w-[240px] flex-1 rounded-lg border border-[#E6EDE5] bg-[#FDFEF9] px-4 py-3 text-left"
                       style={{ borderLeftWidth: 4, borderLeftColor: accentColor }}
                     >
                       <p
@@ -366,10 +440,6 @@ const Dashboard = () => {
                       </p>
                       <p className="mt-2 text-xs text-gray-500">
                         Aktual: {formatNumber(stats.actual_month_to_date)}
-                      </p>
-                      <p className="mt-1 text-xs text-gray-500">
-                        Sisa bulan:{" "}
-                        {formatNumber(stats.forecast_remaining_month)}
                       </p>
                       {stats.has_model === false ? (
                         <p className="mt-2 text-xs text-gray-500">
@@ -402,11 +472,19 @@ const Dashboard = () => {
 
               <div className="min-h-[280px] min-w-0 flex-1 rounded-[10px] bg-[#FFFFFF] px-5 py-6 drop-shadow-lg">
                 <h2 className="text-xl font-semibold text-[#4F6F52]">
-                  Top 5 Diagnosa Bulanan
+                  Top 5 Assessment Bulanan
                 </h2>
-                <p className="mt-4 text-sm text-gray-500">
-                  Data diagnosa akan dilist di sini.
-                </p>
+                {assessmentError ? (
+                  <p className="mt-4 text-sm text-red-500">{assessmentError}</p>
+                ) : (
+                  <TopAssessmentList
+                    month={assessmentMonth}
+                    totalVisits={assessmentVisitCount}
+                    items={topAssessments}
+                    isLoading={assessmentLoading}
+                    emptyMessage="Belum ada assessment atau keluhan KB bulan ini."
+                  />
+                )}
               </div>
             </div>
 
