@@ -238,7 +238,7 @@ const Login = () => {
                 <div className={styles.logoArea}>
                     <div className={styles.logoBox}>
                         <Image
-                            src="/Logo-Clinic.jpeg"
+                            src="/logo.png"
                             alt="Logo Clinic"
                             width={42}
                             height={42}
