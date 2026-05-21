@@ -347,8 +347,7 @@ const Login = () => {
                         </button>
 
                         <p className={styles.bottomInfo}>
-                            Akun dibuat oleh admin melalui menu pengaturan
-                            manajemen.
+                            Akun dibuat oleh admin atau bidan.
                         </p>
                     </form>
                 </div>
