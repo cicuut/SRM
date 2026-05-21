@@ -201,22 +201,28 @@ const Dashboard = () => {
                 });
 
                 if (cancelled) {
-          return;
+                    return;
+                }
 
-                setCurrentUser(userResponse.data.user);
-        }
+                const user = userResponse.data.user;
+                if (!user) {
+                    return;
+                }
 
-                const backendProfilePhoto = userResponse.data.user?.profile_photo || '';
+                setCurrentUser(user);
+
+                const backendProfilePhoto = user.profile_photo?.trim() || '';
 
                 if (backendProfilePhoto) {
                     localStorage.setItem('profile_photo', backendProfilePhoto);
                     setProfilePhoto(backendProfilePhoto);
                 } else {
-                    loadLocalProfilePhoto();
+                    localStorage.removeItem('profile_photo');
+                    setProfilePhoto('');
                 }
             } catch (error) {
                 console.error('Failed to load current user:', error);
-      }
+            }
 
       try {
         const forecastResponse =
@@ -427,13 +433,17 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="w-md flex flex-col items-center gap-y-[5px] rounded-[30px] bg-[#739072] px-8 py-5 pb-[0] text-[15px] text-white">
-              <Image
-                src="/user.png"
-                alt="img"
-                width={80}
-                height={80}
-                className="rounded-[50px]"
-              />
+              <div className="flex h-[80px] w-[80px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#FDFEF9] text-[22px] font-bold text-[#5F785F]">
+                {profilePhoto ? (
+                  <img
+                    src={profilePhoto}
+                    alt={displayName ? `Foto profil ${displayName}` : "Foto profil"}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span>{initials}</span>
+                )}
+              </div>
               <p>{displayName || "\u00A0"}</p>
               <p>{displayRole || "\u00A0"}</p>
             </div>
