@@ -7,8 +7,8 @@ from app.utils import (
     write_audit_log,
     reserve_next_sequence,
     get_next_sequence_preview,
-)
-from datetime import datetime
+), reserve_next_sequence, get_next_sequence_preview
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
@@ -551,6 +551,174 @@ def fetch_financial_by_transaction_id(transaction_id, clinic_id=None):
     return row
 
 
+def get_month_bounds(reference=None):
+    today = reference or date.today()
+    month_start = today.replace(day=1)
+    if today.month == 12:
+        month_end = date(today.year + 1, 1, 1) - timedelta(days=1)
+    else:
+        month_end = date(today.year, today.month + 1, 1) - timedelta(days=1)
+    return month_start, month_end
+
+
+def is_income_type(trans_type):
+    return str(trans_type or "").strip().lower() in ("pemasukan", "income")
+
+
+def is_expense_type(trans_type):
+    return str(trans_type or "").strip().lower() in ("pengeluaran", "expense")
+
+
+def build_daily_financial_series(clinic_id, month_start, month_end):
+    rows = db.session.execute(
+        text(
+            """
+            SELECT
+                CAST(f.payment_date AS date) AS payment_day,
+                LOWER(f.trans_type::text) AS trans_type,
+                COALESCE(SUM(f.amount), 0) AS total
+            FROM financial f
+            LEFT JOIN visit_master vm
+                ON vm.visit_id::text = f.visit_id::text
+            LEFT JOIN medical_record mr
+                ON mr.record_id::text = vm.record_id::text
+            LEFT JOIN patient p
+                ON p.patient_id::text = COALESCE(f.patient_id::text, mr.patient_id::text)
+            LEFT JOIN users u
+                ON u.user_id::text = f.user_id::text
+            WHERE (
+                p.clinic_id::text = :clinic_id
+                OR (
+                    p.patient_id IS NULL
+                    AND u.clinic_id::text = :clinic_id
+                )
+            )
+            AND CAST(f.payment_date AS date) >= :month_start
+            AND CAST(f.payment_date AS date) <= :month_end
+            GROUP BY CAST(f.payment_date AS date), f.trans_type
+            ORDER BY payment_day
+            """
+        ),
+        {
+            "clinic_id": str(clinic_id),
+            "month_start": month_start,
+            "month_end": month_end,
+        },
+    ).mappings().all()
+
+    income_by_day = {}
+    expense_by_day = {}
+    current = month_start
+    while current <= month_end:
+        day_key = current.isoformat()
+        income_by_day[day_key] = 0.0
+        expense_by_day[day_key] = 0.0
+        current += timedelta(days=1)
+
+    for row in rows:
+        day_key = row["payment_day"].isoformat()
+        total = float(row.get("total") or 0)
+        trans_type = str(row.get("trans_type") or "").strip().lower()
+        if is_income_type(trans_type):
+            income_by_day[day_key] = income_by_day.get(day_key, 0.0) + total
+        elif is_expense_type(trans_type):
+            expense_by_day[day_key] = expense_by_day.get(day_key, 0.0) + total
+
+    daily_income = [
+        {"date": day, "amount": income_by_day[day]}
+        for day in sorted(income_by_day.keys())
+    ]
+    daily_expense = [
+        {"date": day, "amount": expense_by_day[day]}
+        for day in sorted(expense_by_day.keys())
+    ]
+    return daily_income, daily_expense
+
+
+def get_month_bounds(reference=None):
+    today = reference or date.today()
+    month_start = today.replace(day=1)
+    if today.month == 12:
+        month_end = date(today.year + 1, 1, 1) - timedelta(days=1)
+    else:
+        month_end = date(today.year, today.month + 1, 1) - timedelta(days=1)
+    return month_start, month_end
+
+
+def is_income_type(trans_type):
+    return str(trans_type or "").strip().lower() in ("pemasukan", "income")
+
+
+def is_expense_type(trans_type):
+    return str(trans_type or "").strip().lower() in ("pengeluaran", "expense")
+
+
+def build_daily_financial_series(clinic_id, month_start, month_end):
+    rows = db.session.execute(
+        text(
+            """
+            SELECT
+                CAST(f.payment_date AS date) AS payment_day,
+                LOWER(f.trans_type::text) AS trans_type,
+                COALESCE(SUM(f.amount), 0) AS total
+            FROM financial f
+            LEFT JOIN visit_master vm
+                ON vm.visit_id::text = f.visit_id::text
+            LEFT JOIN medical_record mr
+                ON mr.record_id::text = vm.record_id::text
+            LEFT JOIN patient p
+                ON p.patient_id::text = COALESCE(f.patient_id::text, mr.patient_id::text)
+            LEFT JOIN users u
+                ON u.user_id::text = f.user_id::text
+            WHERE (
+                p.clinic_id::text = :clinic_id
+                OR (
+                    p.patient_id IS NULL
+                    AND u.clinic_id::text = :clinic_id
+                )
+            )
+            AND CAST(f.payment_date AS date) >= :month_start
+            AND CAST(f.payment_date AS date) <= :month_end
+            GROUP BY CAST(f.payment_date AS date), f.trans_type
+            ORDER BY payment_day
+            """
+        ),
+        {
+            "clinic_id": str(clinic_id),
+            "month_start": month_start,
+            "month_end": month_end,
+        },
+    ).mappings().all()
+
+    income_by_day = {}
+    expense_by_day = {}
+    current = month_start
+    while current <= month_end:
+        day_key = current.isoformat()
+        income_by_day[day_key] = 0.0
+        expense_by_day[day_key] = 0.0
+        current += timedelta(days=1)
+
+    for row in rows:
+        day_key = row["payment_day"].isoformat()
+        total = float(row.get("total") or 0)
+        trans_type = str(row.get("trans_type") or "").strip().lower()
+        if is_income_type(trans_type):
+            income_by_day[day_key] = income_by_day.get(day_key, 0.0) + total
+        elif is_expense_type(trans_type):
+            expense_by_day[day_key] = expense_by_day.get(day_key, 0.0) + total
+
+    daily_income = [
+        {"date": day, "amount": income_by_day[day]}
+        for day in sorted(income_by_day.keys())
+    ]
+    daily_expense = [
+        {"date": day, "amount": expense_by_day[day]}
+        for day in sorted(expense_by_day.keys())
+    ]
+    return daily_income, daily_expense
+
+
 # -----------------------------------------------------------------------------
 # Routes
 # -----------------------------------------------------------------------------
@@ -596,6 +764,95 @@ def get_transaction_number():
             jsonify(
                 {
                     "msg": "Failed to generate transaction number",
+                    "error": str(e),
+                }
+            ),
+            500,
+        )
+
+
+@financial_bp.route("/monthly-summary", methods=["GET"])
+@jwt_required()
+def get_monthly_summary():
+    current_user = get_current_user()
+
+    if not current_user:
+        return jsonify({"msg": "User not found"}), 404
+
+    if not current_user.clinic_id:
+        return jsonify({"msg": "Akun belum terhubung ke klinik"}), 400
+
+    try:
+        month_start, month_end = get_month_bounds()
+
+        rows = db.session.execute(
+            text(
+                """
+                SELECT
+                    LOWER(f.trans_type::text) AS trans_type,
+                    COALESCE(SUM(f.amount), 0) AS total
+                FROM financial f
+                LEFT JOIN visit_master vm
+                    ON vm.visit_id::text = f.visit_id::text
+                LEFT JOIN medical_record mr
+                    ON mr.record_id::text = vm.record_id::text
+                LEFT JOIN patient p
+                    ON p.patient_id::text = COALESCE(f.patient_id::text, mr.patient_id::text)
+                LEFT JOIN users u
+                    ON u.user_id::text = f.user_id::text
+                WHERE (
+                    p.clinic_id::text = :clinic_id
+                    OR (
+                        p.patient_id IS NULL
+                        AND u.clinic_id::text = :clinic_id
+                    )
+                )
+                AND CAST(f.payment_date AS date) >= :month_start
+                AND CAST(f.payment_date AS date) <= :month_end
+                GROUP BY f.trans_type
+                """
+            ),
+            {
+                "clinic_id": str(current_user.clinic_id),
+                "month_start": month_start,
+                "month_end": month_end,
+            },
+        ).mappings().all()
+
+        monthly_income = 0.0
+        monthly_expense = 0.0
+
+        for row in rows:
+            trans_type = str(row.get("trans_type") or "").strip().lower()
+            total = float(row.get("total") or 0)
+
+            if is_income_type(trans_type):
+                monthly_income += total
+            elif is_expense_type(trans_type):
+                monthly_expense += total
+
+        daily_income, daily_expense = build_daily_financial_series(
+            current_user.clinic_id, month_start, month_end
+        )
+
+        return (
+            jsonify(
+                {
+                    "month": month_start.strftime("%Y-%m"),
+                    "monthly_income": monthly_income,
+                    "monthly_expense": monthly_expense,
+                    "daily_income": daily_income,
+                    "daily_expense": daily_expense,
+                }
+            ),
+            200,
+        )
+
+    except Exception as e:
+        return (
+            jsonify(
+                {
+                    "msg": "Gagal mengambil ringkasan keuangan bulanan",
                     "error": str(e),
                 }
             ),

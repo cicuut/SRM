@@ -17,6 +17,8 @@ JAKARTA_TZ = timezone(timedelta(hours=7))
 def get_jakarta_now():
     return datetime.now(JAKARTA_TZ).replace(tzinfo=None)
 
+from . import db
+from sqlalchemy import text
 
 def get_latest_record_count(record_type):
     from app.models import MedicalRecord
@@ -66,6 +68,8 @@ def generate_financial_number(year, sequence_number):
     prefix = "INV"
     sequence = f"{int(sequence_number):04d}"
     current_year = get_jakarta_now().year
+
+    year = datetime.now().year
 
     return f"{prefix}-{int(current_year)}-{sequence}"
 

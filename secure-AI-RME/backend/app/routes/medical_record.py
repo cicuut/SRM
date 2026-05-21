@@ -498,7 +498,7 @@ def add_delivery_record():
          # Add Delivery record
         new_delivery_record = DeliveryRecord(
             record_id=new_record.record_id,
-            delivery_date = parse_date(data.get('delivery_date')),
+            delivery_date=parse_date(data.get('delivery_date')),
             delivery_type = data.get('delivery_type'),
             deliver_complications = data.get('deliver_complications'),
             baby_gender = data.get('baby_gender'),

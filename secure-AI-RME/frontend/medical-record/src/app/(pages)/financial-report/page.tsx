@@ -12,7 +12,7 @@ import {
     Plus,
     Search,
 } from 'lucide-react';
-import LoadingOverlay from '@/components/loading';
+import LoadingOverlay from '@/components/loading';;
 
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
