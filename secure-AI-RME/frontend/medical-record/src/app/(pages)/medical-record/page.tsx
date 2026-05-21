@@ -44,7 +44,7 @@ const MedicalRecord = () => {
     [],
   );
   const [medicalSearch, setMedicalSearch] = useState("");
-  const [selectedRMValue, setSelectedRMValue] = useState("All");
+  const [selectedRMValue, setSelectedRMValue] = useState("Select a type");
   const [selectedRMLabel, setSelectedRMLabel] = useState("Tipe RM");
   const router = useRouter();
   const [currentPage, setCurrentPage] = useState(1);
