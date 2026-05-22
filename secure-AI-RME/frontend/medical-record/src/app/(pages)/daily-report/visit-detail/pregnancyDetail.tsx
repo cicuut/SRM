@@ -5,25 +5,6 @@ import { useParams, useRouter } from "next/dist/client/components/navigation";
 import api from "@/utils/app";
 import Swal from "sweetalert2";
 
-// Data shape for pregnancy visit details
-interface VisitPregnancyDetailProps {
-  subjective?: string;
-  objective?: string;
-  assessment?: string;
-  plan?: string;
-  weight?: string;
-  height?: string;
-  blood_pressure?: string;
-  body_temperature?: string;
-  heart_rate?: string;
-  respiratory_rate?: string;
-  finance?: {
-    invoice_number?: string;
-    total_amount?: number;
-    payment_method?: string;
-    status?: string;
-  };
-}
 interface MedicalForm {
   subjective: string;
   objective: string;
@@ -35,11 +16,15 @@ interface MedicalForm {
   body_temperature: string;
   heart_rate: string;
   respiratory_rate: string;
+  finance?: {
+    invoice_number?: string;
+    total_amount?: number;
+    payment_method?: string;
+    status?: string;
+  };
 }
 const VisitPregnancyDetail = () => {
   // Local state for visit details and loading/error status
-  const [visitPregnancyDetail, setVisitPregnancyDetail] =
-    useState<VisitPregnancyDetailProps | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const params = useParams();
@@ -61,6 +46,12 @@ const VisitPregnancyDetail = () => {
     body_temperature: "",
     heart_rate: "",
     respiratory_rate: "",
+    finance: {
+      invoice_number: "",
+      total_amount: 0,
+      payment_method: "",
+      status: "",
+    },
   });
 
   const [originalFormData, setOriginalFormData] = useState<MedicalForm | null>(
@@ -91,6 +82,20 @@ const VisitPregnancyDetail = () => {
           body_temperature: response.data.body_temperature || "",
           heart_rate: response.data.heart_rate || "",
           respiratory_rate: response.data.respiratory_rate || "",
+          finance: {
+            invoice_number:
+              response.data.finance?.invoice_number ||
+              response.data.transaction_number ||
+              "",
+            total_amount:
+              response.data.finance?.total_amount || response.data.amount || 0,
+            payment_method:
+              response.data.finance?.payment_method ||
+              response.data.payment_method ||
+              "",
+            status:
+              response.data.finance?.status || response.data.status || "unpaid",
+          },
         };
 
         setFormData(initialFormValues);
@@ -131,7 +136,7 @@ const VisitPregnancyDetail = () => {
       if (response.status === 200) {
         await Swal.fire({
           title: "Berhasil Disimpan",
-          text: "Perubahan data Kehamilan berhasil disimpan!",
+          text: "Perubahan data berhasil disimpan!",
           icon: "success",
           timer: 1400,
           showConfirmButton: false,
@@ -147,7 +152,46 @@ const VisitPregnancyDetail = () => {
       setIsSaving(false);
     }
   };
+  const handleDelete = async () => {
+    if (!uuid) return;
+    try {
+      setIsDeleting(true);
+      setError("");
+      const response = await api.delete(`/visit-report/delete-visit/${uuid}`);
 
+      if (response.status === 200 || response.status === 204) {
+        setShowDeleteConfirm(false);
+
+        await Swal.fire({
+          title: "Berhasil Dihapus",
+          text: "Data kunjungan pasien telah dihapus dari sistem.",
+          icon: "success",
+          timer: 1500,
+          showConfirmButton: false,
+        });
+
+        router.push("/daily-report");
+      }
+    } catch (error: any) {
+      console.error("Delete Error:", error);
+      const message =
+        error.response?.data?.msg ||
+        error.message ||
+        "Terjadi kesalahan saat menghapus kunjungan";
+
+      setError(message);
+      setShowDeleteConfirm(false);
+
+      Swal.fire({
+        title: "Gagal Menghapus!",
+        text: message,
+        icon: "error",
+        confirmButtonColor: "#739072",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
   if (loading)
     return (
       <div className="p-8 text-center text-[#739072] font-bold animate-pulse">
@@ -325,7 +369,7 @@ const VisitPregnancyDetail = () => {
               </span>
               <input
                 type="text"
-                value={visitPregnancyDetail?.finance?.invoice_number || ""}
+                value={formData.finance?.invoice_number || ""}
                 readOnly
                 className="mt-2 h-[42px] w-full cursor-not-allowed rounded-[10px] border border-[#D2D8CF] bg-[#F8FAF6] px-3 text-[13px] text-[#5F5F5F] outline-none"
               />
@@ -337,8 +381,8 @@ const VisitPregnancyDetail = () => {
               <input
                 type="text"
                 value={
-                  visitPregnancyDetail?.finance?.total_amount
-                    ? `Rp ${visitPregnancyDetail.finance.total_amount.toLocaleString()}`
+                  formData.finance?.total_amount
+                    ? `Rp ${formData.finance.total_amount.toLocaleString()}`
                     : ""
                 }
                 readOnly
@@ -351,7 +395,7 @@ const VisitPregnancyDetail = () => {
               </span>
               <input
                 type="text"
-                value={visitPregnancyDetail?.finance?.payment_method || ""}
+                value={formData.finance?.payment_method || ""}
                 readOnly
                 className="mt-2 h-[42px] w-full cursor-not-allowed rounded-[10px] border border-[#D2D8CF] bg-[#F8FAF6] px-3 text-[13px] text-[#5F5F5F] outline-none"
               />
@@ -362,7 +406,7 @@ const VisitPregnancyDetail = () => {
               </span>
               <input
                 type="text"
-                value={visitPregnancyDetail?.finance?.status || ""}
+                value={formData.finance?.status || ""}
                 readOnly
                 className="mt-2 h-[42px] w-full cursor-not-allowed rounded-[10px] border border-[#D2D8CF] bg-[#F8FAF6] px-3 text-[13px] text-[#5F5F5F] outline-none"
               />
@@ -410,6 +454,40 @@ const VisitPregnancyDetail = () => {
           </button>
         </div>
       </div>
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-[420px] rounded-2xl bg-white px-6 py-6 shadow-xl">
+            <h2 className="text-[20px] font-bold text-[#2F3A2F]">
+              Hapus Data Kunjungan?
+            </h2>
+
+            <p className="mt-3 text-[13px] leading-relaxed text-[#4B4B4B]">
+              Data kunjungan akan dihapus dari penyimpanan. Aksi ini tidak bisa
+              dibatalkan.
+            </p>
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isDeleting}
+                className="h-[38px] rounded-[30px] border border-[#BFC7BB] bg-white px-5 text-[12px] font-bold text-[#4B4B4B] hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Batal
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="h-[38px] rounded-[30px] bg-red-600 px-5 text-[12px] font-bold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isDeleting ? "Menghapus..." : "Ya, Hapus"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

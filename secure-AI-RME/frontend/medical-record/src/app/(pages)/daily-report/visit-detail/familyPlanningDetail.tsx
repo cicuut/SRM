@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useMemo } from "react";
-import { useParams, useRouter } from "next/navigation"; 
+import { useParams, useRouter } from "next/navigation";
 import VisitInformation from "@/components/visit/visit-information";
 import api from "@/utils/app";
 import Swal from "sweetalert2";
@@ -31,7 +31,7 @@ const VisitFamilyPlanningDetail = () => {
   const [visitFamilyPlanningDetail, setVisitFamilyPlanningDetail] =
     useState<VisitFamilyPlanningDetailProps | null>(null);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true); 
+  const [loading, setLoading] = useState(true);
   const params = useParams();
   const router = useRouter();
 
@@ -59,13 +59,13 @@ const VisitFamilyPlanningDetail = () => {
   const formatDate = (dateString: string | undefined | null) => {
     if (!dateString) return "";
     const date = new Date(dateString);
-    if (isNaN(date.getTime())) return ""; 
+    if (isNaN(date.getTime())) return "";
 
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
 
-    return `${year}-${month}-${day}`; 
+    return `${year}-${month}-${day}`;
   };
 
   useEffect(() => {
@@ -128,7 +128,7 @@ const VisitFamilyPlanningDetail = () => {
       if (response.status === 200) {
         await Swal.fire({
           title: "Berhasil Disimpan",
-          text: "Perubahan data KB berhasil disimpan!",
+          text: "Perubahan data berhasil disimpan!",
           icon: "success",
           timer: 1400,
           showConfirmButton: false,
@@ -142,6 +142,47 @@ const VisitFamilyPlanningDetail = () => {
       );
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!uuid) return;
+    try {
+      setIsDeleting(true);
+      setError("");
+      const response = await api.delete(`/visit-report/delete-visit/${uuid}`);
+
+      if (response.status === 200 || response.status === 204) {
+        setShowDeleteConfirm(false);
+
+        await Swal.fire({
+          title: "Berhasil Dihapus",
+          text: "Data kunjungan pasien telah dihapus dari sistem.",
+          icon: "success",
+          timer: 1500,
+          showConfirmButton: false,
+        });
+
+        router.push("/daily-report");
+      }
+    } catch (error: any) {
+      console.error("Delete Error:", error);
+      const message =
+        error.response?.data?.msg ||
+        error.message ||
+        "Terjadi kesalahan saat menghapus kunjungan";
+
+      setError(message);
+      setShowDeleteConfirm(false);
+
+      Swal.fire({
+        title: "Gagal Menghapus!",
+        text: message,
+        icon: "error",
+        confirmButtonColor: "#739072",
+      });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -213,7 +254,7 @@ const VisitFamilyPlanningDetail = () => {
                 className="mt-1 h-[42px] w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 cursor-pointer"
               >
                 <option value="" disabled hidden>
-                   Pilih Metode Kontraseptif 
+                  Pilih Metode Kontraseptif
                 </option>
 
                 <option value="PIL">PIL</option>
@@ -245,7 +286,7 @@ const VisitFamilyPlanningDetail = () => {
               name="complaint"
               value={formData.complaint}
               onChange={handleInputChange}
-              rows={3} 
+              rows={3}
               className="mt-1 w-full resize-y rounded-[10px] border border-[#D2D8CF] bg-white px-3 py-3 text-[13px] leading-relaxed text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10"
               placeholder="Masukkan detail keluhan"
             />
@@ -353,6 +394,40 @@ const VisitFamilyPlanningDetail = () => {
           </button>
         </div>
       </div>
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-[420px] rounded-2xl bg-white px-6 py-6 shadow-xl">
+            <h2 className="text-[20px] font-bold text-[#2F3A2F]">
+              Hapus Data Kunjungan?
+            </h2>
+
+            <p className="mt-3 text-[13px] leading-relaxed text-[#4B4B4B]">
+              Data kunjungan akan dihapus dari penyimpanan. Aksi ini tidak bisa
+              dibatalkan.
+            </p>
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isDeleting}
+                className="h-[38px] rounded-[30px] border border-[#BFC7BB] bg-white px-5 text-[12px] font-bold text-[#4B4B4B] hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Batal
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="h-[38px] rounded-[30px] bg-red-600 px-5 text-[12px] font-bold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isDeleting ? "Menghapus..." : "Ya, Hapus"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

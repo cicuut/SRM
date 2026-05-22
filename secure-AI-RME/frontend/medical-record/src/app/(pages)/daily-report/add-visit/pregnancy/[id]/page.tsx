@@ -80,7 +80,7 @@ const AddVisitPregnancy = () => {
       if (response.status === 201) {
         Swal.fire({
           title: "Success",
-          text: "Rekam medis persalinan berhasil disimpan!",
+          text: "Data Kunjungan berhasil disimpan!",
           icon: "success",
           showConfirmButton: false,
           timer: 2000,

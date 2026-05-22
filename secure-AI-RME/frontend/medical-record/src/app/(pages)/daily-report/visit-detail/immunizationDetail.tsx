@@ -15,6 +15,7 @@ interface VisitImmunizationDetailProps {
   body_temperature?: string;
   head_circumference?: string;
   abdominal_circumference?: string;
+  visit_number?: string;
   finance?: {
     invoice_number?: string;
     total_amount?: number;
@@ -107,9 +108,16 @@ const VisitImmunizationDetail = () => {
           height_cm: data?.height_cm || "",
           vaccine_given: data?.vaccine_given || "",
           dosage_given: data?.dosage_given || "",
+          visit_number: data?.visit_number || "",
           body_temperature: data?.body_temperature || "",
           head_circumference: data?.head_circumference || "",
           abdominal_circumference: data?.abdominal_circumference || "",
+          finance: data?.finance || {
+            invoice_number: "-",
+            total_amount: 0,
+            payment_method: "-",
+            status: "-",
+          },
         };
 
         setFormData(initialFormValues);
@@ -149,7 +157,7 @@ const VisitImmunizationDetail = () => {
       if (response.status === 200) {
         await Swal.fire({
           title: "Berhasil Disimpan",
-          text: "Perubahan data Imunisasi berhasil disimpan!",
+          text: "Perubahan data berhasil disimpan!",
           icon: "success",
           timer: 1400,
           showConfirmButton: false,
@@ -163,6 +171,46 @@ const VisitImmunizationDetail = () => {
       );
     } finally {
       setIsSaving(false);
+    }
+  };
+  const handleDelete = async () => {
+    if (!uuid) return;
+    try {
+      setIsDeleting(true);
+      setError("");
+      const response = await api.delete(`/visit-report/delete-visit/${uuid}`);
+
+      if (response.status === 200 || response.status === 204) {
+        setShowDeleteConfirm(false);
+
+        await Swal.fire({
+          title: "Berhasil Dihapus",
+          text: "Data kunjungan pasien telah dihapus dari sistem.",
+          icon: "success",
+          timer: 1500,
+          showConfirmButton: false,
+        });
+
+        router.push("/daily-report");
+      }
+    } catch (error: any) {
+      console.error("Delete Error:", error);
+      const message =
+        error.response?.data?.msg ||
+        error.message ||
+        "Terjadi kesalahan saat menghapus kunjungan";
+
+      setError(message);
+      setShowDeleteConfirm(false);
+
+      Swal.fire({
+        title: "Gagal Menghapus!",
+        text: message,
+        icon: "error",
+        confirmButtonColor: "#739072",
+      });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -225,7 +273,7 @@ const VisitImmunizationDetail = () => {
             </label>
             <label className="flex flex-col text-sm gap-2">
               <span className="text-[12px] font-bold text-[#2F3A2F]">
-                Suhu Tubuh  (°C)
+                Suhu Tubuh (°C)
               </span>
               <input
                 name="body_temperature"
@@ -421,6 +469,40 @@ const VisitImmunizationDetail = () => {
           </button>
         </div>
       </div>
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-[420px] rounded-2xl bg-white px-6 py-6 shadow-xl">
+            <h2 className="text-[20px] font-bold text-[#2F3A2F]">
+              Hapus Data Kunjungan?
+            </h2>
+
+            <p className="mt-3 text-[13px] leading-relaxed text-[#4B4B4B]">
+              Data kunjungan akan dihapus dari penyimpanan.
+              Aksi ini tidak bisa dibatalkan.
+            </p>
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isDeleting}
+                className="h-[38px] rounded-[30px] border border-[#BFC7BB] bg-white px-5 text-[12px] font-bold text-[#4B4B4B] hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Batal
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="h-[38px] rounded-[30px] bg-red-600 px-5 text-[12px] font-bold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isDeleting ? "Menghapus..." : "Ya, Hapus"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

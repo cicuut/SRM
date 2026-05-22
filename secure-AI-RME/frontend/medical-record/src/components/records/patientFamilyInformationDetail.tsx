@@ -1,8 +1,6 @@
 "use client";
 import React from "react";
 import { useState, useEffect, useMemo } from "react";
-import { emit } from "process";
-import Cookies from "js-cookie";
 import { useParams, useRouter } from "next/navigation";
 import api from "@/utils/app";
 import Swal from "sweetalert2";
@@ -41,6 +39,7 @@ const FamilyInformation = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [patientName, setPatientName] = useState("-");
 
   const [formData, setFormData] = useState<PatientInformationDetailList>({
     patient_name: "",
@@ -98,9 +97,12 @@ const FamilyInformation = () => {
 
         const pData = patientResponse.data;
         const fData = familyResponse.data;
-
-        const unifiedData: PatientInformationDetailList = {
-          patient_name: pData?.patient_name || "",
+        if (patientResponse.data.patient_name) {
+          setPatientName(patientResponse.data.patient_name);
+        } else if (patientResponse.data.patient?.patient_name) {
+          setPatientName(patientResponse.data.patient.patient_name);
+        }
+        const initialFormValues: PatientInformationDetailList = {
           nik: pData?.nik || "",
           birthdate: formatDate(pData?.birthdate),
           gender: pData?.gender || "",
@@ -128,8 +130,8 @@ const FamilyInformation = () => {
           relation: fData?.relation || "",
         };
 
-        setFormData(unifiedData);
-        setOriginalFormData(unifiedData);
+        setFormData(initialFormValues);
+        setOriginalFormData(initialFormValues);
       } catch (err: any) {
         setError(
           err.response?.data?.msg ||
@@ -143,6 +145,49 @@ const FamilyInformation = () => {
 
     fetchAllMedicalData();
   }, [uuid]);
+
+  const handleDelete = async () => {
+    if (!uuid) return;
+    try {
+      setIsDeleting(true);
+      setError("");
+      const response = await api.delete(
+        `/medical-record/delete-record/${uuid}`,
+      );
+
+      if (response.status === 200 || response.status === 204) {
+        setShowDeleteConfirm(false);
+
+        await Swal.fire({
+          title: "Berhasil Dihapus",
+          text: "Data kunjungan pasien telah dihapus dari sistem.",
+          icon: "success",
+          timer: 1500,
+          showConfirmButton: false,
+        });
+
+        router.push("/daily-report");
+      }
+    } catch (error: any) {
+      console.error("Delete Error:", error);
+      const message =
+        error.response?.data?.msg ||
+        error.message ||
+        "Terjadi kesalahan saat menghapus kunjungan";
+
+      setError(message);
+      setShowDeleteConfirm(false);
+
+      Swal.fire({
+        title: "Gagal Menghapus!",
+        text: message,
+        icon: "error",
+        confirmButtonColor: "#739072",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const handleInputChange = (
     e: React.ChangeEvent<
@@ -170,7 +215,7 @@ const FamilyInformation = () => {
       if (response.status === 200) {
         await Swal.fire({
           title: "Berhasil Disimpan",
-          text: "Perubahan data KB berhasil disimpan!",
+          text: "Perubahan data berhasil disimpan!",
           icon: "success",
           timer: 1400,
           showConfirmButton: false,
@@ -403,7 +448,9 @@ const FamilyInformation = () => {
             </label>
 
             <label className="flex flex-col text-sm gap-2">
-              <span className="text-[12px] font-bold text-[#2F3A2F]">Umur Keluarga</span>
+              <span className="text-[12px] font-bold text-[#2F3A2F]">
+                Umur Keluarga
+              </span>
               <input
                 name="age"
                 value={formData.age}
@@ -415,7 +462,9 @@ const FamilyInformation = () => {
               />
             </label>
             <label className="flex flex-col text-sm gap-2">
-              <span className="text-[12px] font-bold text-[#2F3A2F]">NIK Keluarga</span>
+              <span className="text-[12px] font-bold text-[#2F3A2F]">
+                NIK Keluarga
+              </span>
               <input
                 name="family_nik"
                 value={formData.family_nik}
@@ -425,7 +474,7 @@ const FamilyInformation = () => {
                 placeholder="Masukkan NIK keluarga"
               />
             </label>
-             <label className="flex flex-col text-sm gap-2">
+            <label className="flex flex-col text-sm gap-2">
               <span className="text-[12px] font-bold text-[#2F3A2F]">
                 No Telepon Keluarga
               </span>
@@ -451,7 +500,7 @@ const FamilyInformation = () => {
                 placeholder="Masukkan alamat keluarga"
               />
             </label>
-           
+
             <label className="flex flex-col text-sm gap-2">
               <span className="text-[12px] font-bold text-[#2F3A2F]">
                 Hubungan
@@ -508,7 +557,6 @@ const FamilyInformation = () => {
                 placeholder="Masukkan pekerjaan keluarga"
               />
             </label>
-           
           </div>
         </div>
       </div>
@@ -552,6 +600,42 @@ const FamilyInformation = () => {
           </button>
         </div>
       </div>
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-[420px] rounded-2xl bg-white px-6 py-6 shadow-xl">
+            <h2 className="text-[20px] font-bold text-[#2F3A2F]">
+              Hapus Rekam Medis?
+            </h2>
+
+            <p className="mt-3 text-[13px] leading-relaxed text-[#4B4B4B]">
+              Rekam medis dengan nama pasien{" "}
+              <span className="font-bold">{patientName}</span> akan dihapus dari
+              penyimpanan. Aksi ini tidak bisa dibatalkan.
+            </p>
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isDeleting}
+                className="h-[38px] rounded-[30px] border border-[#BFC7BB] bg-white px-5 text-[12px] font-bold text-[#4B4B4B] hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Batal
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="h-[38px] rounded-[30px] bg-red-600 px-5 text-[12px] font-bold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isDeleting ? "Menghapus..." : "Ya, Hapus"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from app.models import db, Patient, MedicalRecord, PregnancyRecord, ObstetricHistory, FamilyPlanningRecord, GeneralRecord, DeliveryRecord, ImmunizationRecord, VisitImunization, VisitMaster, VisitFamilyPlanning, VisitPregnancy, VisitGeneral
-from app.utils import generate_record_number, get_latest_record_count, decrypt_data, clean_float, format_date, parse_date
+from app.utils import generate_record_number, get_next_record_sequence_and_increment, decrypt_data, clean_float, format_date, parse_date
 from datetime import datetime
 from flask_jwt_extended import jwt_required, get_jwt
 from sqlalchemy import or_
@@ -17,7 +17,7 @@ def get_next_number():
         return jsonify({"msg": "Medical Record Type is required"}), 400
 
     try:
-        count = get_latest_record_count(record_type)
+        count = get_next_record_sequence_and_increment(record_type)
         next_rm_number = generate_record_number(record_type, count)
         
         return jsonify({
@@ -957,7 +957,43 @@ def get_general_visit_data(uuid):
 
     except Exception as e:
         return jsonify({"msg": "Server error", "error": str(e)}), 500
+    
+@medical_record_bp.route('/delete-record/<uuid>', methods=['DELETE'])
+@jwt_required()
+def delete_medical_record(uuid):
+    try:
+        medical_record = MedicalRecord.query.filter_by(record_id=uuid).first()
+        if not medical_record:
+            return jsonify({
+                "msg": "Data rekam medis tidak ditemukan atau sudah dihapus sebelumnya"
+            }), 404
 
+        patient_name = "Pasien"
+        if medical_record:
+                patient = Patient.query.get(medical_record.patient_id)            
+                if patient:
+                    patient_name = decrypt_data(patient.patient_name)
+
+        # 3. Eksekusi penghapusan pada objek induk (VisitMaster)
+        db.session.delete(medical_record)
+        
+        # 4. Commit transaksi (ON DELETE CASCADE Supabase akan otomatis menghapus baris di pregnancy_visit & financial)
+        db.session.commit()
+
+        return jsonify({
+            "msg": f"Rekam Medis milik {patient_name} berhasil dihapus dari sistem",
+            "record_id": uuid
+        }), 200
+
+    except Exception as e:
+        # Jika terjadi kendala pada database, gagalkan seluruh operasi hapus
+        db.session.rollback()
+        print(f"Error Delete Rekam Medis: {str(e)}")
+        return jsonify({
+            "msg": "Terjadi kesalahan internal server saat mencoba menghapus data rekam medis",
+            "error": str(e)
+        }), 500
+    
 # search medical record
 @medical_record_bp.route('/search-patients', methods=['GET'])
 @jwt_required()

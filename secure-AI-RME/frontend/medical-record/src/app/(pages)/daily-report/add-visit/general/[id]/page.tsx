@@ -68,7 +68,7 @@ const AddVisitGeneral = () => {
       if (response.status === 201) {
         Swal.fire({
           title: "Success",
-          text: "Data KB NADI berhasil disimpan!",
+          text: "Data Kunjungan berhasil disimpan!",
           icon: "success",
           showConfirmButton: false,
           timer: 2000,
