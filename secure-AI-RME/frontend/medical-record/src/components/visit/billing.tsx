@@ -18,6 +18,7 @@ const BillingForm = ({
   paymentStatus,
   setPaymentStatus,
 }: BillingFormProps) => {
+  const isUnpaid = paymentStatus === "unpaid";
   return (
     <>
       <div className="border-b-2 text-[#D9D9D9] font-bold">
@@ -25,20 +26,29 @@ const BillingForm = ({
           Billing
         </p>
       </div>
-      
+
       <div className="flex-1 flex flex-col gap-6">
         <div className="flex flex-row gap-10 w-full ">
-       
           <div className="flex flex-col flex-1 text-sm gap-2">
             <label className="block mb-1 font-bold text-black">Total</label>
             <input
               type="text"
               name="total"
               value={total}
-              placeholder="contoh: 300000"
               onChange={(e) => setTotal(e.target.value)}
+              required={!isUnpaid}
+              disabled={isUnpaid}
+              placeholder={
+                isUnpaid ? "Nonaktif untuk status unpaid" : "Masukkan nominal"
+              }
               className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2 px-3 text-black"
             />
+
+            {isUnpaid && (
+              <p className="mt-1 text-[11px] text-[#8A8A8A]">
+                Nominal dikosongkan karena status pembayaran belum dibayar.
+              </p>
+            )}
           </div>
 
           {/* Select Payment Method */}
@@ -49,11 +59,16 @@ const BillingForm = ({
             <select
               name="payment_method"
               value={paymentMethod}
-              required
+              required={!isUnpaid}
+              disabled={isUnpaid}
               onChange={(e) => setPaymentMethod(e.target.value)}
               className="h-8.5 w-full rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2 px-3 text-[13px] text-black"
             >
-              <option value="" disabled>Pilih</option>
+              <option value="" disabled>
+                {isUnpaid
+                  ? "Nonaktif untuk status unpaid"
+                  : "Pilih metode pembayaran"}
+              </option>
               <option value="Transfer">Transfer</option>
               <option value="QRIS">QRIS</option>
               <option value="Cash">Cash</option>
@@ -70,7 +85,9 @@ const BillingForm = ({
               required
               className="h-8.5 w-full rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2 px-3 text-[13px] text-black"
             >
-              <option value="" disabled>Pilih</option>
+              <option value="" disabled>
+                Pilih
+              </option>
               <option value="paid">Terbayar</option>
               <option value="unpaid">Belum Bayar</option>
             </select>

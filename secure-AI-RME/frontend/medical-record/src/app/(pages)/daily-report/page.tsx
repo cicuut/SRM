@@ -16,8 +16,11 @@ import api from "@/utils/app";
 import RMTypeFilter from "@/components/rm_type";
 import DateRangeFilter from "@/components/date_range";
 import LoadingOverlay from "@/components/loading";
+import {
+  handleExportXlsxData,
+  DynamicVisitRow,
+} from "@/utils/export-visit";
 
-// Interface for visit list data
 interface VisitList {
   visit_id: string;
   visit_number: string;
@@ -30,11 +33,9 @@ interface VisitList {
   made_by: string;
 }
 
-// Main component for daily report page
 const DailyReport = () => {
   const router = useRouter();
 
-  // State variables for component
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [visitReportList, setVisitReportList] = useState<VisitList[]>([]);
@@ -44,42 +45,42 @@ const DailyReport = () => {
   const [verificationInput, setVerificationInput] = useState("");
   const [filteredResults, setFilteredResults] = useState<VisitList[]>([]);
   const [visitSearch, setVisitSearch] = useState("");
-  const [selectedType, setSelectedType] = useState("All");
+  
+  const [visitType, setVisitType] = useState<string>("Semua"); 
+  const [selectedType, setSelectedType] = useState("Select a type"); 
   const [selectedRMLabel, setSelectedRMLabel] = useState("Tipe RM");
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([
     null,
     null,
   ]);
   const [startDate, endDate] = dateRange;
-
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-
-  const totalDataList =
-   visitSearch.length >= 3 ? filteredResults : visitReportList;
-
+  const totalDataList = visitReportList;
   const totalPages = Math.ceil(totalDataList.length / itemsPerPage);
-
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-
   const currentItems = totalDataList.slice(indexOfFirstItem, indexOfLastItem);
 
-  // Handle form submission for record type selection
+  const formatDateToString = (date: Date | null): string => {
+    if (!date) return "";
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
   const handleSubmitRecordType = (e: React.FormEvent) => {
     e.preventDefault();
     setIsModalOpen(false);
     setIsDropdownOpen(false);
-    setSelectedType("Masukan Identitas Pasien (Nama, NIK atau Tanggal Lahir)");
-    setLoading(true);
+    
     switch (selectedType) {
       case "Rekam Medis Kehamilan":
         router.push("/medical-record/pregnancy-record?type=Kehamilan");
         break;
       case "Rekam Medis Keluarga Berencana":
-        router.push(
-          "/medical-record/family-planning-record?type=Keluarga Berencana",
-        );
+        router.push("/medical-record/family-planning-record?type=Keluarga Berencana");
         break;
       case "Rekam Medis Poli Umum":
         router.push("/medical-record/general-record?type=Umum");
@@ -99,9 +100,9 @@ const DailyReport = () => {
           timer: 2000,
         });
     }
+    setSelectedType("Select a type"); 
   };
 
-  // Navigate to add visit page based on record type
   const handleVisit = (rmId: string, type: string) => {
     const typeMap: { [key: string]: string } = {
       Kehamilan: "pregnancy",
@@ -114,7 +115,6 @@ const DailyReport = () => {
     router.push(`/daily-report/add-visit/${typePath}/${rmId}`);
   };
 
-  // Search for patients by query
   const handleSearch = async (query: string) => {
     if (query.length < 3) return;
     try {
@@ -123,49 +123,25 @@ const DailyReport = () => {
       );
       setFilteredResults(response.data);
     } catch (err: any) {
-      const msg =
-        err.response?.data?.msg || err.message || "Gagal mencari pasien";
+      const msg = err.response?.data?.msg || err.message || "Gagal mencari pasien";
       setError(msg);
     }
   };
 
-  // Search for visits by query
-  const handleSearchVisit = async (query: string) => {
-    if (query.length < 3) return;
-    try {
-      const response = await api.get(
-        `/visit-report/search-visit?query=${query}`,
-      );
-      setFilteredResults(response.data);
-    } catch (err: any) {
-      const msg =
-        err.response?.data?.msg || err.message || "Gagal mencari pasien";
-      setError(msg);
-    }
-  };
-
-  // Fetch filtered data based on search, type, and date range
-  const fetchFilteredData = async () => {
+  const fetchFilteredDataWithLoading = async () => {
     setLoading(true);
     const [start, end] = dateRange;
-
-    const formatDate = (date: Date | null) => {
-      if (!date) return "";
-      return date.toISOString().split("T")[0];
-    };
-
     try {
       const params = new URLSearchParams({
         search: visitSearch,
-        type: selectedType,
-        start_date: formatDate(start),
-        end_date: formatDate(end),
+        type: visitType,
+        start_date: formatDateToString(start),
+        end_date: formatDateToString(end),
       });
 
-      const response = await api.get(
-        `/visit-report/filter-all?${params.toString()}`,
-      );
+      const response = await api.get(`/visit-report/filter-all?${params.toString()}`);
       setVisitReportList(response.data);
+      setCurrentPage(1);
     } catch (err) {
       console.error("Gagal mengambil data terfilter", err);
     } finally {
@@ -173,93 +149,120 @@ const DailyReport = () => {
     }
   };
 
-  // Effect to fetch data when filters change
+  const fetchFilteredDataSilent = async () => {
+    const [start, end] = dateRange;
+    try {
+      const params = new URLSearchParams({
+        search: visitSearch,
+        type: visitType,
+        start_date: formatDateToString(start),
+        end_date: formatDateToString(end),
+      });
+
+      const response = await api.get(`/visit-report/filter-all?${params.toString()}`);
+      setVisitReportList(response.data);
+      setCurrentPage(1);
+    } catch (err) {
+      console.error("Gagal mengambil data secara silent", err);
+    }
+  };
+
   useEffect(() => {
+    if (visitSearch.length === 0) {
+      fetchFilteredDataSilent();
+      return;
+    }
+    if (visitSearch.length < 3) {
+      return;
+    }
+
     const delayDebounceFn = setTimeout(() => {
-      fetchFilteredData();
-    }, 500);
+      fetchFilteredDataSilent();
+    }, 600);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [visitSearch, selectedType, dateRange]);
+  }, [visitSearch]);
 
-  // Handle filter change for record type
+  useEffect(() => {
+    fetchFilteredDataWithLoading();
+  }, [visitType, dateRange]);
+
   const handleFilterChange = (type: string, label: string) => {
-    setSelectedType(type);
+    setVisitType(type === "All" ? "Semua" : type); 
     setSelectedRMLabel(label);
   };
 
-  // Handle date range filter change
   const handleFilterDate = (start: Date | null, end: Date | null) => {
     setDateRange([start, end]);
   };
 
-  // Navigate to visit detail page
   const handleViewRecordDetail = (visitId: string) => {
     router.push(`/daily-report/${visitId}`);
   };
+
   const getPageNumbers = () => {
     const pageNumbers = [];
-
-    // Jika total halaman sedikit (misal <= 4), tampilkan semua tanpa titik-titik
     if (totalPages <= 4) {
-      for (let i = 1; i <= totalPages; i++) {
-        pageNumbers.push(i);
-      }
+      for (let i = 1; i <= totalPages; i++) pageNumbers.push(i);
     } else {
-      // 1. Jika aktif di Halaman 1 atau 2 (Awal banget)
       if (currentPage <= 2) {
-        pageNumbers.push(1);
-        pageNumbers.push(2);
-        if (currentPage === 2) pageNumbers.push(3); // Biar user tahu ada halaman berikutnya
-        pageNumbers.push("...");
-        pageNumbers.push(totalPages);
-      }
-      // 2. Jika aktif di Halaman 3 (Mencegah elipsis aneh antara angka 1 dan 2)
-      else if (currentPage === 3) {
-        pageNumbers.push(1);
-        pageNumbers.push(2);
-        pageNumbers.push(3);
-        pageNumbers.push(4);
-        pageNumbers.push("...");
-        pageNumbers.push(totalPages);
-      }
-      // 3. Jika aktif di Halaman Akhir-akhir (misal halaman 15 atau 16)
-      else if (currentPage >= totalPages - 1) {
-        pageNumbers.push(1);
-        pageNumbers.push("...");
+        pageNumbers.push(1); pageNumbers.push(2);
+        if (currentPage === 2) pageNumbers.push(3);
+        pageNumbers.push("..."); pageNumbers.push(totalPages);
+      } else if (currentPage === 3) {
+        pageNumbers.push(1); pageNumbers.push(2); pageNumbers.push(3); pageNumbers.push(4);
+        pageNumbers.push("..."); pageNumbers.push(totalPages);
+      } else if (currentPage >= totalPages - 1) {
+        pageNumbers.push(1); pageNumbers.push("...");
         if (currentPage === totalPages - 1) pageNumbers.push(totalPages - 2);
-        pageNumbers.push(totalPages - 1);
-        pageNumbers.push(totalPages);
-      }
-      // 4. Jika aktif di Halaman Batas Akhir (misal halaman 14 dari 16)
-      else if (currentPage === totalPages - 2) {
-        pageNumbers.push(1);
-        pageNumbers.push("...");
-        pageNumbers.push(totalPages - 3);
-        pageNumbers.push(totalPages - 2);
-        pageNumbers.push(totalPages - 1);
-        pageNumbers.push(totalPages);
-      }
-      // 5. Jika aktif di Tengah-tengah (True Middle)
-      else {
-        pageNumbers.push(1);
-        pageNumbers.push("...");
-        pageNumbers.push(currentPage - 1);
-        pageNumbers.push(currentPage);
-        pageNumbers.push(currentPage + 1);
-        pageNumbers.push("...");
-        pageNumbers.push(totalPages);
+        pageNumbers.push(totalPages - 1); pageNumbers.push(totalPages);
+      } else if (currentPage === totalPages - 2) {
+        pageNumbers.push(1); pageNumbers.push("...");
+        pageNumbers.push(totalPages - 3); pageNumbers.push(totalPages - 2); pageNumbers.push(totalPages - 1); pageNumbers.push(totalPages);
+      } else {
+        pageNumbers.push(1); pageNumbers.push("...");
+        pageNumbers.push(currentPage - 1); pageNumbers.push(currentPage); pageNumbers.push(currentPage + 1);
+        pageNumbers.push("..."); pageNumbers.push(totalPages);
       }
     }
-
     return pageNumbers;
   };
 
-  // Main render function
+  const handleDownloadExcelReport = async () => {
+    try {
+      setLoading(true);
+      const formattedStart = formatDateToString(startDate);
+      const formattedEnd = formatDateToString(endDate);
+
+      const response = await api.get("/visit-report/json-visit", {
+        params: {
+          start_date: formattedStart,
+          end_date: formattedEnd,
+          visit_type: visitType,
+          search: visitSearch,
+        },
+      });
+
+      const fetchedExcelData: DynamicVisitRow[] = response.data.results;
+      await handleExportXlsxData(fetchedExcelData, visitType, formattedStart);
+    } catch (err) {
+      console.error("Gagal memproses unduhan Excel berkas laporan", err);
+      Swal.fire({
+        title: "Ekspor Gagal",
+        text: "Terjadi gangguan saat menyusun berkas laporan excel",
+        icon: "error",
+        confirmButtonColor: "#739072",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div>
-      <div className="flex-1 flex flex-col  w-full  gap-5">
+      <div className="flex-1 flex flex-col w-full gap-5">
         {loading && <LoadingOverlay />}
+        
         <section className="w-full rounded-[22px] border border-[#D2D8CF] bg-white px-5 py-5 shadow-sm sm:px-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="relative min-w-0 flex-1 rounded-[50px] border border-[#D2D8CF] bg-[#FDFEF9] px-5 py-[12px] shadow-sm transition-all focus-within:border-[#739072] xl:max-w-[680px]">
@@ -268,16 +271,7 @@ const DailyReport = () => {
                 type="text"
                 value={visitSearch}
                 placeholder="Masukan Nama Pasien"
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setVisitSearch(val);
-
-                  if (val.length >= 3) {
-                    handleSearchVisit(val);
-                  } else {
-                    setFilteredResults([]);
-                  }
-                }}
+                onChange={(e) => setVisitSearch(e.target.value)}
                 className="w-full bg-transparent pl-8 text-[13px] text-gray-700 outline-none placeholder-gray-400"
               />
             </div>
@@ -301,13 +295,13 @@ const DailyReport = () => {
             </div>
           </div>
         </section>
+
         <section className="w-full overflow-hidden min-h-[600px] rounded-[22px] border border-[#D2D8CF] bg-white shadow-sm">
           <div className="flex flex-col gap-[16px] border-b border-[#E4E8E1] px-5 py-[20px] lg:flex-row lg:items-center lg:justify-between sm:px-[26px]">
             <div className="min-w-0">
               <h2 className="text-[20px] font-extrabold leading-none text-[#5F785F]">
                 Daftar Kunjungan
               </h2>
-
             </div>
 
             <div className="flex w-full flex-col gap-[10px] sm:flex-row sm:items-center sm:justify-between lg:w-auto lg:justify-end">
@@ -323,6 +317,7 @@ const DailyReport = () => {
               <button
                 type="button"
                 disabled={loading || visitReportList.length === 0}
+                onClick={handleDownloadExcelReport}
                 className="flex min-h-[38px] items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <FileDown className="w-4" />
@@ -334,47 +329,27 @@ const DailyReport = () => {
             <table className="w-full border-separate border-spacing-0 text-[12px]">
               <thead className="bg-[#FDFEF9] text-[#5F785F] uppercase text-[10px] font-bold">
                 <tr className="bg-[#D2E3C8] text-gray-700">
-                  <th className="px-6 py-4 text-center font-bold">
-                    Kunjungan ID
-                  </th>
-                  <th className="px-6 py-4 border-r border-gray-200 w-50">
-                    Waktu
-                  </th>
-                  <th className="px-6 py-4 border-r border-gray-200 w-50">
-                    RM ID
-                  </th>
-                  <th className="px-6 py-4 border-r border-gray-200">
-                    Name Pasien
-                  </th>
-                  <th className="px-6 py-4 border-r border-gray-200 w-50">
-                    Tipe Kunjungan
-                  </th>
-                  <th className="px-6 py-4 text-center font-bold">
-                    Dibuat Oleh
-                  </th>
+                  <th className="px-6 py-4 text-center font-bold">Kunjungan ID</th>
+                  <th className="px-6 py-4 border-r border-gray-200 w-50">Waktu</th>
+                  <th className="px-6 py-4 border-r border-gray-200 w-50">RM ID</th>
+                  <th className="px-6 py-4 border-r border-gray-200">Name Pasien</th>
+                  <th className="px-6 py-4 border-r border-gray-200 w-50">Tipe Kunjungan</th>
+                  <th className="px-6 py-4 text-center font-bold">Dibuat Oleh</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {(() => {
-                  if (currentItems.length === 0) {
-                    return (
-                      <tr>
-                        <td
-                          colSpan={6}
-                          className="text-center py-20 text-gray-400"
-                        >
-                          <div className="flex flex-col items-center justify-center gap-2">
-                            <p className="text-sm">
-                              {visitSearch.length >= 3
-                                ? `Kunjungan tidak ditemukan.`
-                                : "Belum ada riwayat kunjungan."}
-                            </p>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  }
-                  return currentItems.map((item, index) => (
+                {currentItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-20 text-gray-400">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <p className="text-sm">
+                          {visitSearch.length >= 3 ? "Kunjungan tidak ditemukan." : "Belum ada riwayat kunjungan."}
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  currentItems.map((item, index) => (
                     <tr
                       key={item.visit_id || index}
                       className={`cursor-pointer text-center text-black transition-all hover:bg-[#EEF3E9] ${
@@ -389,21 +364,19 @@ const DailyReport = () => {
                       <td className="px-4 py-4 ">{item.record_type}</td>
                       <td className="px-6 py-4">{item.made_by}</td>
                     </tr>
-                  ));
-                })()}
+                  ))
+                )}
               </tbody>
             </table>
           </div>
         </section>
+
         <div className="flex items-center justify-between border-t px-4 py-4 sm:px-6">
           <div className="hidden sm:block">
             <p className="text-[11px] text-gray-500">
               Showing <span className="font-semibold text-black">1</span> to{" "}
               <span className="font-semibold text-black">10</span> of{" "}
-              <span className="font-semibold text-black">
-                {visitReportList.length}
-              </span>{" "}
-              records
+              <span className="font-semibold text-black">{visitReportList.length}</span> records
             </p>
           </div>
 
@@ -417,27 +390,22 @@ const DailyReport = () => {
               <span>Previous</span>
             </button>
             {getPageNumbers().map((page, index) => {
-              // Jika item adalah titik-titik "...", render sebagai span biasa (tidak bisa diklik)
               if (page === "...") {
                 return (
-                  <span
-                    key={`ellipsis-${index}`}
-                    className="w-8 h-8 flex items-center justify-center text-gray-400 text-[12px]"
-                  >
+                  <span key={`ellipsis-${index}`} className="w-8 h-8 flex items-center justify-center text-gray-400 text-[12px]">
                     ...
                   </span>
                 );
               }
 
-              // Jika item adalah angka, render sebagai bubble button seperti biasa
               return (
                 <button
                   key={`page-${page}`}
                   onClick={() => setCurrentPage(Number(page))}
                   className={`w-8 h-8 text-[12px] font-bold rounded-full flex items-center justify-center transition-all ${
                     currentPage === page
-                      ? "bg-[#739072] text-white shadow-md scale-105" // Bubble Aktif
-                      : "text-gray-600 bg-transparent hover:bg-[#EEF3E9] hover:text-[#4F6F52]" // Bubble Inaktif
+                      ? "bg-[#739072] text-white shadow-md scale-105"
+                      : "text-gray-600 bg-transparent hover:bg-[#EEF3E9] hover:text-[#4F6F52]"
                   }`}
                 >
                   {page}
@@ -445,9 +413,7 @@ const DailyReport = () => {
               );
             })}
             <button
-              onClick={() =>
-                setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-              }
+              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
               disabled={currentPage === totalPages}
               className="flex items-center gap-x-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-[12px] font-bold text-gray-600 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -457,7 +423,7 @@ const DailyReport = () => {
           </div>
         </div>
       </div>
-      {/* Modal for adding visit */}
+
       {isModalVisitOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
           <div className="flex flex-col bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-y-auto ">
@@ -493,15 +459,13 @@ const DailyReport = () => {
                 />
               </div>
               <div className="relative w-full">
-                {filteredResults.length > 0 && (
-                  <div className="z-50 w-full mt-2 bg-white border border-gray-100 shadow-xl rounded-2xl overflow-hidden overflow-y-auto  animate-in fade-in slide-in-from-top-2 duration-200 max-h-50">
+                {filteredResults.length > 0 ? (
+                  <div className="z-50 w-full mt-2 bg-white border border-gray-100 shadow-xl rounded-2xl overflow-hidden overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200 max-h-50">
                     <div className="max-h-75">
                       {filteredResults.map((patient) => (
                         <div
                           key={patient.rm_id}
-                          onClick={() =>
-                            handleVisit(patient.rm_id, patient.record_type)
-                          }
+                          onClick={() => handleVisit(patient.rm_id, patient.record_type)}
                           className="p-4 border-b last:border-0 hover:bg-[#F0F4EF] cursor-pointer rounded-xl transition-all flex justify-between items-center group"
                         >
                           <div className="flex flex-col">
@@ -521,6 +485,17 @@ const DailyReport = () => {
                       ))}
                     </div>
                   </div>
+                ) : (
+                  verificationInput.length >= 3 && (
+                    <div className="mt-2 p-4 bg-white border border-gray-400 rounded-2xl flex flex-col gap-1 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <p className="text-sm font-semibold text-[#4F6F52] ">
+                        Pasien Tidak Ditemukan
+                      </p>
+                      <p className="text-xs">
+                        Data dengan kata kunci <span className="font-bold">"{verificationInput}"</span> tidak terdaftar di sistem klinik. Silakan periksa kembali ejaan atau buat rekam medis baru di bawah.
+                      </p>
+                    </div>
+                  )
                 )}
               </div>
             </div>
@@ -538,7 +513,7 @@ const DailyReport = () => {
                 </span>
               </p>
             </div>
-            <div className="p-4  flex justify-end gap-3">
+            <div className="p-4 flex justify-end gap-3">
               <button
                 onClick={() => {
                   setIsModalVisitOpen(false);
@@ -553,7 +528,7 @@ const DailyReport = () => {
           </div>
         </div>
       )}
-      {/* Modal for selecting record type */}
+
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
           <div className="flex flex-col gap-y-6 bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 h-80 pb-8">
@@ -599,7 +574,7 @@ const DailyReport = () => {
                       <li
                         key={item}
                         onClick={() => {
-                          setSelectedType("Rekam Medis " + item);
+                          setSelectedType("Rekam Medis " + item); 
                           setIsDropdownOpen(false);
                         }}
                         className="px-4 py-3 hover:bg-[#D2E3C8] hover:text-[#4F6F52] cursor-pointer transition-colors text-sm border-b last:border-0 border-gray-50"
@@ -624,7 +599,12 @@ const DailyReport = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-8 py-2 bg-[#739072] text-white rounded-full hover:bg-[#4F6F52] shadow-lg transition font-bold"
+                  disabled={selectedType === "Select a type"}
+                  className={`px-8 py-2 text-white rounded-full shadow-lg transition font-bold ${
+                    selectedType === "Select a type"
+                      ? "bg-gray-300 cursor-not-allowed opacity-60 shadow-none"
+                      : "bg-[#739072] hover:bg-[#4F6F52]"
+                  }`}
                 >
                   Pilih Rekam Medis
                 </button>

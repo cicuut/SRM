@@ -1018,14 +1018,22 @@ def search_patients():
             
             dob_searchable = ""
             dob_display = "-"
-            
+
             #logic to set dob format
             if decrypted_birthdate:
                 decrypted_str = str(decrypted_birthdate)
                 
                 try:
-                    dob_obj = datetime.strptime(decrypted_str, '%Y-%m-%d')   
-                    dob_searchable = f"{dob_obj.strftime('%d-%m-%Y')} {dob_obj.strftime('%d/%m/%Y')} {dob_obj.strftime('%Y-%m-%d')} {dob_obj.strftime('%d %B %Y')}".lower()
+                    dob_obj = datetime.strptime(decrypted_str, '%Y-%m-%d') 
+                    
+                    INDONESIAN_MONTHS = {
+                        1: "Januari", 2: "Februari", 3: "Maret", 4: "April",
+                        5: "Mei", 6: "Juni", 7: "Juli", 8: "Agustus",
+                        9: "September", 10: "Oktober", 11: "November", 12: "Desember"
+                    }
+
+                    bulan_indo = INDONESIAN_MONTHS[dob_obj.month]  
+                    dob_searchable = f"{dob_obj.strftime('%d-%m-%Y')} {dob_obj.strftime('%d/%m/%Y')} {dob_obj.strftime('%Y-%m-%d')} {dob_obj.day} {bulan_indo} {dob_obj.year}".lower()
                     #human readable day of birth
                     dob_display = dob_obj.strftime('%d %B %Y')
                 

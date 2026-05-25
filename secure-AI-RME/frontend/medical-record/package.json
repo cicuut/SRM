@@ -22,6 +22,8 @@
     "@svgr/webpack": "^8.1.0",
     "@types/react-datepicker": "^6.2.0",
     "axios": "^1.13.6",
+    "exceljs": "^4.4.0",
+    "file-saver": "^2.0.5",
     "js-cookie": "^3.0.5",
     "js-cookies": "^1.0.4",
     "lucide-react": "^1.14.0",
@@ -36,6 +38,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/file-saver": "^2.0.7",
     "@types/js-cookie": "^3.0.6",
     "@types/node": "^20",
     "@types/nprogress": "^0.2.3",
