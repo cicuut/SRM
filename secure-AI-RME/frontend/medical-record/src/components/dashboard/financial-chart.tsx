@@ -1,8 +1,15 @@
 'use client';
 
+/**
+ * FinancialChart — grafik pemasukan vs pengeluaran harian untuk bulan berjalan.
+ * Mendukung tiga mode tampilan: area, line, dan bar (SVG custom, tanpa library chart).
+ * Tooltip menampilkan nilai per kategori plus saldo (pemasukan − pengeluaran) per hari.
+ */
+
 import { useMemo, useState } from 'react';
 import { fillAmountPoints, getDaysInMonth } from '@/utils/chart-month-days';
 
+/** Satu titik data: tanggal (YYYY-MM-DD) dan nominal (Rupiah) */
 export interface FinancialChartPoint {
     date: string;
     amount: number;
@@ -15,8 +22,10 @@ interface FinancialChartProps {
     emptyMessage?: string;
 }
 
+/** Mode visualisasi yang bisa dipilih pengguna */
 type ChartMode = 'area' | 'line' | 'bar';
 
+/** Titik pada plot SVG dengan koordinat pixel (x, y) */
 type ChartLinePoint = {
     date: string;
     amount: number;
@@ -24,12 +33,14 @@ type ChartLinePoint = {
     y: number;
 };
 
+/** Satu baris di tooltip (Pemasukan atau Pengeluaran) */
 type TooltipItem = {
     label: string;
     value: number;
     color: string;
 };
 
+/** State tooltip: posisi di chart, tanggal, dan nilai pemasukan/pengeluaran */
 type TooltipState = {
     x: number;
     y: number;
@@ -40,9 +51,11 @@ type TooltipState = {
 const INCOME_COLOR = '#4F6F52';
 const EXPENSE_COLOR = '#B8A47E';
 
+/** Ukuran viewBox SVG — skala tetap, responsif lewat className w-full */
 const CHART_WIDTH = 920;
 const CHART_HEIGHT = 280;
 
+/** Ruang kosong di sekitar area plot; left lebih lebar untuk label sumbu Y (jt/rb) */
 const PADDING = {
     top: 22,
     right: 26,
@@ -50,6 +63,7 @@ const PADDING = {
     left: 68,
 };
 
+/** Label tanggal lengkap untuk tooltip (locale Indonesia) */
 function formatDayLabel(value: string) {
     const parsed = new Date(`${value}T00:00:00`);
 
@@ -65,6 +79,7 @@ function formatDayLabel(value: string) {
     });
 }
 
+/** Label sumbu X: hanya angka hari (1–31) */
 function formatAxisDayLabel(value: string) {
     const parsed = new Date(`${value}T00:00:00`);
 
@@ -75,6 +90,7 @@ function formatAxisDayLabel(value: string) {
     return String(parsed.getDate());
 }
 
+/** Label sumbu Y ringkas: juta (jt), ribu (rb), atau angka penuh */
 function formatAxisAmount(value: number) {
     if (value >= 1_000_000) {
         return `${(value / 1_000_000).toFixed(1)}jt`;
@@ -87,6 +103,7 @@ function formatAxisAmount(value: number) {
     return String(Math.round(value));
 }
 
+/** Format nominal untuk tooltip dan tampilan detail (IDR) */
 function formatRupiah(value: number) {
     return new Intl.NumberFormat('id-ID', {
         style: 'currency',
@@ -95,6 +112,7 @@ function formatRupiah(value: number) {
     }).format(Number(value || 0));
 }
 
+/** Membuat path SVG garis (M/L) dari daftar titik {x, y} */
 function buildPath(points: { x: number; y: number }[]) {
     if (points.length === 0) return '';
 
@@ -103,6 +121,7 @@ function buildPath(points: { x: number; y: number }[]) {
         .join(' ');
 }
 
+/** Path area: garis atas + tutup ke baseline (sumbu nol) membentuk poligon tertutup */
 function buildAreaPath(points: { x: number; y: number }[], baselineY: number) {
     if (points.length === 0) return '';
 
@@ -113,6 +132,10 @@ function buildAreaPath(points: { x: number; y: number }[], baselineY: number) {
     return `${linePath} L ${lastPoint.x} ${baselineY} L ${firstPoint.x} ${baselineY} Z`;
 }
 
+/**
+ * Posisi tooltip absolut di dalam container relatif.
+ * Jika kursor dekat atas chart, tooltip ditampilkan di bawah titik agar tidak terpotong.
+ */
 function getTooltipStyle(tooltip: TooltipState) {
     const leftPercent = (tooltip.x / CHART_WIDTH) * 100;
     const topPercent = (tooltip.y / CHART_HEIGHT) * 100;
@@ -129,6 +152,7 @@ function getTooltipStyle(tooltip: TooltipState) {
     };
 }
 
+/** Tombol pemilih mode chart (Area / Line / Bar) */
 const ChartModeButton = ({
     label,
     mode,
@@ -157,6 +181,10 @@ const ChartModeButton = ({
     );
 };
 
+/**
+ * Panel tooltip: pemasukan & pengeluaran per hari,
+ * plus baris Saldo (selisih); warna merah jika saldo negatif.
+ */
 const ChartTooltip = ({ tooltip }: { tooltip: TooltipState }) => {
     const incomeValue =
         tooltip.items.find((item) => item.label === 'Pemasukan')?.value || 0;
@@ -227,6 +255,12 @@ export function FinancialChart({
     const [chartMode, setChartMode] = useState<ChartMode>('area');
     const [tooltip, setTooltip] = useState<TooltipState | null>(null);
 
+    /**
+     * Menghitung geometri chart sekali per perubahan income/expense:
+     * - Mengisi titik kosong per hari bulan via fillAmountPoints
+     * - Skala Y dari max(pemasukan, pengeluaran) per hari
+     * - Path garis & area untuk kedua seri
+     */
     const chart = useMemo(() => {
         const monthDates = getDaysInMonth();
         const filledIncome = fillAmountPoints(income, monthDates);
@@ -260,6 +294,7 @@ export function FinancialChart({
         const plotWidth = CHART_WIDTH - PADDING.left - PADDING.right;
         const plotHeight = CHART_HEIGHT - PADDING.top - PADDING.bottom;
 
+        /** Map tanggal → posisi X horizontal di dalam area plot */
         const xForDate = (date: string) => {
             const index = allDates.indexOf(date);
 
@@ -270,9 +305,11 @@ export function FinancialChart({
             return PADDING.left + (index / (allDates.length - 1)) * plotWidth;
         };
 
+        /** Map nominal → posisi Y (0 di bawah, maxAmount di atas) */
         const yForAmount = (amount: number) =>
             PADDING.top + plotHeight - (amount / maxAmount) * plotHeight;
 
+        /** Garis grid horizontal + label sumbu Y (format jt/rb) */
         const gridLines = [0, 0.25, 0.5, 0.75, 1].map((ratio) => ({
             ratio,
             y: PADDING.top + plotHeight - ratio * plotHeight,
@@ -331,6 +368,7 @@ export function FinancialChart({
         };
     }, [income, expense]);
 
+    /** Tooltip selalu menampilkan pemasukan & pengeluaran untuk tanggal yang di-hover */
     const showTooltipForDate = (date: string, x: number, y: number) => {
         if (!chart) return;
 
@@ -361,6 +399,7 @@ export function FinancialChart({
         );
     }
 
+    // Sumbu X: ~8 label hari; mode bar: dua bar (pemasukan kiri, pengeluaran kanan) per tanggal
     const xTickStep = Math.max(1, Math.ceil(chart.allDates.length / 8));
     const slotWidth = chart.plotWidth / Math.max(chart.allDates.length, 1);
     const barWidth = Math.min(11, Math.max(4, slotWidth * 0.28));
@@ -410,6 +449,7 @@ export function FinancialChart({
                     role="img"
                     aria-label={title}
                 >
+                    {/* Gradien vertikal untuk isian mode area */}
                     <defs>
                         <linearGradient
                             id="incomeAreaGradient"
@@ -450,6 +490,7 @@ export function FinancialChart({
                         </linearGradient>
                     </defs>
 
+                    {/* Latar putih di area plot */}
                     <rect
                         x={PADDING.left}
                         y={PADDING.top}
@@ -460,6 +501,7 @@ export function FinancialChart({
                         opacity={0.68}
                     />
 
+                    {/* Garis grid + label sumbu Y */}
                     {chart.gridLines.map((line) => (
                         <g key={line.ratio}>
                             <line
@@ -482,6 +524,7 @@ export function FinancialChart({
                         </g>
                     ))}
 
+                    {/* Label hari di sumbu X */}
                     {chart.allDates.map((date, index) => {
                         if (
                             index !== 0 &&
@@ -506,6 +549,7 @@ export function FinancialChart({
                         );
                     })}
 
+                    {/* Mode bar: pemasukan di kiri titik X, pengeluaran di kanan */}
                     {chartMode === 'bar' &&
                         chart.allDates.map((date) => {
                             const x = chart.xForDate(date);
@@ -547,6 +591,7 @@ export function FinancialChart({
                             );
                         })}
 
+                    {/* Mode area: isian gradien di bawah garis pemasukan & pengeluaran */}
                     {chartMode === 'area' && (
                         <>
                             <path
@@ -561,6 +606,7 @@ export function FinancialChart({
                         </>
                     )}
 
+                    {/* Mode area & line: dua garis + titik interaktif per seri */}
                     {(chartMode === 'area' || chartMode === 'line') &&
                         [chart.incomeLine, chart.expenseLine].map((line) => (
                             <g key={line.color}>
@@ -595,6 +641,7 @@ export function FinancialChart({
                             </g>
                         ))}
 
+                    {/* Garis vertikal penanda saat tooltip aktif */}
                     {tooltip && (
                         <line
                             x1={tooltip.x}
@@ -609,6 +656,7 @@ export function FinancialChart({
                     )}
                 </svg>
 
+                {/* Legenda: warna pemasukan vs pengeluaran */}
                 <div className="mt-2 flex flex-wrap items-center justify-center gap-4">
                     <div className="flex items-center gap-2">
                         <span

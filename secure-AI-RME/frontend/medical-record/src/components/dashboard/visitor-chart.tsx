@@ -1,5 +1,11 @@
 'use client';
 
+/**
+ * VisitorChart — grafik kunjungan pasien per layanan (kehamilan, umum, dll.)
+ * Menampilkan data aktual (history) dan prediksi (forecast) untuk bulan berjalan.
+ * Mendukung tiga mode tampilan: area, line, dan bar (SVG custom, tanpa library chart).
+ */
+
 import { useMemo, useState } from 'react';
 import {
     fillCountPoints,
@@ -7,11 +13,13 @@ import {
     toDateKey,
 } from '@/utils/chart-month-days';
 
+/** Satu titik data: tanggal (YYYY-MM-DD) dan jumlah kunjungan pada hari itu */
 export interface ChartPoint {
     date: string;
     count: number;
 }
 
+/** Satu seri layanan: nama, warna, serta data aktual dan forecast */
 export interface ServiceSeries {
     name: string;
     history: ChartPoint[];
@@ -25,8 +33,10 @@ interface VisitorChartProps {
     emptyMessage?: string;
 }
 
+/** Mode visualisasi yang bisa dipilih pengguna */
 type ChartMode = 'area' | 'line' | 'bar';
 
+/** Seri layanan setelah tanggal history/forecast dipisah dan diisi ke semua hari bulan */
 type DatedServiceSeries = {
     name: string;
     color: string;
@@ -34,6 +44,7 @@ type DatedServiceSeries = {
     forecast: ChartPoint[];
 };
 
+/** Titik pada plot SVG dengan koordinat pixel (x, y) */
 type ChartLinePoint = {
     date: string;
     count: number;
@@ -41,6 +52,7 @@ type ChartLinePoint = {
     y: number;
 };
 
+/** Satu baris di tooltip saat hover titik/bar */
 type TooltipItem = {
     label: string;
     value: number;
@@ -48,6 +60,7 @@ type TooltipItem = {
     type: 'Aktual' | 'Forecast';
 };
 
+/** State tooltip: posisi di chart, tanggal, dan daftar nilai per layanan */
 type TooltipState = {
     x: number;
     y: number;
@@ -55,6 +68,7 @@ type TooltipState = {
     items: TooltipItem[];
 };
 
+/** Warna default per nama layanan (sesuai dashboard) */
 export const SERVICE_COLORS: Record<string, string> = {
     Kehamilan: '#4F6F52',
     'Keluarga Berencana': '#B8A47E',
@@ -63,6 +77,7 @@ export const SERVICE_COLORS: Record<string, string> = {
     Persalinan: '#5F785F',
 };
 
+/** Warna cadangan jika layanan tidak ada di SERVICE_COLORS */
 const FALLBACK_COLORS = [
     '#4F6F52',
     '#739072',
@@ -72,9 +87,11 @@ const FALLBACK_COLORS = [
     '#7C8F65',
 ];
 
+/** Ukuran viewBox SVG — skala tetap, responsif lewat className w-full */
 const CHART_WIDTH = 920;
 const CHART_HEIGHT = 280;
 
+/** Ruang kosong di sekitar area plot (sumbu, label) */
 const PADDING = {
     top: 22,
     right: 26,
@@ -82,6 +99,7 @@ const PADDING = {
     left: 58,
 };
 
+/** Label tanggal lengkap untuk tooltip (locale Indonesia) */
 function formatDayLabel(value: string) {
     const parsed = new Date(`${value}T00:00:00`);
 
@@ -97,6 +115,7 @@ function formatDayLabel(value: string) {
     });
 }
 
+/** Label sumbu X: hanya angka hari (1–31) */
 function formatAxisDayLabel(value: string) {
     const parsed = new Date(`${value}T00:00:00`);
 
@@ -107,10 +126,12 @@ function formatAxisDayLabel(value: string) {
     return String(parsed.getDate());
 }
 
+/** Format angka kunjungan dengan pemisah ribuan (id-ID) */
 function formatNumber(value: number) {
     return new Intl.NumberFormat('id-ID').format(Number(value || 0));
 }
 
+/** Membuat path SVG garis (M/L) dari daftar titik {x, y} */
 function buildPath(points: { x: number; y: number }[]): string {
     if (points.length === 0) return '';
 
@@ -119,6 +140,7 @@ function buildPath(points: { x: number; y: number }[]): string {
         .join(' ');
 }
 
+/** Path area: garis atas + tutup ke baseline (sumbu nol) membentuk poligon tertutup */
 function buildAreaPath(points: { x: number; y: number }[], baselineY: number) {
     if (points.length === 0) return '';
 
@@ -129,6 +151,10 @@ function buildAreaPath(points: { x: number; y: number }[], baselineY: number) {
     return `${linePath} L ${lastPoint.x} ${baselineY} L ${firstPoint.x} ${baselineY} Z`;
 }
 
+/**
+ * Posisi tooltip absolut di dalam container relatif.
+ * Jika kursor dekat atas chart, tooltip ditampilkan di bawah titik agar tidak terpotong.
+ */
 function getTooltipStyle(tooltip: TooltipState) {
     const leftPercent = (tooltip.x / CHART_WIDTH) * 100;
     const topPercent = (tooltip.y / CHART_HEIGHT) * 100;
@@ -145,6 +171,7 @@ function getTooltipStyle(tooltip: TooltipState) {
     };
 }
 
+/** Tombol pemilih mode chart (Area / Line / Bar) */
 const ChartModeButton = ({
     label,
     mode,
@@ -173,6 +200,7 @@ const ChartModeButton = ({
     );
 };
 
+/** Panel tooltip mengambang di atas chart */
 const ChartTooltip = ({ tooltip }: { tooltip: TooltipState }) => {
     return (
         <div
@@ -226,6 +254,12 @@ export function VisitorChart({
     const [chartMode, setChartMode] = useState<ChartMode>('area');
     const [tooltip, setTooltip] = useState<TooltipState | null>(null);
 
+    /**
+     * Menghitung semua geometri chart sekali per perubahan `series`:
+     * - Membagi bulan jadi history (≤ hari ini) vs forecast (> hari ini)
+     - Mengisi titik kosong per hari via fillCountPoints
+     * - Skala Y dari maxCount, koordinat x/y per titik, path SVG
+     */
     const chart = useMemo(() => {
         const monthDates = getDaysInMonth();
         const todayKey = toDateKey();
@@ -263,6 +297,7 @@ export function VisitorChart({
         const plotWidth = CHART_WIDTH - PADDING.left - PADDING.right;
         const plotHeight = CHART_HEIGHT - PADDING.top - PADDING.bottom;
 
+        /** Map tanggal → posisi X horizontal di dalam area plot */
         const xForDate = (date: string) => {
             const index = monthDates.indexOf(date);
 
@@ -273,9 +308,11 @@ export function VisitorChart({
             return PADDING.left + (index / (monthDates.length - 1)) * plotWidth;
         };
 
+        /** Map jumlah kunjungan → posisi Y (0 di bawah, maxCount di atas) */
         const yForCount = (count: number) =>
             PADDING.top + plotHeight - (count / maxCount) * plotHeight;
 
+        /** Garis grid horizontal + label sumbu Y (0%, 25%, … 100% dari max) */
         const gridLines = [0, 0.25, 0.5, 0.75, 1].map((ratio) => ({
             ratio,
             y: PADDING.top + plotHeight - ratio * plotHeight,
@@ -299,6 +336,7 @@ export function VisitorChart({
                 y: yForCount(point.count),
             }));
 
+            // Garis forecast disambung dari titik history terakhir agar tidak putus
             const forecastLinePoints =
                 historyPoints.length > 0 && forecastPoints.length > 0
                     ? [historyPoints[historyPoints.length - 1], ...forecastPoints]
@@ -358,6 +396,7 @@ export function VisitorChart({
         );
     }
 
+    // Sumbu X: tampilkan ~8 label hari agar tidak padat
     const xTickStep = Math.max(1, Math.ceil(chart.monthDates.length / 8));
     const slotWidth = chart.plotWidth / Math.max(chart.monthDates.length, 1);
     const groupWidth = Math.min(22, slotWidth * 0.78);
@@ -411,6 +450,7 @@ export function VisitorChart({
                     role="img"
                     aria-label={title}
                 >
+                    {/* Latar putih di area plot */}
                     <rect
                         x={PADDING.left}
                         y={PADDING.top}
@@ -421,6 +461,7 @@ export function VisitorChart({
                         opacity={0.68}
                     />
 
+                    {/* Garis grid + label sumbu Y */}
                     {chart.gridLines.map((line) => (
                         <g key={line.ratio}>
                             <line
@@ -443,6 +484,7 @@ export function VisitorChart({
                         </g>
                     ))}
 
+                    {/* Label hari di sumbu X (awal, akhir, dan setiap xTickStep) */}
                     {chart.monthDates.map((date, index) => {
                         if (
                             index !== 0 &&
@@ -467,6 +509,7 @@ export function VisitorChart({
                         );
                     })}
 
+                    {/* Mode bar: satu grup bar per layanan, offset horizontal per layanan */}
                     {chartMode === 'bar' &&
                         chart.datedSeries.map((service, serviceIndex) => {
                             const xOffset =
@@ -520,6 +563,7 @@ export function VisitorChart({
                             );
                         })}
 
+                    {/* Mode area: isian di bawah garis (history lebih gelap, forecast lebih transparan) */}
                     {chartMode === 'area' &&
                         chart.lineSeries.map((line) => (
                             <g key={`area-${line.name}`}>
@@ -537,6 +581,7 @@ export function VisitorChart({
                             </g>
                         ))}
 
+                    {/* Mode area & line: garis + titik interaktif; forecast pakai stroke putus-putus */}
                     {(chartMode === 'area' || chartMode === 'line') &&
                         chart.lineSeries.map((line) => (
                             <g key={line.name}>
@@ -619,6 +664,7 @@ export function VisitorChart({
                             </g>
                         ))}
 
+                    {/* Garis vertikal penanda saat tooltip aktif */}
                     {tooltip && (
                         <line
                             x1={tooltip.x}
@@ -633,6 +679,7 @@ export function VisitorChart({
                     )}
                 </svg>
 
+                {/* Legenda: warna per layanan + arti garis aktual vs forecast */}
                 <div className="mt-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
                     {chart.datedSeries.map((service) => (
                         <div key={service.name} className="flex items-center gap-2">
