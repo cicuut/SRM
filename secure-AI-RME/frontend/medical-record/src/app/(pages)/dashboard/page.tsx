@@ -132,18 +132,24 @@ interface MonthlyFinancialSummary {
   daily_expense: FinancialChartPoint[];
 }
 
+/** Satu item ranking dari API Top Diagnosa (backend: assessment_service.py) */
 interface TopAssessmentItem {
   rank: number;
   assessment: string;
+  diagnosis?: string;
   count: number;
   percentage: number;
   variants?: string[];
+  source?: "canonical" | "cluster" | "singleton" | "fuzzy";
 }
 
+/** Response GET /api/dashboard/top-assessments */
 interface TopAssessmentsResponse {
   month: string;
+  grouping_method?: string;
   total_visits_with_assessment: number;
   summary?: string;
+  top_diagnoses?: TopAssessmentItem[];
   top_assessments: TopAssessmentItem[];
   msg?: string;
   error?: string;
@@ -201,22 +207,28 @@ const Dashboard = () => {
                 });
 
                 if (cancelled) {
-          return;
+                    return;
+                }
 
-                setCurrentUser(userResponse.data.user);
-        }
+                const user = userResponse.data.user;
+                if (!user) {
+                    return;
+                }
 
-                const backendProfilePhoto = userResponse.data.user?.profile_photo || '';
+                setCurrentUser(user);
+
+                const backendProfilePhoto = user.profile_photo?.trim() || '';
 
                 if (backendProfilePhoto) {
                     localStorage.setItem('profile_photo', backendProfilePhoto);
                     setProfilePhoto(backendProfilePhoto);
                 } else {
-                    loadLocalProfilePhoto();
+                    localStorage.removeItem('profile_photo');
+                    setProfilePhoto('');
                 }
             } catch (error) {
                 console.error('Failed to load current user:', error);
-      }
+            }
 
       try {
         const forecastResponse =
@@ -301,13 +313,18 @@ const Dashboard = () => {
                   }
               }
 
+      // Top 5 diagnosa: backend normalisasi hibrida (aturan + clustering)
       try {
         setAssessmentLoading(true);
         const assessmentResponse = await api.get<TopAssessmentsResponse>(
           "/dashboard/top-assessments",
         );
         if (!cancelled) {
-          setTopAssessments(assessmentResponse.data.top_assessments ?? []);
+          setTopAssessments(
+            assessmentResponse.data.top_diagnoses ??
+              assessmentResponse.data.top_assessments ??
+              [],
+          );
           setAssessmentMonth(assessmentResponse.data.month ?? null);
           setAssessmentSummary(assessmentResponse.data.summary ?? null);
           setAssessmentVisitCount(
@@ -427,13 +444,17 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="w-md flex flex-col items-center gap-y-[5px] rounded-[30px] bg-[#739072] px-8 py-5 pb-[0] text-[15px] text-white">
-              <Image
-                src="/user.png"
-                alt="img"
-                width={80}
-                height={80}
-                className="rounded-[50px]"
-              />
+              <div className="flex h-[80px] w-[80px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#FDFEF9] text-[22px] font-bold text-[#5F785F]">
+                {profilePhoto ? (
+                  <img
+                    src={profilePhoto}
+                    alt={displayName ? `Foto profil ${displayName}` : "Foto profil"}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span>{initials}</span>
+                )}
+              </div>
               <p>{displayName || "\u00A0"}</p>
               <p>{displayRole || "\u00A0"}</p>
             </div>
@@ -548,8 +569,12 @@ const Dashboard = () => {
 
               <div className="min-h-[280px] min-w-0 flex-1 rounded-[10px] bg-[#FFFFFF] px-5 py-6 drop-shadow-lg">
                 <h2 className="text-xl font-semibold text-[#4F6F52]">
-                  Top 5 Assessment Bulanan
+                  Top 5 Diagnosa Bulanan
                 </h2>
+                <p className="mt-1 text-xs text-gray-500">
+                  Hibrida: aturan medis + clustering teks (assessment &amp;
+                  keluhan KB)
+                </p>
                 {assessmentError ? (
                   <p className="mt-4 text-sm text-red-500">{assessmentError}</p>
                 ) : (
@@ -558,7 +583,7 @@ const Dashboard = () => {
                     totalVisits={assessmentVisitCount}
                     items={topAssessments}
                     isLoading={assessmentLoading}
-                    emptyMessage="Belum ada assessment atau keluhan KB bulan ini."
+                    emptyMessage="Belum ada diagnosa pada kunjungan bulan ini."
                   />
                 )}
               </div>

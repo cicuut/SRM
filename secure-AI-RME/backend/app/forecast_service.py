@@ -13,11 +13,13 @@ from app.models import DeliveryRecord, MedicalRecord, PregnancyRecord, VisitMast
 
 try:
     import holidays
-except ImportError:  # pragma: no cover
+except ImportError:  
     holidays = None
 
+# Path model prediksi
 MODEL_DIR = Path(__file__).resolve().parent.parent / "forecast"
 
+# Model prediksi dengan fitur
 SERVICE_MODELS: Dict[str, dict] = {
     "Kehamilan": {
         "file": "model_kehamilan_1.joblib",
@@ -79,7 +81,7 @@ SERVICE_MODELS: Dict[str, dict] = {
 _loaded_models: Dict[str, object] = {}
 _holiday_cache: Dict[int, set] = {}
 
-
+# Load model prediksi
 def _load_model(service_type: str):
     if service_type not in _loaded_models:
         config = SERVICE_MODELS[service_type]
@@ -89,7 +91,7 @@ def _load_model(service_type: str):
         _loaded_models[service_type] = joblib.load(path)
     return _loaded_models[service_type]
 
-
+# Set fitur untuk model prediksi
 def _holiday_dates(year: int) -> set:
     if year not in _holiday_cache:
         if holidays is not None:
@@ -98,14 +100,11 @@ def _holiday_dates(year: int) -> set:
             _holiday_cache[year] = set()
     return _holiday_cache[year]
 
-
 def _is_holiday(target: date) -> int:
     return int(target in _holiday_dates(target.year))
 
-
 def _series_value(series: Dict[date, float], target: date) -> float:
     return float(series.get(target, 0.0))
-
 
 def _rolling_mean(series: Dict[date, float], target: date, window: int) -> float:
     values = [
@@ -114,7 +113,6 @@ def _rolling_mean(series: Dict[date, float], target: date, window: int) -> float
     ]
     return float(np.mean(values)) if values else 0.0
 
-
 def _rolling_std(series: Dict[date, float], target: date, window: int) -> float:
     values = [
         _series_value(series, target - timedelta(days=offset))
@@ -122,7 +120,7 @@ def _rolling_std(series: Dict[date, float], target: date, window: int) -> float:
     ]
     return float(np.std(values)) if values else 0.0
 
-
+# Buat fitur untuk model prediksi
 def _build_feature_row(
     service_type: str,
     series: Dict[date, float],
@@ -150,7 +148,7 @@ def _build_feature_row(
     feature_names = SERVICE_MODELS[service_type]["features"]
     return {name: row[name] for name in feature_names}
 
-
+# Ambil jumlah pasien bulanan total
 def get_monthly_visit_total(month_start: date, end_date: date) -> int:
     total = (
         db.session.query(func.count(VisitMaster.visit_id))
@@ -163,7 +161,7 @@ def get_monthly_visit_total(month_start: date, end_date: date) -> int:
     )
     return int(total or 0)
 
-
+# Ambil jumlah pasien bulanan per jenis layanan
 def get_monthly_counts_by_service(
     month_start: date, end_date: date
 ) -> Dict[str, int]:
@@ -182,7 +180,7 @@ def get_monthly_counts_by_service(
     )
     return {str(record_type): int(total) for record_type, total in rows}
 
-
+# Ambil jumlah pasien harian
 def get_daily_visit_counts(
     record_type: str, start_date: date, end_date: date
 ) -> Dict[date, int]:
@@ -207,8 +205,8 @@ def get_daily_visit_counts(
     return counts
 
 
+# Ambil jumlah pasien melahirkan berdasarkan delivery_record.delivery_date
 def get_daily_delivery_counts(start_date: date, end_date: date) -> Dict[date, int]:
-    """Jumlah pasien melahirkan berdasarkan delivery_record.delivery_date."""
     rows = (
         db.session.query(
             DeliveryRecord.delivery_date,
@@ -237,9 +235,8 @@ def get_daily_delivery_counts(start_date: date, end_date: date) -> Dict[date, in
         counts[day] = int(total)
     return counts
 
-
+# Ambil jumlah pasien kehamilan dengan HPL (expected_due_date)
 def get_hpl_counts_by_date(start_date: date, end_date: date) -> Dict[date, int]:
-    """Jumlah pasien kehamilan dengan HPL (expected_due_date) pada tanggal tertentu."""
     rows = (
         db.session.query(
             PregnancyRecord.expected_due_date,
@@ -263,7 +260,7 @@ def get_hpl_counts_by_date(start_date: date, end_date: date) -> Dict[date, int]:
         counts[day] = int(total)
     return counts
 
-
+# Isi series dengan data historis
 def _fill_series(
     counts: Dict[date, int], start_date: date, end_date: date
 ) -> Dict[date, float]:
@@ -274,7 +271,7 @@ def _fill_series(
         current += timedelta(days=1)
     return series
 
-
+# Prediksi jumlah pasien harian berdasarkan model prediksi
 def predict_single_day(
     service_type: str,
     series: Dict[date, float],
@@ -293,7 +290,7 @@ def predict_single_day(
     prediction = float(model.predict(frame)[0])
     return max(0.0, round(prediction))
 
-
+# Prediksi jumlah pasien selama sebulan dengan loop per hari
 def forecast_date_range(
     service_type: str,
     historical_counts: Dict[date, int],
@@ -319,7 +316,7 @@ def forecast_date_range(
 
     return predictions, series
 
-
+# Ambil tanggal awal dan akhir bulan
 def get_month_bounds(reference: Optional[date] = None) -> Tuple[date, date]:
     today = reference or date.today()
     month_start = today.replace(day=1)
@@ -329,7 +326,7 @@ def get_month_bounds(reference: Optional[date] = None) -> Tuple[date, date]:
         month_end = date(today.year, today.month + 1, 1) - timedelta(days=1)
     return month_start, month_end
 
-
+# Gabungan data historis dan prediksi selama sebulan
 def build_forecast_payload(reference: Optional[date] = None) -> dict:
     today = reference or date.today()
     month_start, month_end = get_month_bounds(today)
@@ -431,7 +428,7 @@ def build_forecast_payload(reference: Optional[date] = None) -> dict:
         "by_service": by_service,
     }
 
-
+# Buat jumlah pasien harian per tanggal
 def _daily_points_for_range(
     counts: Dict[date, int], start_date: date, end_date: date
 ) -> List[dict]:
@@ -446,17 +443,7 @@ def _daily_points_for_range(
         current += timedelta(days=1)
     return points
 
-
-def _aggregate_daily_points(points: List[dict]) -> List[dict]:
-    totals: Dict[str, int] = {}
-    for point in points:
-        totals[point["date"]] = totals.get(point["date"], 0) + point["count"]
-    return [
-        {"date": day, "count": totals[day]}
-        for day in sorted(totals.keys())
-    ]
-
-
+# Agregasi jumlah pasien harian per tanggal
 def _aggregate_daily_points_for_range(
     points: List[dict], start_date: date, end_date: date
 ) -> List[dict]:

@@ -7,7 +7,9 @@ from app.utils import (
     write_audit_log,
     reserve_next_sequence,
     get_next_sequence_preview,
-), reserve_next_sequence, get_next_sequence_preview
+    reserve_next_sequence, 
+    get_next_sequence_preview
+)
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from sqlalchemy import text
@@ -551,24 +553,6 @@ def fetch_financial_by_transaction_id(transaction_id, clinic_id=None):
     return row
 
 
-def get_month_bounds(reference=None):
-    today = reference or date.today()
-    month_start = today.replace(day=1)
-    if today.month == 12:
-        month_end = date(today.year + 1, 1, 1) - timedelta(days=1)
-    else:
-        month_end = date(today.year, today.month + 1, 1) - timedelta(days=1)
-    return month_start, month_end
-
-
-def is_income_type(trans_type):
-    return str(trans_type or "").strip().lower() in ("pemasukan", "income")
-
-
-def is_expense_type(trans_type):
-    return str(trans_type or "").strip().lower() in ("pengeluaran", "expense")
-
-
 def build_daily_financial_series(clinic_id, month_start, month_end):
     rows = db.session.execute(
         text(
@@ -646,11 +630,11 @@ def get_month_bounds(reference=None):
 
 
 def is_income_type(trans_type):
-    return str(trans_type or "").strip().lower() in ("pemasukan", "income")
+    return str(trans_type or "").strip().lower() in ("pemasukan")
 
 
 def is_expense_type(trans_type):
-    return str(trans_type or "").strip().lower() in ("pengeluaran", "expense")
+    return str(trans_type or "").strip().lower() in ("pengeluaran")
 
 
 def build_daily_financial_series(clinic_id, month_start, month_end):

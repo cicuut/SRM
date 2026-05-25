@@ -1,7 +1,10 @@
 """
-Review raw vs normalized assessment data.
+Debug script: bandingkan teks mentah vs hasil normalisasi hibrida.
 
-Usage (from backend/):
+Berguna saat menambah aturan di CANONICAL_ASSESSMENT_RULES
+atau menyesuaikan ambang clustering (DBSCAN_EPS, dll.).
+
+Usage (dari folder backend/):
   python scripts/review_assessments.py
   python scripts/review_assessments.py --limit 50
 """
@@ -14,12 +17,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app import create_app
 from app.assessment_service import (
+    build_hybrid_bucket_map,
     collect_monthly_assessments,
-    count_assessments,
+    count_diagnoses,
     normalize_assessment_text,
     split_assessment_fragments,
     apply_canonical_rules,
 )
+from collections import Counter
 from app.models import User
 
 
@@ -49,13 +54,23 @@ def main():
                 print(f"  canonical: {canonical!r}")
                 print()
 
-        top, total = count_assessments(raw_rows, top_n=10)
-        print("--- Top assessments ---")
+        top, total = count_diagnoses(raw_rows, top_n=10)
+        print("--- Top diagnoses (hybrid) ---")
         for item in top:
             print(
-                f"#{item['rank']} {item['assessment']}: {item['count']} "
-                f"({item['percentage']}%) variants={item.get('variants')}"
+                f"#{item['rank']} {item['diagnosis']}: {item['count']} "
+                f"({item['percentage']}%) source={item.get('source')} "
+                f"variants={item.get('variants')}"
             )
+
+        fragment_counts = Counter()
+        for raw in raw_rows:
+            for frag in split_assessment_fragments(raw):
+                fragment_counts[frag] += 1
+        print("\n--- Hybrid mapping sample ---")
+        mapping = build_hybrid_bucket_map(fragment_counts)
+        for frag, (key, label, source) in list(mapping.items())[:15]:
+            print(f"  {frag!r} -> {label!r} ({source})")
         print(f"\nTotal fragments counted: {total}")
 
 
