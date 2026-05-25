@@ -10,21 +10,16 @@ activity_history_bp = Blueprint("activity_history", __name__)
 
 FIELD_LABELS = {
     "module": "Module",
-    "record_id": "Record ID",
-    "record_code": "Record Code",
-    "transaction_id": "Transaction ID",
+    "record_code": "Record ID",
     "transaction_number": "Nomor Invoice",
-    "patient_id": "Patient ID",
     "patient_name": "Nama Pasien",
     "patient_number": "No. Pasien",
     "record_number": "No. Rekam Medis",
     "record_type": "Jenis Rekam Medis",
-    "visit_id": "Visit ID",
     "visit_number": "No. Kunjungan",
+    "visit_display": "Visit / Record",
     "visit_date": "Tanggal Kunjungan",
     "visit_time": "Waktu Kunjungan",
-    "user_id": "User ID",
-    "clinic_id": "Clinic ID",
     "fullname": "Nama Lengkap",
     "email": "Email",
     "user_role": "Role",
@@ -42,6 +37,7 @@ FIELD_LABELS = {
     "payment_method": "Metode Pembayaran",
     "payment_date": "Tanggal Pembayaran",
     "description": "Deskripsi",
+    "user_name": "Dibuat Oleh",
     "created_at": "Dibuat Pada",
     "last_update": "Update Terakhir",
     "last_login": "Login Terakhir",
@@ -58,13 +54,76 @@ FIELD_LABELS = {
     "respiratory_rate": "Respiratory Rate",
 }
 
+DISPLAY_FIELD_ORDER = [
+    "transaction_number",
+    "payment_date",
+    "trans_type",
+    "amount",
+    "payment_method",
+    "status",
+    "description",
+    "visit_display",
+    "visit_number",
+    "record_number",
+    "record_type",
+    "patient_name",
+    "patient_number",
+    "user_name",
+    "fullname",
+    "email",
+    "user_role",
+    "role",
+    "clinic_name",
+    "clinic_address",
+    "clinic_phone",
+    "clinic_email",
+    "license_number",
+    "is_active",
+    "subjective",
+    "objective",
+    "assessment",
+    "plan",
+    "diagnosis",
+    "weight_kg",
+    "height_cm",
+    "blood_pressure",
+    "body_temperature",
+    "heart_rate",
+    "respiratory_rate",
+    "created_at",
+    "last_update",
+    "last_login",
+]
+
 IGNORED_DISPLAY_KEYS = {
     "module",
     "record_id",
     "record_code",
+    "raw_record_id",
+    "trans_id",
 }
 
 HIDDEN_DISPLAY_KEYS = {
+    "id",
+    "transaction_id",
+    "patient_id",
+    "clinic_id",
+    "user_id",
+    "visit_id",
+    "record_id",
+    "raw_record_id",
+    "pr_id",
+    "kb_id",
+    "gr_id",
+    "dr_id",
+    "ir_id",
+    "visit_anc_id",
+    "visit_kb_id",
+    "visit_gen_id",
+    "visit_imun_id",
+    "history_id",
+    "patient_clinic_id",
+    "user_clinic_id",
     "password",
     "password_hash",
     "token",
@@ -143,6 +202,98 @@ def stringify_json(value):
         return str(value)
 
 
+def safe_parse_datetime(value):
+    if not value:
+        return None
+
+    if isinstance(value, datetime):
+        return value
+
+    raw_value = str(value).strip()
+
+    try:
+        if raw_value.endswith("Z"):
+            raw_value = raw_value.replace("Z", "+00:00")
+
+        parsed = datetime.fromisoformat(raw_value)
+
+        return parsed
+    except Exception:
+        pass
+
+    for fmt in [
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d",
+        "%d/%m/%Y",
+    ]:
+        try:
+            return datetime.strptime(raw_value.split(".")[0], fmt)
+        except Exception:
+            continue
+
+    return None
+
+
+def format_date_value(value):
+    parsed = safe_parse_datetime(value)
+
+    if not parsed:
+        return str(value)
+
+    has_time = "T" in str(value) or " " in str(value)
+
+    if has_time:
+        return parsed.strftime("%d %B %Y, %H:%M")
+
+    return parsed.strftime("%d %B %Y")
+
+
+def format_rupiah(value):
+    try:
+        amount = float(value)
+    except Exception:
+        return str(value)
+
+    formatted = f"{amount:,.0f}".replace(",", ".")
+
+    return f"Rp {formatted}"
+
+
+def format_enum_label(value):
+    if value is None:
+        return "-"
+
+    text_value = str(value).strip()
+
+    if not text_value:
+        return "-"
+
+    lower_value = text_value.lower()
+
+    enum_map = {
+        "paid": "Paid",
+        "unpaid": "Unpaid",
+        "pemasukan": "Pemasukan",
+        "pengeluaran": "Pengeluaran",
+        "cash": "Cash",
+        "transfer": "Transfer",
+        "qris": "QRIS",
+        "admin": "Admin",
+        "midwife": "Midwife",
+        "asisten": "Asisten",
+        "assistant": "Assistant",
+    }
+
+    if lower_value in enum_map:
+        return enum_map[lower_value]
+
+    return (
+        text_value.replace("_", " ")
+        .replace("-", " ")
+        .title()
+    )
+
+
 def get_module_from_values(old_values, new_values):
     if isinstance(new_values, dict) and new_values.get("module"):
         return to_str(new_values.get("module"))
@@ -217,7 +368,23 @@ def get_display_label(key):
     return str(key).replace("_", " ").replace("-", " ").title()
 
 
-def format_display_value(value):
+def should_hide_display_key(key):
+    key_text = str(key or "").strip()
+    lower_key = key_text.lower()
+
+    if key_text in IGNORED_DISPLAY_KEYS:
+        return True
+
+    if lower_key in HIDDEN_DISPLAY_KEYS:
+        return True
+
+    if lower_key.endswith("_id"):
+        return True
+
+    return False
+
+
+def format_display_value_by_key(key, value):
     if value is None:
         return "-"
 
@@ -230,6 +397,7 @@ def format_display_value(value):
     if isinstance(value, (dict, list)):
         return stringify_json(value)
 
+    key_text = str(key or "").lower()
     text_value = str(value)
 
     if text_value == "[hidden]":
@@ -237,6 +405,30 @@ def format_display_value(value):
 
     if text_value == "[set]":
         return "[terisi]"
+
+    if key_text in {"amount", "nominal"}:
+        return format_rupiah(value)
+
+    if key_text in {
+        "payment_date",
+        "visit_date",
+        "created_at",
+        "last_update",
+        "last_login",
+        "date_time",
+        "times",
+    }:
+        return format_date_value(value)
+
+    if key_text in {
+        "status",
+        "trans_type",
+        "payment_method",
+        "user_role",
+        "role",
+        "record_type",
+    }:
+        return format_enum_label(text_value)
 
     return text_value
 
@@ -250,14 +442,27 @@ def get_display_keys(old_values, new_values):
     if isinstance(new_values, dict):
         keys.update(new_values.keys())
 
-    keys = [
+    visible_keys = [
         key
         for key in keys
-        if key not in IGNORED_DISPLAY_KEYS
-        and str(key).lower() not in HIDDEN_DISPLAY_KEYS
+        if not should_hide_display_key(key)
     ]
 
-    return sorted(keys)
+    ordered_keys = [
+        key
+        for key in DISPLAY_FIELD_ORDER
+        if key in visible_keys
+    ]
+
+    remaining_keys = sorted(
+        [
+            key
+            for key in visible_keys
+            if key not in DISPLAY_FIELD_ORDER
+        ]
+    )
+
+    return ordered_keys + remaining_keys
 
 
 def changed_field_list(old_values, new_values):
@@ -270,8 +475,8 @@ def changed_field_list(old_values, new_values):
     fields = []
 
     for key in get_display_keys(old_values, new_values):
-        old_value = format_display_value(old_values.get(key))
-        new_value = format_display_value(new_values.get(key))
+        old_value = format_display_value_by_key(key, old_values.get(key))
+        new_value = format_display_value_by_key(key, new_values.get(key))
 
         if old_value == new_value:
             continue
@@ -295,7 +500,7 @@ def format_created_new_value(new_values):
     lines = ["Data baru dibuat:"]
 
     for key in get_display_keys({}, new_values):
-        value = format_display_value(new_values.get(key))
+        value = format_display_value_by_key(key, new_values.get(key))
         lines.append(f"• {get_display_label(key)}: {value}")
 
     return "\n".join(lines)
@@ -308,7 +513,7 @@ def format_deleted_old_value(old_values):
     lines = ["Data yang dihapus:"]
 
     for key in get_display_keys(old_values, {}):
-        value = format_display_value(old_values.get(key))
+        value = format_display_value_by_key(key, old_values.get(key))
         lines.append(f"• {get_display_label(key)}: {value}")
 
     return "\n".join(lines)
@@ -329,7 +534,7 @@ def format_updated_old_value(old_values, new_values):
         if key not in old_values:
             continue
 
-        value = format_display_value(old_values.get(key))
+        value = format_display_value_by_key(key, old_values.get(key))
         lines.append(f"• {get_display_label(key)}: {value}")
 
     return "\n".join(lines)
@@ -350,22 +555,37 @@ def format_updated_new_value(old_values, new_values):
         if key not in new_values:
             continue
 
-        value = format_display_value(new_values.get(key))
+        value = format_display_value_by_key(key, new_values.get(key))
         lines.append(f"• {get_display_label(key)}: {value}")
 
     return "\n".join(lines)
 
 
-def friendly_old_new_value(action, old_values, new_values):
+def get_action_mode(action):
     normalized_action = str(action or "").lower()
 
-    if normalized_action.startswith("create"):
+    if normalized_action.startswith("create") or normalized_action.startswith("add"):
+        return "create"
+
+    if normalized_action.startswith("delete") or normalized_action.startswith("remove"):
+        return "delete"
+
+    if normalized_action.startswith("update") or normalized_action.startswith("edit"):
+        return "update"
+
+    return "other"
+
+
+def friendly_old_new_value(action, old_values, new_values):
+    action_mode = get_action_mode(action)
+
+    if action_mode == "create":
         return "Tidak ada data sebelumnya.", format_created_new_value(new_values)
 
-    if normalized_action.startswith("delete"):
+    if action_mode == "delete":
         return format_deleted_old_value(old_values), "Data sudah dihapus dari sistem."
 
-    if normalized_action.startswith("update"):
+    if action_mode == "update":
         return (
             format_updated_old_value(old_values, new_values),
             format_updated_new_value(old_values, new_values),
@@ -375,7 +595,7 @@ def friendly_old_new_value(action, old_values, new_values):
 
 
 def make_table_summary(action, old_values, new_values):
-    normalized_action = str(action or "").lower()
+    action_mode = get_action_mode(action)
 
     if not isinstance(old_values, dict):
         old_values = {}
@@ -383,7 +603,7 @@ def make_table_summary(action, old_values, new_values):
     if not isinstance(new_values, dict):
         new_values = {}
 
-    if normalized_action.startswith("create"):
+    if action_mode == "create":
         record_code = (
             new_values.get("record_code")
             or new_values.get("transaction_number")
@@ -397,7 +617,7 @@ def make_table_summary(action, old_values, new_values):
 
         return "-", "Data baru dibuat"
 
-    if normalized_action.startswith("delete"):
+    if action_mode == "delete":
         record_code = (
             old_values.get("record_code")
             or old_values.get("transaction_number")
@@ -443,7 +663,7 @@ def value_list_from_dict(values, compare_values=None):
             {
                 "key": key,
                 "label": get_display_label(key),
-                "value": format_display_value(values.get(key)),
+                "value": format_display_value_by_key(key, values.get(key)),
             }
         )
 

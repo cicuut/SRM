@@ -77,7 +77,7 @@ const DeliveryRecord = () => {
             if (response.status === 201) {
                 await Swal.fire({
                     title: "Success",
-                    text: "Rekam medis persalinan berhasil disimpan!",
+                    text: "Rekam medis berhasil disimpan!",
                     icon: "success",
                     showConfirmButton: false,
                     timer: 2000

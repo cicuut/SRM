@@ -62,7 +62,7 @@ const ImmunizationRecord = () => {
             if (response.status === 201) {
                 Swal.fire({
                     title: "Success",
-                    text: "Rekam medis imunisasi berhasil disimpan!",
+                    text: "Rekam medis berhasil disimpan!",
                     icon: "success",
                     showConfirmButton: false,
                     timer: 2000

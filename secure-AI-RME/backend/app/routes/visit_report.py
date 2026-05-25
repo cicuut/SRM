@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
-from app.models import PregnancyRecord, User, db, Patient, MedicalRecord, VisitMaster, VisitPregnancy, VisitFamilyPlanning, ImmunizationRecord, VisitImunization, VisitGeneral, FamilyPlanningRecord, Financial
-from app.utils import generate_visit_number, get_latest_visits_count, decrypt_data, get_column_name, clean_float, format_date, generate_financial_number, reserve_next_sequence
+from app.models import PregnancyRecord, User, db, Patient, MedicalRecord, VisitMaster, VisitPregnancy, VisitFamilyPlanning, ImmunizationRecord, VisitImunization, GeneralRecord, VisitGeneral, FamilyPlanningRecord, Financial
+from app.utils import generate_visit_number, get_next_visit_sequence_and_increment, decrypt_data, get_column_name, clean_float, format_date, generate_financial_number, reserve_next_sequence
 from datetime import datetime
 from flask_jwt_extended import get_jwt_identity, jwt_required, get_jwt
 from sqlalchemy import or_, text
@@ -14,7 +14,7 @@ visit_report_bp = Blueprint('visit_report', __name__)
 def get_visit_number():
 
     try:
-        count = get_latest_visits_count()
+        count = get_next_visit_sequence_and_increment()
         next_visit_number = generate_visit_number(count)
 
         return jsonify({
@@ -241,11 +241,13 @@ def get_pregnancy_visit(uuid):
         if not  current_pregnancy_visit:
             return jsonify({"msg": "Data Kehamilan tidak ditemukan"}), 404
         
-
+        current_finance = Financial.query.filter_by(visit_id=uuid).first()
+        
         decrypted_subjective = decrypt_data(current_pregnancy_visit.subjective)
         decrypted_objective = decrypt_data(current_pregnancy_visit.objective)
         decrypted_assessment = decrypt_data(current_pregnancy_visit.assessment)
         decrypted_plan = decrypt_data(current_pregnancy_visit.plan)
+        decrypt_description = decrypt_data(current_finance.description)
 
         return jsonify({
           "subjective": decrypted_subjective or "-",
@@ -257,7 +259,15 @@ def get_pregnancy_visit(uuid):
           "body_temperature": current_pregnancy_visit.body_temperature or "-",
           "respiratory_rate": current_pregnancy_visit.respiratory_rate or "-",
           "heart_rate": current_pregnancy_visit.heart_rate or "-",
-          "blood_pressure": current_pregnancy_visit.blood_pressure or "-"
+          "blood_pressure": current_pregnancy_visit.blood_pressure or "-",
+          "visit_number": visit_report.visit_number,
+          "finance": {
+                "invoice_number": current_finance.transaction_number,
+                "description": decrypt_description,
+                "total_amount": current_finance.amount,
+                "status": current_finance.status,
+                "payment_method": current_finance.payment_method
+          }
         }), 200
 
     except Exception as e:
@@ -408,15 +418,24 @@ def get_familyplanning_visit(uuid):
         if not  current_familyplanning_visit:
             return jsonify({"msg": "Data KB tidak ditemukan"}), 404
         
+        current_finance = Financial.query.filter_by(visit_id=uuid).first()
+        
 
         decrypted_complaint = decrypt_data(current_familyplanning_visit.complaint)
 
         return jsonify({
             "complaint": decrypted_complaint,
             "weight_kg": clean_float(current_familyplanning_visit.weight_kg),
+            "visit_number": visit_report.visit_number if visit_report else "-",
             "blood_pressure": current_familyplanning_visit.blood_pressure,
             "contraceptive_method": current_familyplanning_visit.kb_method,
-            "return_visit_date": format_date(current_familyplanning_visit.return_visit_date) if current_familyplanning_visit.return_visit_date else None
+            "return_visit_date": format_date(current_familyplanning_visit.return_visit_date) if current_familyplanning_visit.return_visit_date else None,
+            "finance": {
+                "invoice_number": current_finance.transaction_number if current_finance else "-",
+                "total_amount": current_finance.amount if current_finance else "0",
+                "payment_method": current_finance.payment_method if current_finance else "-",
+                "status": current_finance.status if current_finance else "-"
+            }   
         }), 200
 
     except Exception as e:
@@ -563,7 +582,7 @@ def get_immunization_visit(uuid):
         if not  current_immunization_visit:
             return jsonify({"msg": "Data Imunisasi tidak ditemukan"}), 404
         
-        
+        current_finance = Financial.query.filter_by(visit_id=uuid).first()
 
         return jsonify({
             "weight_kg": current_immunization_visit.baby_weight or "-",
@@ -572,7 +591,13 @@ def get_immunization_visit(uuid):
             "head_circumference": current_immunization_visit.head_circumference or "-",
             "abdominal_circumference": current_immunization_visit.abdominal_circumference or "-",
             "vaccine_given": current_immunization_visit.vaccine_given or "-",
-            "dosage_given": current_immunization_visit.dosage_given or "-"
+            "dosage_given": current_immunization_visit.dosage_given or "-",
+            "finance": {
+                "invoice_number": current_finance.transaction_number if current_finance else "-",
+                "total_amount": current_finance.amount if current_finance else "0",
+                "payment_method": current_finance.payment_method if current_finance else "-",
+                "status": current_finance.status if current_finance else "-"
+            }
         }), 200
 
     except Exception as e:
@@ -668,6 +693,7 @@ def add_visit_general():
     try:
         patient = Patient.query.get(medical_record.patient_id)
         patient_name = patient.patient_name if patient else "Pasien"
+        gen_record = GeneralRecord.query.filter_by(record_id=record_id).first()
        #Add visit master
         new_visit = VisitMaster(
             record_id=data.get('record_id'),
@@ -682,7 +708,7 @@ def add_visit_general():
         # 2. Add Visit Pregnancy
         new_general_visit = VisitGeneral(
             visit_id=new_visit.visit_id,
-            gr_id = medical_record.record_id,
+            gr_id = gen_record.gr_id,
             subjective=data.get('subjective'),
             objective=data.get('objective'),
             assessment=data.get('assessment'),
@@ -743,7 +769,7 @@ def get_general_visit(uuid):
         if not current_general_visit:
             return jsonify({"msg": "Data Imunisasi tidak ditemukan"}), 404
         
-        visit_finance = Financial.query.filter_by(visit_id=uuid).first()
+        current_finance = Financial.query.filter_by(visit_id=uuid).first()
 
         decrypted_subjective = decrypt_data(current_general_visit.subjective)
         decrypted_objective = decrypt_data(current_general_visit.objective)
@@ -756,11 +782,11 @@ def get_general_visit(uuid):
           "assessment": decrypted_assessment,
           "plan": decrypted_plan,
           "finance": {
-                "invoice_number": visit_finance.transaction_number,
-                "total_amount": visit_finance.amount,
-                "payment_method": visit_finance.payment_method,
-                "status": visit_finance.status 
-            } if visit_finance else None
+                "invoice_number": current_finance.transaction_number if current_finance else "-",
+                "total_amount": current_finance.amount if current_finance else "0",
+                "payment_method": current_finance.payment_method if current_finance else "-",
+                "status": current_finance.status if current_finance else "-"
+            } 
         }), 200
 
     except Exception as e:
@@ -777,6 +803,7 @@ def update_general_visit_report(uuid):
         current_general_visit = VisitGeneral.query.filter_by(visit_id=uuid).first()
         if not current_general_visit:
             return jsonify({"msg": "Data kunjungan umum tidak ditemukan"}), 404
+        
 
         new_subjective = data.get('subjective', '')
         new_objective = data.get('objective', '')
@@ -802,6 +829,29 @@ def update_general_visit_report(uuid):
             "error": str(e)
         }), 500
 
+@visit_report_bp.route('/delete-visit/<uuid:visit_id>', methods=['DELETE'])
+@jwt_required()
+def delete_visit(visit_id):
+    try:
+        visit = VisitMaster.query.get(visit_id)
+        if not visit:
+            return jsonify({"msg": "Data kunjungan tidak ditemukan"}), 404
+
+        VisitGeneral.query.filter_by(visit_id=visit_id).delete()
+
+        Financial.query.filter_by(visit_id=visit_id).delete()
+
+        db.session.delete(visit)
+        
+        db.session.commit()
+        
+        return jsonify({"msg": "Data kunjungan dan invoice terkait berhasil dihapus"}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error Delete Visit: {str(e)}")
+        return jsonify({"msg": "Gagal menghapus data kunjungan", "error": str(e)}), 500
+    
 @visit_report_bp.route('/search-visit', methods=['GET'])
 @jwt_required()
 def search_visit():

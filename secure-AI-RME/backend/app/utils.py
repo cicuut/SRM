@@ -20,20 +20,34 @@ def get_jakarta_now():
 from . import db
 from sqlalchemy import text
 
-def get_latest_record_count(record_type):
-    from app.models import MedicalRecord
-
+def get_next_record_sequence_and_increment(record_type):
+    from app.models import MedicalRecordSequence
+    
     current_year = get_jakarta_now().year
+    
+    # 1. Cari atau buat baris barunya jika tahun/tipe baru dimulai
+    seq = MedicalRecordSequence.query.filter_by(
+        year=current_year, 
+        record_type=record_type
+    ).with_for_update().first() # with_for_update() mencegah bentrok jika 2 bidan klik bersamaan
 
-    count = MedicalRecord.query.filter(
-        MedicalRecord.record_type == record_type,
-        MedicalRecord.created_at >= datetime(current_year, 1, 1),
-    ).count()
+    if not seq:
+        # Jika belum ada data sama sekali di tahun ini, mulai dari angka 1
+        seq = MedicalRecordSequence(year=current_year, record_type=record_type, last_number=1)
+        db.session.add(seq)
+        next_number = 1
+    else:
+        # Jika sudah ada, naikkan +1 dari angka TERAKHIR YANG PERNAH ADA (bukan hasil count)
+        seq.last_number += 1
+        next_number = seq.last_number
+        
+    # Flush agar tersimpan sementara di session transaksi saat ini
+    db.session.flush()
+    return next_number
 
-    return count
 
-# Generate a unique medical record number based on the type and count of existing records
-def generate_record_number(record_type, latest_count):
+# Fungsi generate nomor urutnya sekarang menjadi sangat sederhana:
+def generate_record_number(record_type, next_sequence):
     mapping = {
         "Kehamilan": "RMH",
         "Persalinan": "RMP",
@@ -44,22 +58,43 @@ def generate_record_number(record_type, latest_count):
 
     prefix = mapping.get(record_type, "RMG")
     year = get_jakarta_now().year
-    sequence = f"{(latest_count + 1):03d}"
+    sequence = f"{next_sequence:03d}" # Menggunakan nomor urut murni dari sequence tracker
 
     return f"{prefix}-{year}-{sequence}"
 
 
-def get_latest_visits_count():
-    from app.models import VisitMaster
+def get_next_visit_sequence_and_increment():
+    from app.models import VisitSequence
+    current_year = get_jakarta_now().year
+    prefix = "VIS"
+    
+    # Kueri baris sequence dan kunci datanya sementara waktu selama proses transaksi berjalan
+    seq = VisitSequence.query.filter_by(
+        year=current_year, 
+        prefix=prefix
+    ).with_for_update().first()
 
-    count = VisitMaster.query.count()
-    return count
+    if not seq:
+        # Jika belum ada data sama sekali di tahun berjalan, mulai urutan dari angka 1
+        seq = VisitSequence(year=current_year, prefix=prefix, last_number=1)
+        db.session.add(seq)
+        next_number = 1
+    else:
+        # Jika sudah ada, naikkan +1 dari angka TERAKHIR YANG PERNAH KELUAR
+        seq.last_number += 1
+        next_number = seq.last_number
+        
+    # Dorong perubahan ke database tanpa commit dahulu agar nomor terkunci di session saat ini
+    db.session.flush()
+    return next_number
 
 
-def generate_visit_number(latest_count):
+def generate_visit_number(next_sequence):
     prefix = "VIS"
     year = get_jakarta_now().year
-    sequence = f"{(latest_count + 1):03d}"
+    
+    # Ubah integer sequence murni menjadi format 3 digit string (misal: 5 -> '005')
+    sequence = f"{next_sequence:03d}"
 
     return f"{prefix}-{year}-{sequence}"
 

@@ -151,6 +151,12 @@ class MedicalRecord(db.Model):
         onupdate=datetime.utcnow,
     )
 
+class MedicalRecordSequence(db.Model):
+    __tablename__ = 'medical_record_sequence'
+
+    year = db.Column(db.Integer, primary_key=True)
+    record_type = db.Column(db.String(50), primary_key=True) # 'Kehamilan', 'Persalinan', dst.
+    last_number = db.Column(db.Integer, nullable=False, default=0)
 
 class PregnancyRecord(db.Model):
     __tablename__ = 'pregnancy_record'
@@ -314,6 +320,12 @@ class VisitMaster(db.Model):
     visit_date = db.Column(db.Date, default=datetime.utcnow)
     visit_time = db.Column(db.DateTime(timezone=True), default=datetime.utcnow)
 
+class VisitSequence(db.Model):
+    __tablename__ = 'visit_sequence'
+
+    year = db.Column(db.Integer, primary_key=True)
+    prefix = db.Column(db.String(10), primary_key=True, default='VIS')
+    last_number = db.Column(db.Integer, nullable=False, default=0)
 
 class VisitPregnancy(db.Model):
     __tablename__ = 'pregnancy_visit'

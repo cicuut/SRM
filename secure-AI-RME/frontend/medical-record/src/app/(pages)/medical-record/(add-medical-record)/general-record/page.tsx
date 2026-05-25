@@ -55,7 +55,7 @@ const GeneralRecord = () => {
             if (response.status === 201) {
                 Swal.fire({
                     title: "Success",
-                    text: "Rekam Medis Poli Umu berhasil disimpan!",
+                    text: "Rekam Medis berhasil disimpan!",
                     icon: "success",
                     showConfirmButton: false,
                     timer: 2000

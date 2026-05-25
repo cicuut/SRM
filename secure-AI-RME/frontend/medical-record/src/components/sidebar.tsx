@@ -187,14 +187,11 @@ const Sidebar = () => {
                         height={70}
                     />
                     <div className="flex flex-col leading-tight select-none">
-                        <span className="text-[15px] font-bold text-black">
+                        <span className="text-[20px] font-bold text-black">
                            System  
                         </span>
-                          <span className="text-[15px] font-bold text-black">
+                          <span className="text-[20px] font-bold text-black">
                           Management
-                        </span>
-                        <span className="text-[15px] font-bold text-black">
-                            Bidan Evi Susanti
                         </span>
                     </div>
                 </div>

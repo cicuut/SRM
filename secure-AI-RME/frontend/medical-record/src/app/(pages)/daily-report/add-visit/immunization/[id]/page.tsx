@@ -86,7 +86,7 @@ const AddVisitImmunization = () => {
       if (response.status === 201) {
         await Swal.fire({
           title: "Success",
-          text: "Data Imunisasi berhasil disimpan!",
+          text: "Data Kunjungan berhasil disimpan!",
           icon: "success",
           showConfirmButton: false,
           timer: 2000,

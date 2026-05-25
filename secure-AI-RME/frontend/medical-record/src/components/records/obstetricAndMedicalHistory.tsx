@@ -20,7 +20,6 @@ const ObstectricAndMedicalRecord = () => {
   const uuid = params.id;
   const [data, setData] = useState<ObstectricAndMedicalRecordList | null>(null);
   const router = useRouter();
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -105,7 +104,7 @@ const ObstectricAndMedicalRecord = () => {
       if (response.status === 200) {
         await Swal.fire({
           title: "Berhasil Disimpan",
-          text: "Perubahan data KB berhasil disimpan!",
+          text: "Perubahan data berhasil disimpan!",
           icon: "success",
           timer: 1400,
           showConfirmButton: false,
@@ -185,16 +184,7 @@ const ObstectricAndMedicalRecord = () => {
           </div>
         </div>
       </div>
-      <div className="flex flex-col-reverse gap-3 border-t border-[#D2D8CF] px-5 py-4 sm:flex-row sm:items-center sm:justify-between mt-6 bg-white rounded-[14px] border shadow-sm">
-        <button
-          type="button"
-          onClick={() => setShowDeleteConfirm(true)}
-          disabled={isSaving || isDeleting}
-          className="h-9.5 rounded-[30px] border border-red-200 bg-white px-5 text-[12px] font-bold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          Hapus Kunjungan
-        </button>
-
+      <div className="flex flex-col-reverse gap-3 border-t border-[#D2D8CF] px-5 py-4 sm:flex-row sm:items-center sm:justify-end mt-6 bg-white rounded-[14px] border shadow-sm">
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           {isChanged ? (
             <button

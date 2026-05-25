@@ -3,25 +3,37 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Cookies from 'js-cookie';
+import {
+    Activity,
+    AlertCircle,
+    ArrowUpCircle,
+    CalendarDays,
+    ChartNoAxesCombined,
+    ClipboardList,
+    LineChart,
+    TrendingUp,
+    UserRound,
+    Wallet,
+} from 'lucide-react';
 import api from '@/utils/app';
 import LoadingOverlay from '@/components/loading';
 import {
-  FinancialChart,
-  FinancialChartPoint,
-} from "@/components/dashboard/financial-chart";
+    FinancialChart,
+    FinancialChartPoint,
+} from '@/components/dashboard/financial-chart';
 import {
-  SERVICE_COLORS,
-  ServiceSeries,
-  VisitorChart,
-} from "@/components/dashboard/visitor-chart";
-import { TopAssessmentList } from "@/components/dashboard/top-assessment-list";
+    SERVICE_COLORS,
+    ServiceSeries,
+    VisitorChart,
+} from '@/components/dashboard/visitor-chart';
+import { TopAssessmentList } from '@/components/dashboard/top-assessment-list';
 
 const FALLBACK_SERVICE_COLORS = [
-  "#2563EB",
-  "#DC2626",
-  "#7C3AED",
-  "#EA580C",
-  "#0891B2",
+    '#2563EB',
+    '#DC2626',
+    '#7C3AED',
+    '#EA580C',
+    '#0891B2',
 ];
 
 interface DateLabelProps {
@@ -64,27 +76,52 @@ type AuthMeResponse = {
 };
 
 interface ChartPoint {
-  date: string;
-  count: number;
+    date: string;
+    count: number;
 }
 
 interface ForecastResponse {
-  month: string;
-  monthly_actual: number;
-  monthly_forecast: number;
-  history: ChartPoint[];
-  forecast: ChartPoint[];
-  by_service: Record<
-    string,
-    {
-      actual_month_to_date: number;
-      forecast_remaining_month: number;
-      forecast_month_total: number;
-      history: ChartPoint[];
-      forecast: ChartPoint[];
-      has_model?: boolean;
-    }
-  >;
+    month: string;
+    monthly_actual: number;
+    monthly_forecast: number;
+    history: ChartPoint[];
+    forecast: ChartPoint[];
+    by_service: Record<
+        string,
+        {
+            actual_month_to_date: number;
+            forecast_remaining_month: number;
+            forecast_month_total: number;
+            history: ChartPoint[];
+            forecast: ChartPoint[];
+            has_model?: boolean;
+        }
+    >;
+}
+
+interface MonthlyFinancialSummary {
+    month: string;
+    monthly_income: number;
+    monthly_expense: number;
+    daily_income: FinancialChartPoint[];
+    daily_expense: FinancialChartPoint[];
+}
+
+interface TopAssessmentItem {
+    rank: number;
+    assessment: string;
+    count: number;
+    percentage: number;
+    variants?: string[];
+}
+
+interface TopAssessmentsResponse {
+    month: string;
+    total_visits_with_assessment: number;
+    summary?: string;
+    top_assessments: TopAssessmentItem[];
+    msg?: string;
+    error?: string;
 }
 
 function formatDisplayRole(role: string): string {
@@ -95,7 +132,10 @@ function formatDisplayRole(role: string): string {
     return role
         .split(/[\s_-]+/)
         .filter(Boolean)
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .map(
+            (word) =>
+                word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
+        )
         .join(' ');
 }
 
@@ -113,52 +153,196 @@ function getInitials(name: string): string {
 }
 
 function formatNumber(value: number) {
-  return new Intl.NumberFormat("id-ID").format(value);
+    return new Intl.NumberFormat('id-ID').format(Number(value || 0));
 }
 
 function formatRupiah(value: number) {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-  }).format(Number(value || 0));
+    return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        minimumFractionDigits: 0,
+    }).format(Number(value || 0));
 }
 
-interface MonthlyFinancialSummary {
-  month: string;
-  monthly_income: number;
-  monthly_expense: number;
-  daily_income: FinancialChartPoint[];
-  daily_expense: FinancialChartPoint[];
+function formatMonthLabel(value?: string | null) {
+    if (!value) return '';
+
+    const date = new Date(`${value}-01T00:00:00`);
+
+    if (Number.isNaN(date.getTime())) {
+        return value;
+    }
+
+    return date.toLocaleDateString('id-ID', {
+        month: 'long',
+        year: 'numeric',
+    });
 }
 
-/** Satu item ranking dari API Top Diagnosa (backend: assessment_service.py) */
-interface TopAssessmentItem {
-  rank: number;
-  assessment: string;
-  diagnosis?: string;
-  count: number;
-  percentage: number;
-  variants?: string[];
-  source?: "canonical" | "cluster" | "singleton" | "fuzzy";
+function getApiErrorMessage(error: unknown, fallbackMessage: string) {
+    const responseData =
+        typeof error === 'object' &&
+        error !== null &&
+        'response' in error &&
+        typeof (
+            error as {
+                response?: {
+                    data?: {
+                        msg?: string;
+                        error?: string;
+                    };
+                };
+            }
+        ).response?.data === 'object'
+            ? (
+                  error as {
+                      response?: {
+                          data?: {
+                              msg?: string;
+                              error?: string;
+                          };
+                      };
+                  }
+              ).response?.data
+            : null;
+
+    const message = responseData?.msg;
+    const detail = responseData?.error;
+
+    if (message && detail) {
+        return `${message}: ${detail}`;
+    }
+
+    return message || detail || fallbackMessage;
 }
 
-/** Response GET /api/dashboard/top-assessments */
-interface TopAssessmentsResponse {
-  month: string;
-  grouping_method?: string;
-  total_visits_with_assessment: number;
-  summary?: string;
-  top_diagnoses?: TopAssessmentItem[];
-  top_assessments: TopAssessmentItem[];
-  msg?: string;
-  error?: string;
-}
+const ErrorNotice = ({ message }: { message: string }) => {
+    return (
+        <div className="rounded-[16px] border border-red-200 bg-red-50 px-4 py-3 text-[12px] font-medium text-red-700">
+            <div className="flex items-start gap-2">
+                <AlertCircle className="mt-[1px] h-4 w-4 shrink-0" />
+                <p className="leading-relaxed">{message}</p>
+            </div>
+        </div>
+    );
+};
+
+const StatCard = ({
+    title,
+    value,
+    subtitle,
+    icon,
+    tone = 'green',
+}: {
+    title: string;
+    value: string;
+    subtitle: string;
+    icon: React.ReactNode;
+    tone?: 'green' | 'red' | 'gold' | 'blue';
+}) => {
+    const toneClassName = {
+        green: 'bg-[#D2E3C8] text-[#4F6F52]',
+        red: 'bg-red-50 text-red-600',
+        gold: 'bg-[#FFF4D7] text-[#8A6200]',
+        blue: 'bg-blue-50 text-blue-700',
+    }[tone];
+
+    return (
+        <section className="group relative overflow-hidden rounded-[24px] border border-[#D2D8CF] bg-white px-5 py-5 shadow-sm transition-all duration-300 hover:-translate-y-[2px] hover:border-[#B9CDB2] hover:shadow-md">
+            <div className="absolute right-[-42px] top-[-42px] h-[128px] w-[128px] rounded-full bg-[#EEF3E9]" />
+
+            <div className="relative z-10 flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#5F785F]">
+                        {title}
+                    </p>
+
+                    <h3 className="mt-3 break-words text-[18px] font-extrabold leading-tight text-black sm:text-[19px] xl:text-[20px]">
+                        {value}
+                    </h3>
+
+                    <p className="mt-3 text-[12px] font-medium leading-relaxed text-[#6B6B6B]">
+                        {subtitle}
+                    </p>
+                </div>
+
+                <div
+                    className={`flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full ${toneClassName}`}
+                >
+                    {icon}
+                </div>
+            </div>
+        </section>
+    );
+};
+
+const SectionCard = ({
+    title,
+    subtitle,
+    icon,
+    children,
+    className = '',
+}: {
+    title: string;
+    subtitle?: string;
+    icon?: React.ReactNode;
+    children: React.ReactNode;
+    className?: string;
+}) => {
+    return (
+        <section
+            className={`overflow-hidden rounded-[26px] border border-[#D2D8CF] bg-white shadow-sm ${className}`}
+        >
+            <div className="flex items-start justify-between gap-4 border-b border-[#E4E8E1] bg-[#FDFEF9] px-5 py-5 sm:px-6">
+                <div className="min-w-0">
+                    <h2 className="text-[20px] font-extrabold leading-tight text-[#4F6F52]">
+                        {title}
+                    </h2>
+
+                    {subtitle && (
+                        <p className="mt-2 text-[12px] font-medium leading-relaxed text-[#6B6B6B]">
+                            {subtitle}
+                        </p>
+                    )}
+                </div>
+
+                {icon && (
+                    <div className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full bg-[#D2E3C8] text-[#4F6F52]">
+                        {icon}
+                    </div>
+                )}
+            </div>
+
+            <div className="px-5 py-5 sm:px-6">{children}</div>
+        </section>
+    );
+};
 
 const Dashboard = () => {
     const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
     const [profilePhoto, setProfilePhoto] = useState('');
     const [loading, setLoading] = useState(true);
+
+    const [forecastData, setForecastData] =
+        useState<ForecastResponse | null>(null);
+    const [forecastError, setForecastError] = useState<string | null>(null);
+
+    const [monthlyIncome, setMonthlyIncome] = useState<number | null>(null);
+    const [monthlyExpense, setMonthlyExpense] = useState<number | null>(null);
+    const [dailyIncome, setDailyIncome] = useState<FinancialChartPoint[]>([]);
+    const [dailyExpense, setDailyExpense] = useState<FinancialChartPoint[]>([]);
+    const [financialError, setFinancialError] = useState<string | null>(null);
+
+    const [topAssessments, setTopAssessments] = useState<TopAssessmentItem[]>(
+        [],
+    );
+    const [assessmentMonth, setAssessmentMonth] = useState<string | null>(null);
+    const [assessmentSummary, setAssessmentSummary] = useState<string | null>(
+        null,
+    );
+    const [assessmentVisitCount, setAssessmentVisitCount] = useState(0);
+    const [assessmentLoading, setAssessmentLoading] = useState(true);
+    const [assessmentError, setAssessmentError] = useState<string | null>(null);
 
     const displayName = currentUser?.fullname?.trim() || '';
     const displayRole = currentUser?.role
@@ -166,27 +350,31 @@ const Dashboard = () => {
         : '';
     const initials = getInitials(displayName);
 
+    const netIncome = Number(monthlyIncome || 0) - Number(monthlyExpense || 0);
+
+    const forecastMonthLabel = formatMonthLabel(forecastData?.month);
+    const assessmentMonthLabel = formatMonthLabel(assessmentMonth);
+
+    const forecastServices = forecastData
+        ? Object.entries(forecastData.by_service)
+        : [];
+
+    const visitorChartSeries: ServiceSeries[] = forecastData
+        ? Object.entries(forecastData.by_service)
+              .filter(([, data]) => data.has_model !== false)
+              .map(([name, data]) => ({
+                  name,
+                  history: data.history,
+                  forecast: data.forecast,
+                  color: '',
+              }))
+        : [];
+
     const loadLocalProfilePhoto = () => {
         setProfilePhoto(localStorage.getItem('profile_photo') || '');
     };
 
-    const [forecastData, setForecastData] = useState<ForecastResponse | null>(
-    null,
-  );
-  const [forecastError, setForecastError] = useState<string | null>(null);
-  const [monthlyIncome, setMonthlyIncome] = useState<number | null>(null);
-  const [monthlyExpense, setMonthlyExpense] = useState<number | null>(null);
-  const [dailyIncome, setDailyIncome] = useState<FinancialChartPoint[]>([]);
-  const [dailyExpense, setDailyExpense] = useState<FinancialChartPoint[]>([]);
-  const [financialError, setFinancialError] = useState<string | null>(null);
-  const [topAssessments, setTopAssessments] = useState<TopAssessmentItem[]>([]);
-  const [assessmentMonth, setAssessmentMonth] = useState<string | null>(null);
-  const [assessmentSummary, setAssessmentSummary] = useState<string | null>(null);
-  const [assessmentVisitCount, setAssessmentVisitCount] = useState(0);
-  const [assessmentLoading, setAssessmentLoading] = useState(true);
-  const [assessmentError, setAssessmentError] = useState<string | null>(null);
-
-  useEffect(() => {
+    const fetchDashboardData = async () => {
         let cancelled = false;
 
         const token = Cookies.get('access_token');
@@ -194,11 +382,18 @@ const Dashboard = () => {
         loadLocalProfilePhoto();
 
         if (!token) {
-              setLoading(false);
-              return;
-          }
+            setLoading(false);
+            setAssessmentLoading(false);
 
-        const fetchCurrentUser = async () => {
+            return () => {
+                cancelled = true;
+            };
+        }
+
+        try {
+            setLoading(true);
+            setAssessmentLoading(true);
+
             try {
                 const userResponse = await api.get<AuthMeResponse>('/auth/me', {
                     headers: {
@@ -206,174 +401,142 @@ const Dashboard = () => {
                     },
                 });
 
-                if (cancelled) {
-                    return;
-                }
+                if (!cancelled) {
+                    const user = userResponse.data.user;
 
-                const user = userResponse.data.user;
-                if (!user) {
-                    return;
-                }
+                    setCurrentUser(user);
 
-                setCurrentUser(user);
+                    const backendProfilePhoto =
+                        user?.profile_photo?.trim() || '';
 
-                const backendProfilePhoto = user.profile_photo?.trim() || '';
-
-                if (backendProfilePhoto) {
-                    localStorage.setItem('profile_photo', backendProfilePhoto);
-                    setProfilePhoto(backendProfilePhoto);
-                } else {
-                    localStorage.removeItem('profile_photo');
-                    setProfilePhoto('');
+                    if (backendProfilePhoto) {
+                        localStorage.setItem(
+                            'profile_photo',
+                            backendProfilePhoto,
+                        );
+                        setProfilePhoto(backendProfilePhoto);
+                    } else {
+                        loadLocalProfilePhoto();
+                    }
                 }
             } catch (error) {
                 console.error('Failed to load current user:', error);
             }
 
-      try {
-        const forecastResponse =
-          await api.get<ForecastResponse>("/forecast/visitors");
-        if (!cancelled) {
-          setForecastData(forecastResponse.data);
-          setForecastError(null);
-        }
-      } catch (err: unknown) {
-        console.error("Failed to load forecast data:", err);
-        if (!cancelled) {
-          const apiMessage =
-            typeof err === "object" &&
-            err !== null &&
-            "response" in err &&
-            typeof (err as { response?: { data?: { msg?: string; error?: string } } })
-              .response?.data?.msg === "string"
-              ? (err as { response: { data: { msg: string; error?: string } } })
-                  .response.data.msg
-              : null;
-          const apiDetail =
-            typeof err === "object" &&
-            err !== null &&
-            "response" in err &&
-            typeof (err as { response?: { data?: { error?: string } } }).response
-              ?.data?.error === "string"
-              ? (err as { response: { data: { error: string } } }).response.data
-                  .error
-              : null;
-          setForecastError(
-            apiDetail
-              ? `${apiMessage ?? "Gagal memuat data perkiraan pengunjung"}: ${apiDetail}`
-              : apiMessage ?? "Gagal memuat data perkiraan pengunjung",
-          );
-        }
-      }
+            try {
+                const forecastResponse =
+                    await api.get<ForecastResponse>('/forecast/visitors');
 
-      try {
-        const financialResponse = await api.get<MonthlyFinancialSummary>(
-          "/financial/monthly-summary",
-        );
-        if (!cancelled) {
-          setMonthlyIncome(financialResponse.data.monthly_income);
-          setMonthlyExpense(financialResponse.data.monthly_expense);
-          setDailyIncome(financialResponse.data.daily_income ?? []);
-          setDailyExpense(financialResponse.data.daily_expense ?? []);
-          setFinancialError(null);
-        }
-      } catch (err: unknown) {
-        console.error("Failed to load monthly financial summary:", err);
-        if (!cancelled) {
-          const apiMessage =
-            typeof err === "object" &&
-            err !== null &&
-            "response" in err &&
-            typeof (err as { response?: { data?: { msg?: string; error?: string } } })
-              .response?.data?.msg === "string"
-              ? (err as { response: { data: { msg: string; error?: string } } })
-                  .response.data.msg
-              : null;
-          const apiDetail =
-            typeof err === "object" &&
-            err !== null &&
-            "response" in err &&
-            typeof (err as { response?: { data?: { error?: string } } }).response
-              ?.data?.error === "string"
-              ? (err as { response: { data: { error: string } } }).response.data.error
-              : null;
-          setMonthlyIncome(null);
-          setMonthlyExpense(null);
-          setDailyIncome([]);
-          setDailyExpense([]);
-          setFinancialError(
-            apiDetail
-              ? `${apiMessage ?? "Gagal memuat grafik keuangan"}: ${apiDetail}`
-              : apiMessage ?? "Gagal memuat grafik keuangan",
-          );
-        }
-            } finally {
-                  if (!cancelled) {
-                      setLoading(false);
-                  }
-              }
+                if (!cancelled) {
+                    setForecastData(forecastResponse.data);
+                    setForecastError(null);
+                }
+            } catch (error) {
+                console.error('Failed to load forecast data:', error);
 
-      // Top 5 diagnosa: backend normalisasi hibrida (aturan + clustering)
-      try {
-        setAssessmentLoading(true);
-        const assessmentResponse = await api.get<TopAssessmentsResponse>(
-          "/dashboard/top-assessments",
-        );
-        if (!cancelled) {
-          setTopAssessments(
-            assessmentResponse.data.top_diagnoses ??
-              assessmentResponse.data.top_assessments ??
-              [],
-          );
-          setAssessmentMonth(assessmentResponse.data.month ?? null);
-          setAssessmentSummary(assessmentResponse.data.summary ?? null);
-          setAssessmentVisitCount(
-            assessmentResponse.data.total_visits_with_assessment ?? 0,
-          );
-          setAssessmentError(null);
-        }
-      } catch (err: unknown) {
-        console.error("Failed to load top assessments:", err);
-        if (!cancelled) {
-          const apiMessage =
-            typeof err === "object" &&
-            err !== null &&
-            "response" in err &&
-            typeof (err as { response?: { data?: { msg?: string; error?: string } } })
-              .response?.data?.msg === "string"
-              ? (err as { response: { data: { msg: string; error?: string } } })
-                  .response.data.msg
-              : null;
-          const apiDetail =
-            typeof err === "object" &&
-            err !== null &&
-            "response" in err &&
-            typeof (err as { response?: { data?: { error?: string } } }).response
-              ?.data?.error === "string"
-              ? (err as { response: { data: { error: string } } }).response.data.error
-              : null;
-          setTopAssessments([]);
-          setAssessmentMonth(null);
-          setAssessmentSummary(null);
-          setAssessmentVisitCount(0);
-          setAssessmentError(
-            apiDetail
-              ? `${apiMessage ?? "Gagal memuat top assessment"}: ${apiDetail}`
-              : apiMessage ?? "Gagal memuat top assessment",
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setAssessmentLoading(false);
-        }
-      }
-        };
+                if (!cancelled) {
+                    setForecastData(null);
+                    setForecastError(
+                        getApiErrorMessage(
+                            error,
+                            'Gagal memuat data perkiraan pengunjung',
+                        ),
+                    );
+                }
+            }
 
-        fetchCurrentUser();
+            try {
+                const financialResponse =
+                    await api.get<MonthlyFinancialSummary>(
+                        '/financial/monthly-summary',
+                    );
+
+                if (!cancelled) {
+                    setMonthlyIncome(financialResponse.data.monthly_income);
+                    setMonthlyExpense(financialResponse.data.monthly_expense);
+                    setDailyIncome(financialResponse.data.daily_income ?? []);
+                    setDailyExpense(financialResponse.data.daily_expense ?? []);
+                    setFinancialError(null);
+                }
+            } catch (error) {
+                console.error(
+                    'Failed to load monthly financial summary:',
+                    error,
+                );
+
+                if (!cancelled) {
+                    setMonthlyIncome(null);
+                    setMonthlyExpense(null);
+                    setDailyIncome([]);
+                    setDailyExpense([]);
+                    setFinancialError(
+                        getApiErrorMessage(
+                            error,
+                            'Gagal memuat grafik keuangan',
+                        ),
+                    );
+                }
+            }
+
+            try {
+                const assessmentResponse =
+                    await api.get<TopAssessmentsResponse>(
+                        '/dashboard/top-assessments',
+                    );
+
+                if (!cancelled) {
+                    setTopAssessments(
+                        assessmentResponse.data.top_assessments ?? [],
+                    );
+                    setAssessmentMonth(assessmentResponse.data.month ?? null);
+                    setAssessmentSummary(
+                        assessmentResponse.data.summary ?? null,
+                    );
+                    setAssessmentVisitCount(
+                        assessmentResponse.data
+                            .total_visits_with_assessment ?? 0,
+                    );
+                    setAssessmentError(null);
+                }
+            } catch (error) {
+                console.error('Failed to load top assessments:', error);
+
+                if (!cancelled) {
+                    setTopAssessments([]);
+                    setAssessmentMonth(null);
+                    setAssessmentSummary(null);
+                    setAssessmentVisitCount(0);
+                    setAssessmentError(
+                        getApiErrorMessage(
+                            error,
+                            'Gagal memuat top assessment',
+                        ),
+                    );
+                }
+            }
+        } finally {
+            if (!cancelled) {
+                setLoading(false);
+                setAssessmentLoading(false);
+            }
+        }
 
         return () => {
             cancelled = true;
         };
+    };
+
+    useEffect(() => {
+        let cleanup: (() => void) | undefined;
+
+        fetchDashboardData().then((result) => {
+            cleanup = result;
+        });
+
+        return () => {
+            cleanup?.();
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {
@@ -402,208 +565,306 @@ const Dashboard = () => {
         };
     }, []);
 
-  const forecastServices = forecastData
-    ? Object.entries(forecastData.by_service)
-    : [];
+    return (
+        <div className="relative flex w-full min-w-0 flex-col gap-5">
+            {loading && <LoadingOverlay />}
 
-  const visitorChartSeries: ServiceSeries[] = forecastData
-    ? Object.entries(forecastData.by_service)
-        .filter(([, data]) => data.has_model !== false)
-        .map(([name, data]) => ({
-          name,
-          history: data.history,
-          forecast: data.forecast,
-          color: "",
-        }))
-    : [];
+            <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_300px]">
+                <div className="relative overflow-hidden rounded-[32px] border border-[#6F8D70] bg-gradient-to-br from-[#4F6F52] via-[#739072] to-[#86A789] px-6 py-6 text-white shadow-sm sm:px-8 lg:px-9">
+                    <div className="absolute right-[-80px] top-[-80px] h-[230px] w-[230px] rounded-full bg-white/10" />
+                    <div className="absolute bottom-[-95px] left-[35%] h-[210px] w-[210px] rounded-full bg-white/10" />
+                    <div className="absolute bottom-[28px] right-[220px] hidden h-[72px] w-[72px] rounded-full bg-white/10 lg:block" />
 
-  return (
-    <div>
-      <div className="flex w-full flex-1 flex-col">
-        {loading && <LoadingOverlay />}
-        <div className="ml-5 mt-5 flex flex-col gap-y-[25px]">
-          <div className="flex w-full gap-x-[20px]">
-            <div className="flex w-sm flex-1 flex-row gap-x-[30] rounded-[30px] bg-[#739072] px-8 py-5 pb-[0] text-white">
-              <div className="flex w-sm flex-1 flex-col gap-y-[10]">
-                <h1 className="text-[25px] font-bold">
-                  {displayName ? `Hi, ${displayName}!` : "Hi!"}
-                </h1>
-                <p className="text-[20px]">
-                  Selamat Datang Kembali di Sistem Informasi dan Manajemen
-                  Klinik.{" "}
-                </p>
-                <DateLabel className="text-[20px]" />
-              </div>
-              <div className="illustration">
-                <Image
-                  src="/doctor-icon.png"
-                  alt="img"
-                  width={160}
-                  height={160}
-                />
-              </div>
-            </div>
-            <div className="w-md flex flex-col items-center gap-y-[5px] rounded-[30px] bg-[#739072] px-8 py-5 pb-[0] text-[15px] text-white">
-              <div className="flex h-[80px] w-[80px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#FDFEF9] text-[22px] font-bold text-[#5F785F]">
-                {profilePhoto ? (
-                  <img
-                    src={profilePhoto}
-                    alt={displayName ? `Foto profil ${displayName}` : "Foto profil"}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <span>{initials}</span>
-                )}
-              </div>
-              <p>{displayName || "\u00A0"}</p>
-              <p>{displayRole || "\u00A0"}</p>
-            </div>
-          </div>
-          <div className="flex gap-x-[40px]">
-            <div className="flex-1 rounded-[10px] bg-[#FFFFFF] px-7 py-6 text-center drop-shadow-lg">
-              <h3 className="text-[20px]">Total Pengunjung Bulanan</h3>
-              <p className="text-[20px] font-bold">
-                {forecastData
-                  ? `${formatNumber(forecastData.monthly_actual)} Kunjungan`
-                  : forecastError || "Memuat..."}
-              </p>
-            </div>
-            <div className="flex-1 rounded-[10px] bg-[#FFFFFF] px-7 py-6 text-center drop-shadow-lg">
-              <h3 className="text-[20px]">Total Pemasukan Bulanan</h3>
-              <p className="text-[20px] font-bold">
-                {monthlyIncome !== null
-                  ? formatRupiah(monthlyIncome)
-                  : loading
-                    ? "Memuat..."
-                    : "—"}
-              </p>
-            </div>
-            <div className="flex-1 rounded-[10px] bg-[#FFFFFF] px-7 py-6 text-center drop-shadow-lg">
-              <h3 className="text-[20px]">Total Pengeluaran Bulanan</h3>
-              <p className="text-[20px] font-bold">
-                {monthlyExpense !== null
-                  ? formatRupiah(monthlyExpense)
-                  : loading
-                    ? "Memuat..."
-                    : "—"}
-              </p>
-            </div>
-          </div>
+                    <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="max-w-[760px]">
+                            <h1 className="text-[30px] font-extrabold leading-tight sm:text-[38px]">
+                                {displayName
+                                    ? `Hi, ${displayName}!`
+                                    : 'Hi, Selamat Datang!'}
+                            </h1>
 
-          <div className="mt-6 flex w-full flex-col gap-6">
-            <div className="min-h-[240px] w-full rounded-[10px] bg-[#FFFFFF] px-5 py-6 drop-shadow-lg">
-              <VisitorChart
-                title="Grafik Pengunjung Bulanan"
-                series={visitorChartSeries}
-                emptyMessage={
-                  forecastError ||
-                  "Belum ada data kunjungan untuk layanan yang dimodelkan"
-                }
-              />
-            </div>
+                            <p className="mt-3 max-w-[660px] text-[15px] font-medium leading-relaxed text-white/90 sm:text-[16px]">
+                                Pantau aktivitas klinik, prediksi kunjungan,
+                                performa keuangan, dan assessment pasien dalam
+                                satu dashboard yang rapi.
+                            </p>
 
-            <div className="flex w-full flex-col gap-6 lg:flex-row">
-              <div className="min-w-0 w-full shrink-0 rounded-[10px] bg-[#FFFFFF] px-5 py-6 drop-shadow-lg lg:w-[42%] lg:max-w-xl">
-              <h2 className="text-xl font-semibold text-[#4F6F52]">
-                Perkiraan Pengunjung Bulanan
-              </h2>
-              {forecastError && (
-                <p className="mt-4 text-sm text-red-500">{forecastError}</p>
-              )}
-              {!forecastError && forecastServices.length === 0 && !loading && (
-                <p className="mt-4 text-sm text-gray-500">
-                  Belum ada data untuk menghitung perkiraan.
-                </p>
-              )}
-              <div className="mt-5 flex flex-row flex-wrap gap-4">
-                {forecastServices.map(([service, stats], index) => {
-                  const accentColor =
-                    SERVICE_COLORS[service] ??
-                    FALLBACK_SERVICE_COLORS[
-                      index % FALLBACK_SERVICE_COLORS.length
-                    ];
+                            <div className="mt-6 flex flex-wrap items-center gap-3">
+                                <div className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-[12px] font-extrabold text-[#4F6F52] shadow-sm">
+                                    <CalendarDays className="h-4 w-4" />
+                                    <DateLabel />
+                                </div>
+                            </div>
+                        </div>
 
-                  return (
-                    <div
-                      key={service}
-                      className="min-w-[240px] flex-1 rounded-lg border border-[#E6EDE5] bg-[#FDFEF9] px-4 py-3 text-left"
-                      style={{ borderLeftWidth: 4, borderLeftColor: accentColor }}
-                    >
-                      <p
-                        className="text-sm font-semibold"
-                        style={{ color: accentColor }}
-                      >
-                        {service}
-                      </p>
-                      <p className="mt-2 text-xs text-gray-500">
-                        Aktual: {formatNumber(stats.actual_month_to_date)}
-                      </p>
-                      {stats.has_model === false ? (
-                        <p className="mt-2 text-xs text-gray-500">
-                          Belum ada model prediksi
-                        </p>
-                      ) : (
-                        <p className="mt-2 text-xs text-gray-600">
-                          Total perkiraan:{" "}
-                          <span
-                            className="font-medium"
-                            style={{ color: accentColor }}
-                          >
-                            {formatNumber(stats.forecast_month_total)}
-                          </span>
-                        </p>
-                      )}
+                        <div className="hidden shrink-0 lg:block">
+                            <div className="rounded-[28px] bg-white/12 px-5 pt-5 backdrop-blur">
+                                <Image
+                                    src="/doctor-icon.png"
+                                    alt="Doctor illustration"
+                                    width={200}
+                                    height={200}
+                                    priority
+                                />
+                            </div>
+                        </div>
                     </div>
-                  );
-                })}
-              </div>
-              {forecastData && (
-                <p className="mt-5 w-full border-t border-[#E6EDE5] pt-4 text-xs text-gray-600">
-                  Total semua layanan:{" "}
-                  <span className="font-medium text-[#4F6F52]">
-                    {formatNumber(forecastData.monthly_forecast)} kunjungan
-                  </span>
-                </p>
-              )}
-              </div>
+                </div>
 
-              <div className="min-h-[280px] min-w-0 flex-1 rounded-[10px] bg-[#FFFFFF] px-5 py-6 drop-shadow-lg">
-                <h2 className="text-xl font-semibold text-[#4F6F52]">
-                  Top 5 Diagnosa Bulanan
-                </h2>
-                <p className="mt-1 text-xs text-gray-500">
-                  Hibrida: aturan medis + clustering teks (assessment &amp;
-                  keluhan KB)
-                </p>
-                {assessmentError ? (
-                  <p className="mt-4 text-sm text-red-500">{assessmentError}</p>
-                ) : (
-                  <TopAssessmentList
-                    month={assessmentMonth}
-                    totalVisits={assessmentVisitCount}
-                    items={topAssessments}
-                    isLoading={assessmentLoading}
-                    emptyMessage="Belum ada diagnosa pada kunjungan bulan ini."
-                  />
-                )}
-              </div>
-            </div>
+                <div className="relative overflow-hidden rounded-[32px] border border-[#D2D8CF] bg-white px-6 py-6 shadow-sm">
+                    <div className="absolute right-[-45px] top-[-45px] h-[130px] w-[130px] rounded-full bg-[#EEF3E9]" />
 
-            <div className="min-h-[240px] w-full rounded-[10px] bg-[#FFFFFF] px-5 py-6 drop-shadow-lg">
-              <FinancialChart
-                title="Grafik Keuangan Bulanan"
-                income={dailyIncome}
-                expense={dailyExpense}
-                emptyMessage={
-                  financialError || "Belum ada data keuangan bulan ini"
-                }
-              />
-            </div>
-          </div>
+                    <div className="relative z-10 flex h-full flex-col items-center justify-center text-center">
+                        <div className="relative flex h-[106px] w-[106px] items-center justify-center overflow-hidden rounded-full border-4 border-[#D2E3C8] bg-[#F1F6EC] text-[30px] font-extrabold text-[#4F6F52] shadow-sm">
+                            {profilePhoto ? (
+                                <img
+                                    src={profilePhoto}
+                                    alt={
+                                        displayName
+                                            ? `Foto profil ${displayName}`
+                                            : 'Foto profil'
+                                    }
+                                    className="h-full w-full object-cover"
+                                />
+                            ) : (
+                                initials
+                            )}
+                        </div>
+
+                        <p className="mt-4 max-w-full truncate text-[19px] font-extrabold text-black">
+                            {displayName || '\u00A0'}
+                        </p>
+
+                        <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-[#D2E3C8] px-4 py-2 text-[11px] font-bold text-[#4F6F52]">
+                            <UserRound className="h-4 w-4" />
+                            {displayRole || '\u00A0'}
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <StatCard
+                    title="Pengunjung Bulanan"
+                    value={
+                        forecastData
+                            ? `${formatNumber(
+                                  forecastData.monthly_actual,
+                              )} Kunjungan`
+                            : forecastError
+                              ? '—'
+                              : 'Memuat...'
+                    }
+                    subtitle={
+                        forecastMonthLabel
+                            ? `Aktual bulan ${forecastMonthLabel}`
+                            : 'Total kunjungan aktual bulan ini'
+                    }
+                    icon={<Activity className="h-5 w-5" />}
+                    tone="green"
+                />
+
+                <StatCard
+                    title="Forecast Bulanan"
+                    value={
+                        forecastData
+                            ? `${formatNumber(
+                                  forecastData.monthly_forecast,
+                              )} Kunjungan`
+                            : forecastError
+                              ? '—'
+                              : 'Memuat...'
+                    }
+                    subtitle="Estimasi total kunjungan bulan ini"
+                    icon={<TrendingUp className="h-5 w-5" />}
+                    tone="blue"
+                />
+
+                <StatCard
+                    title="Pemasukan"
+                    value={
+                        monthlyIncome !== null
+                            ? formatRupiah(monthlyIncome)
+                            : financialError
+                              ? '—'
+                              : 'Memuat...'
+                    }
+                    subtitle="Total pemasukan bulan ini"
+                    icon={<ArrowUpCircle className="h-5 w-5" />}
+                    tone="green"
+                />
+
+                <StatCard
+                    title="Saldo Bulanan"
+                    value={
+                        monthlyIncome !== null || monthlyExpense !== null
+                            ? formatRupiah(netIncome)
+                            : financialError
+                              ? '—'
+                              : 'Memuat...'
+                    }
+                    subtitle={`Pengeluaran: ${
+                        monthlyExpense !== null
+                            ? formatRupiah(monthlyExpense)
+                            : financialError
+                              ? '—'
+                              : 'Memuat...'
+                    }`}
+                    icon={<Wallet className="h-5 w-5" />}
+                    tone={netIncome < 0 ? 'red' : 'gold'}
+                />
+            </section>
+
+            <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1.35fr_0.9fr]">
+                <SectionCard
+                    title="Grafik Pengunjung Bulanan"
+                    subtitle="Perbandingan kunjungan aktual dan prediksi setiap layanan."
+                    icon={<LineChart className="h-5 w-5" />}
+                    className="min-h-[390px]"
+                >
+                    <VisitorChart
+                        title=""
+                        series={visitorChartSeries}
+                        emptyMessage={
+                            forecastError ||
+                            'Belum ada data kunjungan untuk layanan yang dimodelkan'
+                        }
+                    />
+                </SectionCard>
+
+                <SectionCard
+                    title="Perkiraan Pengunjung"
+                    subtitle="Ringkasan prediksi kunjungan berdasarkan layanan."
+                    icon={<ChartNoAxesCombined className="h-5 w-5" />}
+                    className="min-h-[390px]"
+                >
+                    {forecastError && <ErrorNotice message={forecastError} />}
+
+                    {!forecastError &&
+                        forecastServices.length === 0 &&
+                        !loading && (
+                            <div className="rounded-[16px] border border-[#E4E8E1] bg-[#F8FAF6] px-4 py-8 text-center text-[12px] text-gray-500">
+                                Belum ada data untuk menghitung perkiraan.
+                            </div>
+                        )}
+
+                    <div className="grid grid-cols-1 gap-3">
+                        {forecastServices.map(([service, stats], index) => {
+                            const accentColor =
+                                SERVICE_COLORS[service] ??
+                                FALLBACK_SERVICE_COLORS[
+                                    index % FALLBACK_SERVICE_COLORS.length
+                                ];
+
+                            return (
+                                <div
+                                    key={service}
+                                    className="rounded-[18px] border border-[#E6EDE5] bg-[#FDFEF9] px-4 py-4 shadow-sm"
+                                    style={{
+                                        borderLeftWidth: 5,
+                                        borderLeftColor: accentColor,
+                                    }}
+                                >
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <p
+                                                className="truncate text-[13px] font-extrabold"
+                                                style={{ color: accentColor }}
+                                            >
+                                                {service}
+                                            </p>
+
+                                            <p className="mt-2 text-[11px] font-medium text-gray-500">
+                                                Aktual:{' '}
+                                                {formatNumber(
+                                                    stats.actual_month_to_date,
+                                                )}{' '}
+                                                kunjungan
+                                            </p>
+                                        </div>
+
+                                        <div className="text-right">
+                                            {stats.has_model === false ? (
+                                                <p className="text-[11px] font-semibold text-gray-500">
+                                                    Belum ada model
+                                                </p>
+                                            ) : (
+                                                <>
+                                                    <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-gray-400">
+                                                        Forecast
+                                                    </p>
+
+                                                    <p
+                                                        className="mt-1 text-[17px] font-extrabold"
+                                                        style={{
+                                                            color: accentColor,
+                                                        }}
+                                                    >
+                                                        {formatNumber(
+                                                            stats.forecast_month_total,
+                                                        )}
+                                                    </p>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </SectionCard>
+            </section>
+
+            <section className="grid grid-cols-1 gap-5 xl:grid-cols-[0.95fr_1.35fr]">
+                <SectionCard
+                    title="Top 5 Assessment Bulanan"
+                    subtitle={
+                        assessmentSummary ||
+                        (assessmentMonthLabel
+                            ? `Assessment terbanyak bulan ${assessmentMonthLabel}.`
+                            : 'Assessment terbanyak bulan ini.')
+                    }
+                    icon={<ClipboardList className="h-5 w-5" />}
+                    className="min-h-[390px]"
+                >
+                    {assessmentError ? (
+                        <ErrorNotice message={assessmentError} />
+                    ) : (
+                        <TopAssessmentList
+                            month={assessmentMonth}
+                            totalVisits={assessmentVisitCount}
+                            items={topAssessments}
+                            isLoading={assessmentLoading}
+                            emptyMessage="Belum ada assessment atau keluhan KB bulan ini."
+                        />
+                    )}
+                </SectionCard>
+
+                <SectionCard
+                    title="Grafik Keuangan Bulanan"
+                    subtitle="Pantau pemasukan dan pengeluaran harian bulan ini."
+                    icon={<Wallet className="h-5 w-5" />}
+                    className="min-h-[390px]"
+                >
+                    {financialError && (
+                        <div className="mb-4">
+                            <ErrorNotice message={financialError} />
+                        </div>
+                    )}
+
+                    <FinancialChart
+                        title=""
+                        income={dailyIncome}
+                        expense={dailyExpense}
+                        emptyMessage={
+                            financialError ||
+                            'Belum ada data keuangan bulan ini'
+                        }
+                    />
+                </SectionCard>
+            </section>
         </div>
-      </div>
-    </div>
-  );
+    );
 };
 
 export default Dashboard;

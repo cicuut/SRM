@@ -44,7 +44,7 @@ const VisitGeneralDetail = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const params = useParams();
-  const router = useRouter(); 
+  const router = useRouter();
   const uuid = params.id;
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -76,7 +76,7 @@ const VisitGeneralDetail = () => {
         };
 
         setFormData(initialFormValues);
-        setOriginalFormData(initialFormValues); 
+        setOriginalFormData(initialFormValues);
       } catch (err: any) {
         setError(
           err.response?.data?.msg || err.message || "Gagal memuat rekam medis",
@@ -117,7 +117,7 @@ const VisitGeneralDetail = () => {
           confirmButtonColor: "#739072",
         });
 
-        setOriginalFormData(formData); 
+        setOriginalFormData(formData);
       }
     } catch (err: any) {
       alert(
@@ -125,6 +125,47 @@ const VisitGeneralDetail = () => {
       );
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!uuid) return;
+    try {
+      setIsDeleting(true);
+      setError("");
+      const response = await api.delete(`/visit-report/delete-visit/${uuid}`);
+
+      if (response.status === 200 || response.status === 204) {
+        setShowDeleteConfirm(false);
+
+        await Swal.fire({
+          title: "Berhasil Dihapus",
+          text: "Data kunjungan pasien telah dihapus dari sistem.",
+          icon: "success",
+          timer: 1500,
+          showConfirmButton: false,
+        });
+
+        router.push("/daily-report");
+      }
+    } catch (error: any) {
+      console.error("Delete Error:", error);
+      const message =
+        error.response?.data?.msg ||
+        error.message ||
+        "Terjadi kesalahan saat menghapus kunjungan";
+
+      setError(message);
+      setShowDeleteConfirm(false);
+
+      Swal.fire({
+        title: "Gagal Menghapus!",
+        text: message,
+        icon: "error",
+        confirmButtonColor: "#739072",
+      });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -281,7 +322,7 @@ const VisitGeneralDetail = () => {
       </div>
 
       {/* FOOTER NAVIGASI DAN SUBMIT PERUBAHAN GLOBAL */}
-      <div className="flex flex-col-reverse gap-3 border-t border-[#E4E8E1] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col-reverse gap-3 border-t  px-5 py-4 sm:flex-row sm:items-center sm:justify-between mt-6 bg-white rounded-[14px] border border-[#D2D8CF] shadow-sm">
         <button
           type="button"
           onClick={() => setShowDeleteConfirm(true)}
@@ -322,7 +363,41 @@ const VisitGeneralDetail = () => {
           </button>
         </div>
       </div>
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-[420px] rounded-2xl bg-white px-6 py-6 shadow-xl">
+            <h2 className="text-[20px] font-bold text-[#2F3A2F]">
+              Hapus Data Kunjungan?
+            </h2>
+
+            <p className="mt-3 text-[13px] leading-relaxed text-[#4B4B4B]">
+              Data kunjungan akan dihapus dari penyimpanan. Aksi ini tidak bisa
+              dibatalkan.
+            </p>
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isDeleting}
+                className="h-[38px] rounded-[30px] border border-[#BFC7BB] bg-white px-5 text-[12px] font-bold text-[#4B4B4B] hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Batal
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="h-[38px] rounded-[30px] bg-red-600 px-5 text-[12px] font-bold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isDeleting ? "Menghapus..." : "Ya, Hapus"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
-}
+};
 export default VisitGeneralDetail;
