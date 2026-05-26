@@ -104,6 +104,7 @@ const FamilyInformation = () => {
         }
         const initialFormValues: PatientInformationDetailList = {
           nik: pData?.nik || "",
+          patient_name: pData?.patient_name || "",
           birthdate: formatDate(pData?.birthdate),
           gender: pData?.gender || "",
           age: pData?.age || "",
