@@ -166,7 +166,7 @@ const FamilyInformation = () => {
           showConfirmButton: false,
         });
 
-        router.push("/daily-report");
+        router.push("/medical-record");
       }
     } catch (error: any) {
       console.error("Delete Error:", error);
