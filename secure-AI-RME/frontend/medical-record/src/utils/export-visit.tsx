@@ -85,7 +85,7 @@ export const getDynamicColumns = (visitType: string): ColumnConfig[] => {
       ...baseColumns,
       { header: "Berat Bayi", key: "baby_weight", width: 18 },
       { header: "Tinggi Bayi", key: "baby_height", width: 18 },
-      { header: "Suhu Tubuh", key: "body_temp", width: 18 },
+      { header: "Suhu Tubuh", key: "baby_temp", width: 18 },
       { header: "Lingkaran Kepala", key: "head_circumference", width: 18 },
       { header: "Lingkaran Perut", key: "abdominal_circumference", width: 18 },
       { header: "Vaksin", key: "vaccine_given", width: 18 },
@@ -116,6 +116,7 @@ export const handleExportXlsxData = async (
   tableData: DynamicVisitRow[],
   visitType: string,
   startDate: string,
+  endDate: string,
 ) => {
   if (!tableData || tableData.length === 0) {
     alert(
@@ -126,7 +127,7 @@ export const handleExportXlsxData = async (
 
   try {
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet("Laporan NADI");
+    const worksheet = workbook.addWorksheet("Laporan Kunjungan");
     worksheet.views = [{ showGridLines: true }];
 
     const activeColumns = getDynamicColumns(visitType);
@@ -242,7 +243,7 @@ export const handleExportXlsxData = async (
     });
     saveAs(
       blob,
-      `Laporan_Kunjungan_${visitType}_${startDate || "SemuaTanggal"}.xlsx`,
+      `Laporan_Kunjungan_${visitType}_${startDate}_${endDate}.xlsx`,
     );
   } catch (error) {
     console.error("Gagal menyusun excel:", error);

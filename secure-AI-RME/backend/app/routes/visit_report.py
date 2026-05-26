@@ -1074,7 +1074,7 @@ def get_json_visit_report():
                 if visit_type in ['Imunisasi', 'Semua']:
                     row_data["baby_weight"] = immunization_detail.baby_weight
                     row_data["baby_height"] = immunization_detail.baby_height
-                    row_data["baby_temp"] = immunization_detail.baby_temp
+                    row_data["body_temp"] = immunization_detail.body_temp
                     row_data["head_circumference"] = immunization_detail.head_circumference
                     row_data["abdominal_circumference"] = immunization_detail.abdominal_circumference
                     row_data["dosage_given"] = immunization_detail.dosage_given
@@ -1092,9 +1092,9 @@ def get_json_visit_report():
                 if visit_type in ['Keluarga Berencana', 'Semua']:
                     row_data["weight_kg"] = familyplanning_detail.weight_kg
                     row_data["blood_pressure"] = familyplanning_detail.blood_pressure
-                    row_data["kb_method"] = familyplanning_detail.baby_temp
+                    row_data["kb_method"] = familyplanning_detail.kb_method
                     row_data["return_visit_date"] = familyplanning_detail.return_visit_date
-                    row_data["complaint"] = decrypt_data(immunization_detail.complaint)
+                    row_data["complaint"] = decrypt_data(familyplanning_detail.complaint)
 
                     financial_detail = Financial.query.filter_by(visit_id=visit.visit_id).first()
                     row_data["amount"] = financial_detail.amount if financial_detail else 0
@@ -1107,5 +1107,5 @@ def get_json_visit_report():
 
     except Exception as e:
         import traceback
-        print(traceback.format_exc()) # Cetak error lengkap di terminal Flask jika ada crash internal
+        print(traceback.format_exc()) 
         return jsonify({"msg": "Internal server error", "error": str(e)}), 500
