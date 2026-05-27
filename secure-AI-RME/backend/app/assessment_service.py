@@ -442,8 +442,7 @@ def get_top_diagnoses_payload(
         "top_diagnoses": top_items,
         "top_assessments": top_items,
         "summary": (
-            f"{visit_count} kunjungan · {total_fragments} entri · "
-            f"normalisasi hibrida (aturan + clustering)."
+            f"{visit_count} kunjungan · {total_fragments} entri"
             if visit_count
             else "Belum ada assessment atau keluhan pada kunjungan bulan ini."
         ),

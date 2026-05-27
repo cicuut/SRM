@@ -118,6 +118,7 @@ interface TopAssessmentItem {
 interface TopAssessmentsResponse {
     month: string;
     total_visits_with_assessment: number;
+    total_assessment_fragments: number;
     summary?: string;
     top_assessments: TopAssessmentItem[];
     msg?: string;
@@ -284,7 +285,7 @@ const SectionCard = ({
     className = '',
 }: {
     title: string;
-    subtitle?: string;
+    subtitle?: React.ReactNode;
     icon?: React.ReactNode;
     children: React.ReactNode;
     className?: string;
@@ -341,6 +342,7 @@ const Dashboard = () => {
         null,
     );
     const [assessmentVisitCount, setAssessmentVisitCount] = useState(0);
+    const [assessmentEntriesCount, setAssessmentEntriesCount] = useState(0);
     const [assessmentLoading, setAssessmentLoading] = useState(true);
     const [assessmentError, setAssessmentError] = useState<string | null>(null);
 
@@ -496,6 +498,10 @@ const Dashboard = () => {
                         assessmentResponse.data
                             .total_visits_with_assessment ?? 0,
                     );
+                    setAssessmentEntriesCount(
+                        assessmentResponse.data
+                            .total_assessment_fragments ?? 0,
+                    );
                     setAssessmentError(null);
                 }
             } catch (error) {
@@ -506,6 +512,7 @@ const Dashboard = () => {
                     setAssessmentMonth(null);
                     setAssessmentSummary(null);
                     setAssessmentVisitCount(0);
+                    setAssessmentEntriesCount(0);
                     setAssessmentError(
                         getApiErrorMessage(
                             error,
@@ -819,10 +826,21 @@ const Dashboard = () => {
                 <SectionCard
                     title="Top 5 Assessment Bulanan"
                     subtitle={
-                        assessmentSummary ||
-                        (assessmentMonthLabel
-                            ? `Assessment terbanyak bulan ${assessmentMonthLabel}.`
-                            : 'Assessment terbanyak bulan ini.')
+                        assessmentMonth ? (
+                            <p className="mt-2 text-[12px] font-medium leading-relaxed text-[#6B6B6B]">
+                                Periode: {assessmentMonthLabel}
+                                {(assessmentVisitCount > 0 ||
+                                    assessmentEntriesCount > 0) &&
+                                    ` · ${assessmentVisitCount} kunjungan · ${assessmentEntriesCount} entri`}
+                            </p>
+                        ) : (
+                            <p className="mt-2 text-[12px] font-medium leading-relaxed text-[#6B6B6B]">
+                                {assessmentSummary ||
+                                    (assessmentMonthLabel
+                                        ? `Assessment terbanyak bulan ${assessmentMonthLabel}.`
+                                        : 'Assessment terbanyak bulan ini.')}
+                            </p>
+                        )
                     }
                     icon={<ClipboardList className="h-5 w-5" />}
                     className="min-h-[390px]"
@@ -831,8 +849,6 @@ const Dashboard = () => {
                         <ErrorNotice message={assessmentError} />
                     ) : (
                         <TopAssessmentList
-                            month={assessmentMonth}
-                            totalVisits={assessmentVisitCount}
                             items={topAssessments}
                             isLoading={assessmentLoading}
                             emptyMessage="Belum ada assessment atau keluhan KB bulan ini."

@@ -19,8 +19,6 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 
 interface TopAssessmentListProps {
-  month?: string | null;
-  totalVisits?: number;
   items: TopAssessmentItem[];
   emptyMessage?: string;
   isLoading?: boolean;
@@ -29,24 +27,11 @@ interface TopAssessmentListProps {
 /** Warna aksen per peringkat (#1–#5) — selaras tema hijau dashboard */
 const RANK_COLORS = ["#4F6F52", "#739072", "#5C7A5E", "#86A789", "#A8C5A0"];
 
-function formatMonthLabel(month?: string | null) {
-  if (!month) return "";
-  const [year, monthNum] = month.split("-");
-  if (!year || !monthNum) return month;
-  const date = new Date(Number(year), Number(monthNum) - 1, 1);
-  return new Intl.DateTimeFormat("id-ID", {
-    month: "long",
-    year: "numeric",
-  }).format(date);
-}
-
 /**
  * Menampilkan daftar Top N diagnosa + bar proporsional terhadap count tertinggi.
  * Data & normalisasi dihitung di backend (assessment_service.py).
  */
 export function TopAssessmentList({
-  month,
-  totalVisits = 0,
   items,
   emptyMessage = "Belum ada diagnosa pada kunjungan bulan ini.",
   isLoading = false,
@@ -64,13 +49,6 @@ export function TopAssessmentList({
 
   return (
     <div className="mt-4 space-y-4">
-      {month && (
-        <p className="text-xs text-gray-500">
-          Periode: {formatMonthLabel(month)}
-          {totalVisits > 0 &&
-            ` · ${totalVisits} kunjungan dengan data diagnosa`}
-        </p>
-      )}
       <ol className="space-y-6">
         {items.map((item, index) => {
           const accent = RANK_COLORS[index % RANK_COLORS.length];
@@ -88,16 +66,6 @@ export function TopAssessmentList({
                   <p className="text-sm font-semibold text-[#4F6F52]">
                     {item.diagnosis ?? item.assessment}
                   </p>
-                  {item.source && (
-                    <span className="mt-1 inline-block rounded bg-[#E6EDE5] px-2 py-0.5 text-[10px] text-gray-600">
-                      {SOURCE_LABELS[item.source] ?? item.source}
-                    </span>
-                  )}
-                  {item.variants && item.variants.length > 0 && (
-                    <p className="mt-1 text-[10px] text-gray-500">
-                      Variasi: {item.variants.join(", ")}
-                    </p>
-                  )}
                 </div>
                 <div className="shrink-0 text-right text-xs text-gray-600">
                   <p className="font-semibold" style={{ color: accent }}>
