@@ -106,7 +106,7 @@ def add_pregnancy_record():
             record_id=new_record.record_id,
             contraceptive_history=data.get('contraceptive_history'),
             family_med_history=data.get('family_med_history'),
-            last_menstrual_period=data.get('last_menstrual_period'),
+            last_menstrual_period=parse_date(data.get('last_menstrual_period')),
             expected_due_date= parse_date(data.get('expected_due_date')),
             diagnosis=data.get('diagnosis'),
             registration_date = parse_date(data.get('registration_date')),
