@@ -1,24 +1,136 @@
 from flask import Blueprint, jsonify
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
+from app.models import db, User
 from app.forecast_service import SERVICE_MODELS, build_forecast_payload
 
+
 forecast_bp = Blueprint("forecast", __name__)
+
+FORECAST_ALLOWED_ROLES = ["admin", "midwife", "asisten"]
+
+
+def role_to_text(value):
+    if value is None:
+        return ""
+
+    if hasattr(value, "value"):
+        return str(value.value)
+
+    return str(value)
+
+
+def normalize_role(role):
+    normalized = str(role or "").strip().lower()
+
+    role_aliases = {
+        "admin": "admin",
+        "developer": "admin",
+        "midwife": "midwife",
+        "bidan": "midwife",
+        "owner": "midwife",
+        "asisten": "asisten",
+        "assistant": "asisten",
+        "staff": "asisten",
+    }
+
+    return role_aliases.get(normalized, normalized)
+
+
+def get_current_user():
+    user_id = get_jwt_identity()
+
+    if not user_id:
+        return None
+
+    return db.session.get(User, user_id)
+
+
+def require_forecast_access():
+    current_user = get_current_user()
+
+    if not current_user:
+        return None, "", (
+            jsonify({"msg": "User tidak ditemukan."}),
+            404,
+        )
+
+    if not current_user.is_active:
+        return None, "", (
+            jsonify({"msg": "Akun Anda sedang tidak aktif."}),
+            403,
+        )
+
+    current_role = normalize_role(role_to_text(current_user.user_role))
+
+    if current_role not in FORECAST_ALLOWED_ROLES:
+        return None, current_role, (
+            jsonify({"msg": "Akses ditolak."}),
+            403,
+        )
+
+    if current_role in ["midwife", "asisten"] and not current_user.clinic_id:
+        return None, current_role, (
+            jsonify(
+                {
+                    "msg": "Akun belum terhubung dengan klinik.",
+                    "requires_clinic_setup": current_role == "midwife",
+                    "redirect_path": "/register-clinic"
+                    if current_role == "midwife"
+                    else "/dashboard",
+                }
+            ),
+            400,
+        )
+
+    return current_user, current_role, None
 
 
 @forecast_bp.route("/visitors", methods=["GET"])
 @jwt_required()
 def get_visitor_forecast():
+    current_user, current_role, error_response = require_forecast_access()
+
+    if error_response:
+        return error_response
+
     try:
-        payload = build_forecast_payload()
+        payload = build_forecast_payload(
+            current_user=current_user,
+            current_role=current_role,
+        )
+
         return jsonify(payload), 200
+
     except FileNotFoundError as exc:
-        return jsonify({"msg": "Model forecasting tidak ditemukan", "error": str(exc)}), 500
+        return (
+            jsonify(
+                {
+                    "msg": "Model forecasting tidak ditemukan.",
+                    "error": str(exc),
+                }
+            ),
+            500,
+        )
+
     except Exception as exc:
-        return jsonify({"msg": "Gagal menghitung perkiraan pengunjung", "error": str(exc)}), 500
+        return (
+            jsonify(
+                {
+                    "msg": "Gagal menghitung perkiraan pengunjung.",
+                    "error": str(exc),
+                }
+            ),
+            500,
+        )
 
 
 @forecast_bp.route("/services", methods=["GET"])
 @jwt_required()
 def get_forecast_services():
+    current_user, current_role, error_response = require_forecast_access()
+
+    if error_response:
+        return error_response
+
     return jsonify({"services": list(SERVICE_MODELS.keys())}), 200

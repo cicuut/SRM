@@ -1,115 +1,367 @@
 from flask import Blueprint, request, jsonify
-from app.models import db, Patient, MedicalRecord, PregnancyRecord, ObstetricHistory, FamilyPlanningRecord, GeneralRecord, DeliveryRecord, ImmunizationRecord, VisitImunization, VisitMaster, VisitFamilyPlanning, VisitPregnancy, VisitGeneral
-from app.utils import generate_record_number, get_next_record_sequence_and_increment, decrypt_data, clean_float, format_date, parse_date
+from app.models import (
+    db,
+    User,
+    Patient,
+    MedicalRecord,
+    PregnancyRecord,
+    ObstetricHistory,
+    FamilyPlanningRecord,
+    GeneralRecord,
+    DeliveryRecord,
+    ImmunizationRecord,
+    VisitImunization,
+    VisitMaster,
+    VisitFamilyPlanning,
+    VisitPregnancy,
+    VisitGeneral,
+)
+from app.utils import (
+    generate_record_number,
+    get_next_record_sequence_and_increment,
+    decrypt_data,
+    clean_float,
+    format_date,
+    parse_date,
+)
 from datetime import datetime
-from flask_jwt_extended import jwt_required, get_jwt
-from sqlalchemy import or_
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 medical_record_bp = Blueprint('medical_record', __name__)
 
-# Get Medical Record Number
+MEDICAL_RECORD_ALLOWED_ROLES = ['admin', 'midwife', 'asisten']
+
+
+# -----------------------------------------------------------------------------
+# Access helpers
+# -----------------------------------------------------------------------------
+def to_str(value):
+    if value is None:
+        return None
+
+    return str(value)
+
+
+def normalize_role(role):
+    normalized = str(role or '').strip().lower()
+
+    role_aliases = {
+        'admin': 'admin',
+        'developer': 'admin',
+        'midwife': 'midwife',
+        'bidan': 'midwife',
+        'owner': 'midwife',
+        'asisten': 'asisten',
+        'assistant': 'asisten',
+        'staff': 'asisten',
+    }
+
+    return role_aliases.get(normalized, normalized)
+
+
+def get_current_user():
+    user_id = get_jwt_identity()
+
+    if not user_id:
+        return None
+
+    return db.session.get(User, user_id)
+
+
+def require_medical_record_access(require_clinic=False):
+    current_user = get_current_user()
+
+    if not current_user:
+        return None, '', (jsonify({'msg': 'User tidak ditemukan.'}), 404)
+
+    if not current_user.is_active:
+        return None, '', (jsonify({'msg': 'Akun Anda sedang tidak aktif.'}), 403)
+
+    current_role = normalize_role(current_user.user_role)
+
+    if current_role not in MEDICAL_RECORD_ALLOWED_ROLES:
+        return None, current_role, (
+            jsonify({'msg': 'Akses ditolak. Role tidak dapat mengakses rekam medis.'}),
+            403,
+        )
+
+    if require_clinic and current_role != 'admin' and not current_user.clinic_id:
+        return None, current_role, (
+            jsonify({
+                'msg': 'Akun belum terhubung dengan klinik.',
+                'requires_clinic_setup': current_role == 'midwife',
+                'redirect_path': '/register-clinic' if current_role == 'midwife' else '/dashboard',
+            }),
+            400,
+        )
+
+    return current_user, current_role, None
+
+
+def require_clinic_for_write():
+    current_user, current_role, error_response = require_medical_record_access(require_clinic=True)
+
+    if error_response:
+        return None, '', None, error_response
+
+    if not current_user.clinic_id:
+        return None, current_role, None, (
+            jsonify({
+                'msg': 'Akun ini tidak terhubung dengan klinik, sehingga tidak dapat membuat data rekam medis.',
+            }),
+            400,
+        )
+
+    return current_user, current_role, current_user.clinic_id, None
+
+
+def apply_clinic_scope_to_record_query(query, current_user, current_role):
+    if current_role != 'admin':
+        query = query.filter(Patient.clinic_id == current_user.clinic_id)
+
+    return query
+
+
+def base_record_query(current_user, current_role):
+    query = db.session.query(MedicalRecord, Patient).join(
+        Patient,
+        MedicalRecord.patient_id == Patient.patient_id,
+    )
+
+    return apply_clinic_scope_to_record_query(query, current_user, current_role)
+
+
+def get_record_with_patient(record_id, current_user, current_role):
+    query = base_record_query(current_user, current_role).filter(
+        MedicalRecord.record_id == str(record_id),
+    )
+
+    return query.first()
+
+
+def get_record_or_404(record_id, current_user, current_role):
+    row = get_record_with_patient(record_id, current_user, current_role)
+
+    if not row:
+        return None, None, (jsonify({'msg': 'Data rekam medis tidak ditemukan.'}), 404)
+
+    record, patient = row
+
+    return record, patient, None
+
+
+def safe_decrypt(value, fallback='-'):
+    if value is None:
+        return fallback
+
+    try:
+        decrypted = decrypt_data(value)
+        if decrypted is None or decrypted == '':
+            return fallback
+        return decrypted
+    except Exception:
+        return str(value) if value not in [None, ''] else fallback
+
+
+def format_birth_date_for_search(raw_birthdate):
+    dob_searchable = ''
+    dob_display = '-'
+
+    if raw_birthdate:
+        decrypted_str = str(raw_birthdate)
+
+        try:
+            dob_obj = datetime.strptime(decrypted_str[:10], '%Y-%m-%d')
+
+            indonesian_months = {
+                1: 'Januari',
+                2: 'Februari',
+                3: 'Maret',
+                4: 'April',
+                5: 'Mei',
+                6: 'Juni',
+                7: 'Juli',
+                8: 'Agustus',
+                9: 'September',
+                10: 'Oktober',
+                11: 'November',
+                12: 'Desember',
+            }
+
+            bulan_indo = indonesian_months[dob_obj.month]
+            dob_searchable = (
+                f"{dob_obj.strftime('%d-%m-%Y')} "
+                f"{dob_obj.strftime('%d/%m/%Y')} "
+                f"{dob_obj.strftime('%Y-%m-%d')} "
+                f"{dob_obj.day} {bulan_indo} {dob_obj.year}"
+            ).lower()
+            dob_display = f"{dob_obj.day:02d} {bulan_indo} {dob_obj.year}"
+        except Exception:
+            dob_searchable = decrypted_str.lower()
+            dob_display = decrypted_str
+
+    return dob_searchable, dob_display
+
+
+def serialize_record_list_item(record, patient):
+    decrypted_name = safe_decrypt(patient.patient_name, fallback='Unknown')
+    decrypted_nik = safe_decrypt(patient.national_id, fallback='-')
+
+    return {
+        'rm_id': record.record_id,
+        'record_number': record.record_number,
+        'record_type': record.record_type,
+        'patient_name': str(decrypted_name).title(),
+        'nik': decrypted_nik,
+        'birth_date': format_date(patient.birth_date),
+        'status': record.status,
+        'created_at': format_date(record.created_at),
+        'updated_at': format_date(record.last_update) if record.last_update else '-',
+    }
+
+
+# -----------------------------------------------------------------------------
+# Medical record number
+# -----------------------------------------------------------------------------
 @medical_record_bp.route('/rm-number', methods=['GET'])
-@jwt_required() 
+@jwt_required()
 def get_next_number():
+    _current_user, _current_role, error_response = require_medical_record_access()
+
+    if error_response:
+        return error_response
+
     record_type = request.args.get('type')
-    
+
     if not record_type:
-        return jsonify({"msg": "Medical Record Type is required"}), 400
+        return jsonify({'msg': 'Tipe rekam medis wajib diisi.'}), 400
 
     try:
         count = get_next_record_sequence_and_increment(record_type)
         next_rm_number = generate_record_number(record_type, count)
-        
+
         return jsonify({
-            "record_type": record_type,
-            "next_rm_number": next_rm_number
+            'record_type': record_type,
+            'next_rm_number': next_rm_number,
         }), 200
-        
+
     except Exception as e:
-        return jsonify({"msg": "Failed to generate number", "error": str(e)}), 500
-    
-# Add Pregnancy Record  
+        return jsonify({'msg': 'Gagal membuat nomor rekam medis.', 'error': str(e)}), 500
+
+
+# -----------------------------------------------------------------------------
+# Add records
+# -----------------------------------------------------------------------------
+def validate_required_fields(data, required_fields):
+    for field in required_fields:
+        if not data.get(field):
+            return False
+
+    return True
+
+
+def create_family_patient_if_present(data, current_clinic_id):
+    family_id = None
+
+    if data.get('family_name'):
+        new_family = Patient(
+            patient_name=data.get('family_name'),
+            birth_date=data.get('family_birth_date'),
+            national_id=data.get('family_national_id'),
+            gender=data.get('family_gender'),
+            role='family',
+            relation=data.get('relation'),
+            clinic_id=current_clinic_id,
+            address=data.get('family_address'),
+            patient_number=data.get('family_number'),
+            education_level=data.get('family_education_level'),
+            occupation=data.get('family_occupation'),
+        )
+        db.session.add(new_family)
+        db.session.flush()
+        family_id = new_family.patient_id
+
+    return family_id
+
+
+def create_patient_and_record(data, current_clinic_id, record_type):
+    family_id = create_family_patient_if_present(data, current_clinic_id)
+
+    new_patient = Patient(
+        patient_name=data.get('patient_name'),
+        birth_date=data.get('birth_date'),
+        national_id=data.get('national_id'),
+        gender=data.get('gender'),
+        clinic_id=current_clinic_id,
+        role='self',
+        relation='self',
+        patient_number=data.get('patient_number'),
+        education_level=data.get('education_level'),
+        occupation=data.get('occupation'),
+        address=data.get('address'),
+        insurance_number=data.get('insurance_number'),
+        primary_health_facility=data.get('primary_health_facility'),
+        family_link_id=family_id,
+    )
+    db.session.add(new_patient)
+    db.session.flush()
+
+    new_record = MedicalRecord(
+        patient_id=new_patient.patient_id,
+        record_number=data.get('record_number'),
+        record_type=record_type,
+        status='Active',
+        created_at=datetime.utcnow(),
+    )
+
+    db.session.add(new_record)
+    db.session.flush()
+
+    return new_patient, new_record
+
+
+def get_add_record_required_fields():
+    return [
+        'family_name',
+        'family_birth_date',
+        'family_national_id',
+        'family_gender',
+        'family_address',
+        'family_number',
+        'relation',
+        'patient_name',
+        'birth_date',
+        'national_id',
+        'gender',
+        'patient_number',
+        'address',
+    ]
+
+
 @medical_record_bp.route('/add-pregnancy', methods=['POST'])
 @jwt_required()
 def add_pregnancy_record():
-    claims = get_jwt()
-    current_clinic_id = claims.get("clinic_id")
-    current_family_link_id = claims.get("family_link_id")
-    
-    
-    data = request.get_json()
-    
-    # required input validation
-    required_fields = ['family_name', 'family_birth_date', 'family_national_id', 'family_gender', 'family_address', 
-                       'family_number', 'relation','patient_name', 'birth_date', 'national_id', 'gender', 'patient_number', 
-                       'address']
+    _current_user, _current_role, current_clinic_id, error_response = require_clinic_for_write()
 
-    for field in required_fields:
-        if not data.get(field):
-            return jsonify({"msg": "Tanda * wajib untuk diisi!"}), 400
-    
+    if error_response:
+        return error_response
+
+    data = request.get_json() or {}
+
+    if not validate_required_fields(data, get_add_record_required_fields()):
+        return jsonify({'msg': 'Tanda * wajib untuk diisi!'}), 400
+
     try:
-        # Add family
-        family_id = None
-        if data.get('family_name'): 
-            new_family = Patient(
-                patient_name=data.get('family_name'),
-                birth_date=data.get('family_birth_date'),
-                national_id=data.get('family_national_id'),
-                gender=data.get('family_gender'), 
-                role='family',
-                relation=data.get('relation'), 
-                clinic_id=current_clinic_id,
-                address=data.get('family_address'),
-                patient_number=data.get('family_number'),
-                education_level=data.get('family_education_level'),
-                occupation=data.get('family_occupation'),
-            )
-            db.session.add(new_family)
-            db.session.flush()
-            family_id = new_family.patient_id
-            
-        # Add new patient
-        new_patient = Patient(
-            patient_name=data.get('patient_name'),
-            birth_date=data.get('birth_date'),
-            national_id=data.get('national_id'),
-            gender=data.get('gender'),
-            clinic_id=current_clinic_id,
-            role='self', 
-            relation='self', 
-            patient_number=data.get('patient_number'),
-            education_level=data.get('education_level'),
-            occupation=data.get('occupation'),
-            address=data.get('address'),
-            insurance_number=data.get('insurance_number'),
-            primary_health_facility=data.get('primary_health_facility'),
-            family_link_id=family_id,    
-        )
-        db.session.add(new_patient)
-        db.session.flush() 
-        
-        # 2. Create medical record
-        new_record = MedicalRecord(
-            patient_id=new_patient.patient_id,
-            record_number=data.get('record_number'),
-            record_type='Kehamilan',
-            status='Active',
-            created_at=datetime.utcnow() 
-        )
-        
-        db.session.add(new_record)
-        db.session.flush() 
-        
-        # Crete new pregnancy medical record
+        new_patient, new_record = create_patient_and_record(data, current_clinic_id, 'Kehamilan')
+
         new_pregnancy_record = PregnancyRecord(
             record_id=new_record.record_id,
             contraceptive_history=data.get('contraceptive_history'),
             family_med_history=data.get('family_med_history'),
             last_menstrual_period=parse_date(data.get('last_menstrual_period')),
-            expected_due_date= parse_date(data.get('expected_due_date')),
+            expected_due_date=parse_date(data.get('expected_due_date')),
             diagnosis=data.get('diagnosis'),
-            registration_date = parse_date(data.get('registration_date')),
+            registration_date=parse_date(data.get('registration_date')),
             height_cm=clean_float(data.get('height_cm')),
             weight_kg=clean_float(data.get('weight_kg')),
             muac_cm=clean_float(data.get('muac_cm')),
@@ -117,14 +369,12 @@ def add_pregnancy_record():
             lab_results=data.get('lab_results'),
             pre_preg_weight_kg=clean_float(data.get('pre_preg_weight_kg')),
             pre_preg_muac_cm=clean_float(data.get('pre_preg_muac_cm')),
-
-        );
+        )
         db.session.add(new_pregnancy_record)
-        db.session.flush() 
-        
-        # Add data in obstectric_history table
+        db.session.flush()
+
         obstetric_list = data.get('obstetric_list', [])
-        
+
         for obs in obstetric_list:
             new_history = ObstetricHistory(
                 pr_id=new_pregnancy_record.pr_id,
@@ -133,1047 +383,832 @@ def add_pregnancy_record():
                 pregnancy_complications=obs.get('pregnancy_complications'),
                 delivery_mode=obs.get('delivery_mode'),
                 delivery_complications=obs.get('delivery_complications'),
-                baby_weight=clean_float(obs.get('baby_weight')), 
-                baby_height=clean_float(obs.get('baby_height')), 
+                baby_weight=clean_float(obs.get('baby_weight')),
+                baby_height=clean_float(obs.get('baby_height')),
                 baby_complications=obs.get('baby_complications'),
                 postpartum_status=obs.get('postpartum_status'),
-                postpartum_complications=obs.get('postpartum_complications')
+                postpartum_complications=obs.get('postpartum_complications'),
             )
             db.session.add(new_history)
+
         db.session.commit()
-        
-        
+
         return jsonify({
-            "msg": "Medical record added successfully", 
-            "patient_id": new_patient.patient_id,
-            "rm_number": new_record.record_number
+            'msg': 'Rekam medis berhasil ditambahkan.',
+            'patient_id': str(new_patient.patient_id),
+            'rm_number': new_record.record_number,
         }), 201
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": "Gagal menambahkan rekam medis", "error": str(e)}), 500
+        return jsonify({'msg': 'Gagal menambahkan rekam medis.', 'error': str(e)}), 500
 
-# Add Medical Record Family Planning
+
 @medical_record_bp.route('/add-family-planning', methods=['POST'])
 @jwt_required()
 def add_family_planning_record():
-    claims = get_jwt()
-    current_clinic_id = claims.get("clinic_id")
-    current_family_link_id = claims.get("family_link_id")
-    
-    
-    data = request.get_json()
-    
-    # Validasi input
-    required_fields = ['family_name', 'family_birth_date', 'family_national_id', 'family_gender', 
-                       'family_address', 'family_number', 'relation', 'patient_name', 'birth_date', 
-                       'national_id', 'gender', 'patient_number', 'address']
+    _current_user, _current_role, current_clinic_id, error_response = require_clinic_for_write()
 
-    for field in required_fields:
-        if not data.get(field):
-            return jsonify({"msg": "Tanda * wajib untuk diisi!"}), 400
-    
-    
+    if error_response:
+        return error_response
+
+    data = request.get_json() or {}
+
+    if not validate_required_fields(data, get_add_record_required_fields()):
+        return jsonify({'msg': 'Tanda * wajib untuk diisi!'}), 400
+
     try:
-        #Add family
-        family_id = None
-        if data.get('family_name'): 
-            new_family = Patient(
-                patient_name=data.get('family_name'),
-                birth_date=data.get('family_birth_date'),
-                national_id=data.get('family_national_id'),
-                gender=data.get('family_gender'), 
-                role='family',
-                relation=data.get('relation'), 
-                clinic_id=current_clinic_id,
-                address=data.get('family_address'),
-                patient_number=data.get('family_number'),
-                education_level=data.get('family_education_level'),
-                occupation=data.get('family_occupation')
-            )
-            db.session.add(new_family)
-            db.session.flush()
-            family_id = new_family.patient_id
-            
-        # Add new patient
-        new_patient = Patient(
-            patient_name=data.get('patient_name'),
-            birth_date=data.get('birth_date'),
-            national_id=data.get('national_id'),
-            gender=data.get('gender'),
-            clinic_id=current_clinic_id,
-            role='self', 
-            relation='self', 
-            patient_number=data.get('patient_number'),
-            education_level=data.get('education_level'),
-            occupation=data.get('occupation'),
-            address=data.get('address'),
-            insurance_number=data.get('insurance_number'),
-            primary_health_facility=data.get('primary_health_facility'),
-            family_link_id=family_id,    
-        )
-        db.session.add(new_patient)
-        db.session.flush() 
-        
-        # Add medical record
-        new_record = MedicalRecord(
-            patient_id=new_patient.patient_id,
-            record_number=data.get('record_number'),
-            record_type='Keluarga Berencana',
-            status='Active',
-            created_at=datetime.utcnow() 
-        )
-        
-        db.session.add(new_record)
-        db.session.flush() 
-        
-        # Add family planning record
+        new_patient, new_record = create_patient_and_record(data, current_clinic_id, 'Keluarga Berencana')
+
         new_family_planning_record = FamilyPlanningRecord(
             record_id=new_record.record_id,
-            number_of_children = clean_float(data.get('number_of_children')),
-            youngest_child_age = data.get('youngest_child_age'),
+            number_of_children=clean_float(data.get('number_of_children')),
+            youngest_child_age=data.get('youngest_child_age'),
             family_med_history=data.get('family_med_history'),
         )
-        
-        db.session.add(  new_family_planning_record)
+
+        db.session.add(new_family_planning_record)
         db.session.commit()
-        
+
         return jsonify({
-            "msg": "Medical record added successfully", 
-            "patient_id": str(new_patient.patient_id),
-            "rm_number": new_record.record_number
+            'msg': 'Rekam medis berhasil ditambahkan.',
+            'patient_id': str(new_patient.patient_id),
+            'rm_number': new_record.record_number,
         }), 201
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": "Gagal menambahkan rekam medis", "error": str(e)}), 500
+        return jsonify({'msg': 'Gagal menambahkan rekam medis.', 'error': str(e)}), 500
 
-# Add general medical record
+
 @medical_record_bp.route('/add-general', methods=['POST'])
 @jwt_required()
 def add_general_record():
-    claims = get_jwt()
-    current_clinic_id = claims.get("clinic_id")
-    current_family_link_id = claims.get("family_link_id")
-    
-    
-    data = request.get_json()
-    
-    required_fields = ['family_name', 'family_birth_date', 'family_national_id', 'family_gender',
-                       'family_address', 'family_number', 'relation', 'patient_name', 'birth_date', 
-                       'national_id', 'gender', 'patient_number', 'address']
+    _current_user, _current_role, current_clinic_id, error_response = require_clinic_for_write()
 
-    for field in required_fields:
-        if not data.get(field):
-            return jsonify({"msg": "Tanda * wajib untuk diisi!"}), 400
-    
+    if error_response:
+        return error_response
+
+    data = request.get_json() or {}
+
+    if not validate_required_fields(data, get_add_record_required_fields()):
+        return jsonify({'msg': 'Tanda * wajib untuk diisi!'}), 400
+
     try:
-        # Add family profile
-        family_id = None
-        if data.get('family_name'): 
-            new_family = Patient(
-                patient_name=data.get('family_name'),
-                birth_date=data.get('family_birth_date'),
-                national_id=data.get('family_national_id'),
-                gender=data.get('family_gender'), 
-                role='family',
-                relation=data.get('relation'), 
-                clinic_id=current_clinic_id,
-                address=data.get('family_address'),
-                patient_number=data.get('family_number'),
-                education_level=data.get('family_education_level'),
-                occupation=data.get('family_occupation')
-            )
-            db.session.add(new_family)
-            db.session.flush()
-            family_id = new_family.patient_id
-            
-        # Add new patient
-        new_patient = Patient(
-            patient_name=data.get('patient_name'),
-            birth_date=data.get('birth_date'),
-            national_id=data.get('national_id'),
-            gender=data.get('gender'),
-            clinic_id=current_clinic_id,
-            role='self', 
-            relation='self', 
-            patient_number=data.get('patient_number'),
-            education_level=data.get('education_level'),
-            occupation=data.get('occupation'),
-            address=data.get('address'),
-            insurance_number=data.get('insurance_number'),
-            primary_health_facility=data.get('primary_health_facility'),
-            family_link_id=family_id,    
-        )
-        db.session.add(new_patient)
-        db.session.flush() 
-        
-        # Add medical record
-        new_record = MedicalRecord(
-            patient_id=new_patient.patient_id,
-            record_number=data.get('record_number'),
-            record_type='Umum',
-            status='Active',
-            created_at=datetime.utcnow() 
-        )
-        
-        db.session.add(new_record)
-        db.session.flush() 
+        new_patient, new_record = create_patient_and_record(data, current_clinic_id, 'Umum')
+
         db.session.commit()
-        
+
         return jsonify({
-            "msg": "Medical record added successfully", 
-            "patient_id": str(new_patient.patient_id),
-            "rm_number": new_record.record_number
+            'msg': 'Rekam medis berhasil ditambahkan.',
+            'patient_id': str(new_patient.patient_id),
+            'rm_number': new_record.record_number,
         }), 201
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": "Gagal menambahkan rekam medis", "error": str(e)}), 500
-    
-# Add immunization Record
+        return jsonify({'msg': 'Gagal menambahkan rekam medis.', 'error': str(e)}), 500
+
+
 @medical_record_bp.route('/add-immunization', methods=['POST'])
 @jwt_required()
 def add_immunization_record():
-    claims = get_jwt()
-    current_clinic_id = claims.get("clinic_id")
-    current_family_link_id = claims.get("family_link_id")
-    
-    data = request.get_json()
-    
-    required_fields = ['family_name', 'family_birth_date', 'family_national_id', 'family_gender', 
-                       'family_address', 'family_number', 'relation', 'patient_name', 'birth_date',
-                       'national_id', 'gender', 'patient_number', 'address']
+    _current_user, _current_role, current_clinic_id, error_response = require_clinic_for_write()
 
-    for field in required_fields:
-        if not data.get(field):
-            return jsonify({"msg": "Tanda * wajib untuk diisi!"}), 400
-    
+    if error_response:
+        return error_response
+
+    data = request.get_json() or {}
+
+    if not validate_required_fields(data, get_add_record_required_fields()):
+        return jsonify({'msg': 'Tanda * wajib untuk diisi!'}), 400
+
     try:
-        # Add family profile
-        family_id = None
-        if data.get('family_name'): 
-            new_family = Patient(
-                patient_name=data.get('family_name'),
-                birth_date=data.get('family_birth_date'),
-                national_id=data.get('family_national_id'),
-                gender=data.get('family_gender'), 
-                role='family',
-                relation=data.get('relation'), 
-                clinic_id=current_clinic_id,
-                address=data.get('family_address'),
-                patient_number=data.get('family_number'),
-                education_level=data.get('family_education_level'),
-                occupation=data.get('family_occupation')
-            )
-            db.session.add(new_family)
-            db.session.flush()
-            family_id = new_family.patient_id
-            
-        # Add new patient
-        new_patient = Patient(
-            patient_name=data.get('patient_name'),
-            birth_date=data.get('birth_date'),
-            national_id=data.get('national_id'),
-            gender=data.get('gender'),
-            clinic_id=current_clinic_id,
-            role='self', 
-            relation='self', 
-            patient_number=data.get('patient_number'),
-            education_level=data.get('education_level'),
-            occupation=data.get('occupation'),
-            address=data.get('address'),
-            insurance_number=data.get('insurance_number'),
-            primary_health_facility=data.get('primary_health_facility'),
-            family_link_id=family_id,    
-        )
-        db.session.add(new_patient)
-        db.session.flush() 
-        
-        # Add medical record
-        new_record = MedicalRecord(
-            patient_id=new_patient.patient_id,
-            record_number=data.get('record_number'),
-            record_type='Imunisasi',
-            status='Active',
-            created_at=datetime.utcnow() 
-        )
-        
-        db.session.add(new_record)
-        db.session.flush() 
-        
-        # Add Immunization Record
-        new_immunization_record = ImmunizationRecord(
-            record_id=new_record.record_id,
-          
-        )
+        new_patient, new_record = create_patient_and_record(data, current_clinic_id, 'Imunisasi')
+
+        new_immunization_record = ImmunizationRecord(record_id=new_record.record_id)
         db.session.add(new_immunization_record)
-        db.session.flush() 
+        db.session.flush()
         db.session.commit()
-        
+
         return jsonify({
-            "msg": "Medical record added successfully", 
-            "patient_id": str(new_patient.patient_id),
-            "rm_number": new_record.record_number
+            'msg': 'Rekam medis berhasil ditambahkan.',
+            'patient_id': str(new_patient.patient_id),
+            'rm_number': new_record.record_number,
         }), 201
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": "Gagal menambahkan rekam medis", "error": str(e)}), 500
+        return jsonify({'msg': 'Gagal menambahkan rekam medis.', 'error': str(e)}), 500
 
 
-# Add delivery record
 @medical_record_bp.route('/add-delivery', methods=['POST'])
 @jwt_required()
 def add_delivery_record():
-    claims = get_jwt()
-    current_clinic_id = claims.get("clinic_id")
-    current_family_link_id = claims.get("family_link_id")
-    
-    
-    data = request.get_json()
-    
-    # Validasi input
-    required_fields = ['family_name', 'family_birth_date', 'family_national_id', 'family_gender', 
-                       'family_address', 'family_number', 'relation', 'patient_name', 'birth_date',
-                       'national_id', 'gender', 'patient_number', 'address']
+    _current_user, _current_role, current_clinic_id, error_response = require_clinic_for_write()
 
-    for field in required_fields:
-        if not data.get(field):
-            return jsonify({"msg": "Tanda * wajib untuk diisi!"}), 400
-    
+    if error_response:
+        return error_response
+
+    data = request.get_json() or {}
+
+    if not validate_required_fields(data, get_add_record_required_fields()):
+        return jsonify({'msg': 'Tanda * wajib untuk diisi!'}), 400
+
     try:
-        #Add family profile
-        family_id = None
-        if data.get('family_name'): 
-            new_family = Patient(
-                patient_name=data.get('family_name'),
-                birth_date=data.get('family_birth_date'),
-                national_id=data.get('family_national_id'),
-                gender=data.get('family_gender'), 
-                role='family',
-                relation=data.get('relation'), 
-                clinic_id=current_clinic_id,
-                address=data.get('family_address'),
-                patient_number=data.get('family_number'),
-                education_level=data.get('family_education_level'),
-                occupation=data.get('family_occupation')
-            )
-            db.session.add(new_family)
-            db.session.flush()
-            family_id = new_family.patient_id
-            
-        # Add new patient
-        new_patient = Patient(
-            patient_name=data.get('patient_name'),
-            birth_date=data.get('birth_date'),
-            national_id=data.get('national_id'),
-            gender=data.get('gender'),
-            clinic_id=current_clinic_id,
-            role='self', 
-            relation='self', 
-            patient_number=data.get('patient_number'),
-            education_level=data.get('education_level'),
-            occupation=data.get('occupation'),
-            address=data.get('address'),
-            insurance_number=data.get('insurance_number'),
-            primary_health_facility=data.get('primary_health_facility'),
-            family_link_id=family_id,    
-        )
-        db.session.add(new_patient)
-        db.session.flush() 
-        
-        # Add medical record
-        new_record = MedicalRecord(
-            patient_id=new_patient.patient_id,
-            record_number=data.get('record_number'),
-            record_type='Persalinan',
-            status='Active',
-            created_at=datetime.utcnow() 
-        )
-        
-        db.session.add(new_record)
-        db.session.flush() 
-        
-         # Add Delivery record
+        new_patient, new_record = create_patient_and_record(data, current_clinic_id, 'Persalinan')
+
         new_delivery_record = DeliveryRecord(
             record_id=new_record.record_id,
             delivery_date=parse_date(data.get('delivery_date')),
-            delivery_type = data.get('delivery_type'),
-            deliver_complications = data.get('deliver_complications'),
-            baby_gender = data.get('baby_gender'),
-            baby_weight = clean_float(data.get('baby_weight')),
-            baby_length = clean_float(data.get('baby_lenght')),
-            apgar_score = data.get('apgar_score'),
-            baby_complications = data.get('baby_complications') ,
-            vit_k_given = data.get('vit_k_given'),
-            hbo_given = data.get('hbo_given'),
-            eye_ointment = data.get('eye_ointment'),
-            imd = data.get('imd')
+            delivery_type=data.get('delivery_type'),
+            deliver_complications=data.get('deliver_complications'),
+            baby_gender=data.get('baby_gender'),
+            baby_weight=clean_float(data.get('baby_weight')),
+            baby_length=clean_float(data.get('baby_length') or data.get('baby_lenght')),
+            apgar_score=data.get('apgar_score'),
+            baby_complications=data.get('baby_complications'),
+            vit_k_given=data.get('vit_k_given'),
+            hbo_given=data.get('hbo_given'),
+            eye_ointment=data.get('eye_ointment'),
+            imd=data.get('imd'),
         )
-        
+
         db.session.add(new_delivery_record)
         db.session.commit()
-        
+
         return jsonify({
-            "msg": "Medical record added successfully", 
-            "patient_id": str(new_patient.patient_id),
-            "rm_number": new_record.record_number
+            'msg': 'Rekam medis berhasil ditambahkan.',
+            'patient_id': str(new_patient.patient_id),
+            'rm_number': new_record.record_number,
         }), 201
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": "Gagal Menambahkan Rekam Medis", "error": str(e)}), 500
-    
-# Get All Record table in medical record page
+        return jsonify({'msg': 'Gagal menambahkan rekam medis.', 'error': str(e)}), 500
+
+
+# -----------------------------------------------------------------------------
+# Read records
+# -----------------------------------------------------------------------------
 @medical_record_bp.route('/get-all-records', methods=['GET'])
 @jwt_required()
 def get_all_records():
+    current_user, current_role, error_response = require_medical_record_access(require_clinic=True)
+
+    if error_response:
+        return error_response
+
     try:
-        results = db.session.query(MedicalRecord, Patient).\
-            join(Patient, MedicalRecord.patient_id == Patient.patient_id)\
-            .order_by(MedicalRecord.last_update.desc())\
+        results = (
+            base_record_query(current_user, current_role)
+            .order_by(MedicalRecord.last_update.desc())
             .all()
+        )
 
-        record_list = []
-        for record, patient in results:
-            decrypted_name = decrypt_data(patient.patient_name)
-            decrypted_nik = decrypt_data(patient.national_id)
-
-            record_list.append({
-                "rm_id": record.record_id,
-                "record_number": record.record_number,
-                "record_type": record.record_type,
-                "patient_name": decrypted_name,
-                "nik": decrypted_nik,
-                "birth_date": format_date(patient.birth_date),
-                "status": record.status,
-                "created_at": format_date(record.created_at),
-                "updated_at": format_date(record.last_update) if record.last_update else "-"
-            })
+        record_list = [serialize_record_list_item(record, patient) for record, patient in results]
 
         return jsonify(record_list), 200
     except Exception as e:
-        return jsonify({"msg": "Gagal mengambil data", "error": str(e)}), 500
-    
-# Route to get record type
+        return jsonify({'msg': 'Gagal mengambil data rekam medis.', 'error': str(e)}), 500
+
+
 @medical_record_bp.route('/get-record/<uuid>', methods=['GET'])
 @jwt_required()
 def get_record_detail(uuid):
-    try:
-        #search record
-        record = MedicalRecord.query.filter_by(record_id=uuid).first()
-        if not record:
-            return jsonify({"msg": "Data tidak ditemukan"}), 404
+    current_user, current_role, error_response = require_medical_record_access(require_clinic=True)
 
-        #search patient
-        patient = Patient.query.get(record.patient_id)        
-     
+    if error_response:
+        return error_response
+
+    try:
+        record, patient, error_response = get_record_or_404(uuid, current_user, current_role)
+
+        if error_response:
+            return error_response
+
         response_data = {
-            "record_number": record.record_number,
-            "record_type": record.record_type,
-            "patient_name": decrypt_data(patient.patient_name),
-            "created_at": format_date(record.created_at),
+            'record_number': record.record_number,
+            'record_type': record.record_type,
+            'patient_name': safe_decrypt(patient.patient_name),
+            'created_at': format_date(record.created_at),
         }
 
         return jsonify(response_data), 200
 
     except Exception as e:
-        return jsonify({"msg": "Server error", "error": str(e)}), 500
-    
-# get patient data for spesific medical record
+        return jsonify({'msg': 'Terjadi kesalahan pada server.', 'error': str(e)}), 500
+
+
 @medical_record_bp.route('/get-patient-data/<uuid>', methods=['GET'])
 @jwt_required()
 def get_patient_data(uuid):
-    try:
-        #search record
-        record = MedicalRecord.query.filter_by(record_id=uuid).first()
-        if not record:
-            return jsonify({"msg": "Data tidak ditemukan"}), 404
+    current_user, current_role, error_response = require_medical_record_access(require_clinic=True)
 
-        #search patient
-        patient = Patient.query.get(record.patient_id)
-        patient_age = patient.age # function to calculate patient age
-       
+    if error_response:
+        return error_response
+
+    try:
+        record, patient, error_response = get_record_or_404(uuid, current_user, current_role)
+
+        if error_response:
+            return error_response
+
         response_data = {
-           "patient_name":decrypt_data(patient.patient_name),
-           "nik": decrypt_data(patient.national_id),
-           "birthdate": format_date(patient.birth_date),
-           "patient_number": decrypt_data(patient.patient_number),
-           "gender":patient.gender,
-           "age": patient.age,
-           "type":record.record_type,
-           "address": decrypt_data(patient.address),
-           "education": patient.education_level or "-",
-           "occupation": patient.occupation or "-",
-           "bpjs_number": decrypt_data(patient.insurance_number) or "-",
-           "primary_healthcare": patient.primary_health_facility or "-"
+            'patient_name': safe_decrypt(patient.patient_name),
+            'nik': safe_decrypt(patient.national_id),
+            'birthdate': format_date(patient.birth_date),
+            'patient_number': safe_decrypt(patient.patient_number),
+            'gender': patient.gender,
+            'age': patient.age,
+            'type': record.record_type,
+            'address': safe_decrypt(patient.address),
+            'education': patient.education_level or '-',
+            'occupation': patient.occupation or '-',
+            'bpjs_number': safe_decrypt(patient.insurance_number),
+            'primary_healthcare': patient.primary_health_facility or '-',
         }
         return jsonify(response_data), 200
 
     except Exception as e:
-        return jsonify({"msg": "Server error", "error": str(e)}), 500
+        return jsonify({'msg': 'Terjadi kesalahan pada server.', 'error': str(e)}), 500
 
-# get family data for spesific medical record
+
 @medical_record_bp.route('/get-family-data/<uuid>', methods=['GET'])
 @jwt_required()
 def get_family_data(uuid):
+    current_user, current_role, error_response = require_medical_record_access(require_clinic=True)
+
+    if error_response:
+        return error_response
+
     try:
-        #search record
-        record = MedicalRecord.query.filter_by(record_id=uuid).first()
-        if not record:
-            return jsonify({"msg": "Rekam medis tidak ditemukan"}), 404
-        
-        #find the patient_id to get family profile
-        current_patient = Patient.query.get(record.patient_id)
-        if not current_patient:
-            return jsonify({"msg": "Pasien tidak ditemukan"}), 404
+        _record, current_patient, error_response = get_record_or_404(uuid, current_user, current_role)
+
+        if error_response:
+            return error_response
 
         family_person = None
 
-        if current_patient.role == 'self':
-            family_person = Patient.query.get(current_patient.family_link_id)
-      
-    
+        if current_patient.role == 'self' and current_patient.family_link_id:
+            family_query = Patient.query.filter_by(patient_id=current_patient.family_link_id)
+
+            if current_role != 'admin':
+                family_query = family_query.filter(Patient.clinic_id == current_user.clinic_id)
+
+            family_person = family_query.first()
+
         if not family_person:
-            return jsonify({
-                "msg": "Data Keluarga tidak ditemukan", 
-                "data": None
-            }), 200
-   
+            return jsonify({'msg': 'Data keluarga tidak ditemukan.', 'data': None}), 200
+
         response_data = {
-            "patient_name": decrypt_data(family_person.patient_name),
-            "nik": decrypt_data(family_person.national_id),
-            "birthdate": format_date(family_person.birth_date),
-            "gender": family_person.gender,
-            "age": family_person.age,
-            "relation": family_person.relation, 
-            "patient_number": decrypt_data(family_person.patient_number),
-            "occupation": family_person.occupation or "-",
-            "education": family_person.education_level or "-",
-            "address": decrypt_data(family_person.address)  or "-"
+            'patient_name': safe_decrypt(family_person.patient_name),
+            'nik': safe_decrypt(family_person.national_id),
+            'birthdate': format_date(family_person.birth_date),
+            'gender': family_person.gender,
+            'age': family_person.age,
+            'relation': family_person.relation,
+            'patient_number': safe_decrypt(family_person.patient_number),
+            'occupation': family_person.occupation or '-',
+            'education': family_person.education_level or '-',
+            'address': safe_decrypt(family_person.address),
         }
 
         return jsonify(response_data), 200
 
     except Exception as e:
-        return jsonify({"msg": "Server error", "error": str(e)}), 500
-    
-# get pregnancy medical record detail
+        return jsonify({'msg': 'Terjadi kesalahan pada server.', 'error': str(e)}), 500
+
+
 @medical_record_bp.route('/get-pregnancy-record-data/<uuid>', methods=['GET'])
 @jwt_required()
 def get_pregnancy_record_data(uuid):
-    try:
-        # Get medical record
-        record = MedicalRecord.query.filter_by(record_id=uuid).first()
-        if not record:
-            return jsonify({"msg": "Rekam medis tidak ditemukan"}), 404
+    current_user, current_role, error_response = require_medical_record_access(require_clinic=True)
 
-        # Get pregnancy record
+    if error_response:
+        return error_response
+
+    try:
+        _record, _patient, error_response = get_record_or_404(uuid, current_user, current_role)
+
+        if error_response:
+            return error_response
+
         current_pregnancy_record = PregnancyRecord.query.filter_by(record_id=uuid).first()
         if not current_pregnancy_record:
-            return jsonify({"msg": "Data kehamilan tidak ditemukan"}), 404
-        
-        #get obsetctric_history (
+            return jsonify({'msg': 'Data kehamilan tidak ditemukan.'}), 404
+
         current_obstectric_history = ObstetricHistory.query.filter_by(pr_id=current_pregnancy_record.pr_id).all()
-        
-        #array obsetctric_history
+
         obstectric_history_list = []
         for obs in current_obstectric_history:
             obstectric_history_list.append({
-                "id": obs.history_id,
-                "pregnancy_no": obs.pregnancy_no or "-",
-                "gestational_age": obs.gestational_age or "-",
-                "pregnancy_complications": decrypt_data(obs.pregnancy_complications) or "-",
-                "delivery_mode": obs.delivery_mode or "-",
-                "delivery_complications": decrypt_data(obs.delivery_complications) or "-",
-                "baby_weight": obs.baby_weight or "-",
-                "baby_height": obs.baby_height or "-",
-                "baby_complications": decrypt_data(obs.baby_complications) or "-",
-                "postpartum_status": decrypt_data(obs.postpartum_status) or "-",
-                "postpartum_complications": decrypt_data(obs.postpartum_complications) or "-"
+                'id': obs.history_id,
+                'pregnancy_no': obs.pregnancy_no or '-',
+                'gestational_age': obs.gestational_age or '-',
+                'pregnancy_complications': safe_decrypt(obs.pregnancy_complications),
+                'delivery_mode': obs.delivery_mode or '-',
+                'delivery_complications': safe_decrypt(obs.delivery_complications),
+                'baby_weight': obs.baby_weight or '-',
+                'baby_height': obs.baby_height or '-',
+                'baby_complications': safe_decrypt(obs.baby_complications),
+                'postpartum_status': safe_decrypt(obs.postpartum_status),
+                'postpartum_complications': safe_decrypt(obs.postpartum_complications),
             })
-        
-        # pregnancy record respones
+
         response_data = {
-            "current_pregnancy": {
-                "contraceptive_history": decrypt_data(current_pregnancy_record.contraceptive_history) or "-",
-                "family_med_history":  decrypt_data(current_pregnancy_record.family_med_history) or "-",
-                "last_menstrual_period": format_date(current_pregnancy_record.last_menstrual_period), 
-                "expected_due_date": format_date(current_pregnancy_record.expected_due_date), 
-                "diagnosis":  decrypt_data(current_pregnancy_record.diagnosis) or "-",
-                "height_cm": current_pregnancy_record.height_cm or "-",
-                "weight_kg": current_pregnancy_record.weight_kg or "-",
-                "muac_cm": current_pregnancy_record.muac_cm or "-",
-                "pre_preg_weight_kg": current_pregnancy_record.pre_preg_weight_kg or "-",
-                "pre_preg_muac_cm": current_pregnancy_record.pre_preg_muac_cm or "-",
-                "tt_screening": current_pregnancy_record.tt_screening or "-",
-                "lab_results": decrypt_data(current_pregnancy_record.lab_results) or "-",
-                "registration_date": format_date(current_pregnancy_record.registration_date) 
+            'current_pregnancy': {
+                'contraceptive_history': safe_decrypt(current_pregnancy_record.contraceptive_history),
+                'family_med_history': safe_decrypt(current_pregnancy_record.family_med_history),
+                'last_menstrual_period': format_date(current_pregnancy_record.last_menstrual_period),
+                'expected_due_date': format_date(current_pregnancy_record.expected_due_date),
+                'diagnosis': safe_decrypt(current_pregnancy_record.diagnosis),
+                'height_cm': current_pregnancy_record.height_cm or '-',
+                'weight_kg': current_pregnancy_record.weight_kg or '-',
+                'muac_cm': current_pregnancy_record.muac_cm or '-',
+                'pre_preg_weight_kg': current_pregnancy_record.pre_preg_weight_kg or '-',
+                'pre_preg_muac_cm': current_pregnancy_record.pre_preg_muac_cm or '-',
+                'tt_screening': current_pregnancy_record.tt_screening or '-',
+                'lab_results': safe_decrypt(current_pregnancy_record.lab_results),
+                'registration_date': format_date(current_pregnancy_record.registration_date),
             },
-            "past_obstetric_history": obstectric_history_list
+            'past_obstetric_history': obstectric_history_list,
         }
 
         return jsonify(response_data), 200
 
     except Exception as e:
-        return jsonify({"msg": "Server error", "error": str(e)}), 500
+        return jsonify({'msg': 'Terjadi kesalahan pada server.', 'error': str(e)}), 500
 
-# get visit report pregnancy detailed (medical record) 
+
 @medical_record_bp.route('/get-pregnancy-visit-data/<uuid>', methods=['GET'])
 @jwt_required()
 def get_pregnancy_visit_data(uuid):
-    try:
-        results = db.session.query(VisitMaster, VisitPregnancy).\
-            join(VisitPregnancy, VisitMaster.visit_id == VisitPregnancy.visit_id).\
-            filter(VisitMaster.record_id == uuid).\
-            order_by(VisitMaster.visit_date.desc()).all()
+    current_user, current_role, error_response = require_medical_record_access(require_clinic=True)
 
-        if not results:
-            return jsonify([]), 200
+    if error_response:
+        return error_response
+
+    try:
+        _record, _patient, error_response = get_record_or_404(uuid, current_user, current_role)
+
+        if error_response:
+            return error_response
+
+        results = (
+            db.session.query(VisitMaster, VisitPregnancy)
+            .join(VisitPregnancy, VisitMaster.visit_id == VisitPregnancy.visit_id)
+            .filter(VisitMaster.record_id == uuid)
+            .order_by(VisitMaster.visit_date.desc())
+            .all()
+        )
 
         visit_list = []
         for master, detail in results:
             visit_list.append({
-                "visit_id": master.visit_id,
-                "visit_date": format_date(master.visit_date) or "-",
-                "visit_time": master.visit_time.strftime('%H:%M') or "-",
-                "weight": detail.weight_kg or "-",
-                "height": detail.height_cm or "-",
-                "blood_pressure": detail.blood_pressure or "-",
-                "body_temperature": detail.body_temperature or "-",
-                "respiratory_rate": detail.respiratory_rate or "-",
-                "heart_rate": detail.heart_rate or "-",
-                "subjective": detail.subjective or "-",
-                "objective": detail.objective or "-",
-                "assessment": detail.assessment or "-",
-                "plan": detail.plan or "-",
+                'visit_id': master.visit_id,
+                'visit_date': format_date(master.visit_date) or '-',
+                'visit_time': master.visit_time.strftime('%H:%M') if master.visit_time else '-',
+                'weight': detail.weight_kg or '-',
+                'height': detail.height_cm or '-',
+                'blood_pressure': detail.blood_pressure or '-',
+                'body_temperature': detail.body_temperature or '-',
+                'respiratory_rate': detail.respiratory_rate or '-',
+                'heart_rate': detail.heart_rate or '-',
+                'subjective': detail.subjective or '-',
+                'objective': detail.objective or '-',
+                'assessment': detail.assessment or '-',
+                'plan': detail.plan or '-',
             })
 
         return jsonify(visit_list), 200
 
     except Exception as e:
-        return jsonify({"msg": "Server error", "error": str(e)}), 500
-    
-# Get Family Planning Medical Record Detailed
+        return jsonify({'msg': 'Terjadi kesalahan pada server.', 'error': str(e)}), 500
+
+
 @medical_record_bp.route('/get-family-planning-record-data/<uuid>', methods=['GET'])
 @jwt_required()
 def get_family_planning_record_data(uuid):
-    try:
-        # Get medical record
-        record = MedicalRecord.query.filter_by(record_id=uuid).first()
-        if not record:
-            return jsonify({"msg": "Rekam medis tidak ditemukan"}), 404
+    current_user, current_role, error_response = require_medical_record_access(require_clinic=True)
 
-        # Get Family Planning Medical Record
+    if error_response:
+        return error_response
+
+    try:
+        _record, _patient, error_response = get_record_or_404(uuid, current_user, current_role)
+
+        if error_response:
+            return error_response
+
         current_family_planning_record = FamilyPlanningRecord.query.filter_by(record_id=uuid).first()
-        if not  current_family_planning_record:
-            return jsonify({"msg": "Rekam medis KB tidak ditemukan"}), 404
-        
+        if not current_family_planning_record:
+            return jsonify({'msg': 'Rekam medis KB tidak ditemukan.'}), 404
 
         response_data = {
-            "number_of_children": clean_float(current_family_planning_record.number_of_children) or "-",
-            "family_med_history": decrypt_data(current_family_planning_record.family_med_history) or "-",
-            "youngest_child_age": current_family_planning_record.youngest_child_age or "-"
+            'number_of_children': clean_float(current_family_planning_record.number_of_children) or '-',
+            'family_med_history': safe_decrypt(current_family_planning_record.family_med_history),
+            'youngest_child_age': current_family_planning_record.youngest_child_age or '-',
         }
 
         return jsonify(response_data), 200
 
     except Exception as e:
-        return jsonify({"msg": "Server error", "error": str(e)}), 500
-    
+        return jsonify({'msg': 'Terjadi kesalahan pada server.', 'error': str(e)}), 500
 
-# get family planing visit detailed (medical record)
+
 @medical_record_bp.route('/get-family-planning-visit-data/<uuid>', methods=['GET'])
 @jwt_required()
 def get_family_planning_visit_data(uuid):
-    try:
-        results = db.session.query(VisitMaster, VisitFamilyPlanning).\
-            join(VisitFamilyPlanning, VisitMaster.visit_id == VisitFamilyPlanning.visit_id).\
-            filter(VisitMaster.record_id == uuid).\
-            order_by(VisitMaster.visit_date.desc()).all()
+    current_user, current_role, error_response = require_medical_record_access(require_clinic=True)
 
-        if not results:
-            return jsonify([]), 200
+    if error_response:
+        return error_response
+
+    try:
+        _record, _patient, error_response = get_record_or_404(uuid, current_user, current_role)
+
+        if error_response:
+            return error_response
+
+        results = (
+            db.session.query(VisitMaster, VisitFamilyPlanning)
+            .join(VisitFamilyPlanning, VisitMaster.visit_id == VisitFamilyPlanning.visit_id)
+            .filter(VisitMaster.record_id == uuid)
+            .order_by(VisitMaster.visit_date.desc())
+            .all()
+        )
 
         visit_list = []
         for master, detail in results:
             visit_list.append({
-                "visit_id": master.visit_id,
-                "visit_date": format_date(master.visit_date),
-                "visit_time": master.visit_time.strftime('%H:%M'),
-                "weight": detail.weight_kg  or "-",
-                "blood_pressure": detail.blood_pressure  or "-",
-                "contraceptive_method": detail.kb_method,
-                "follow_up_visit": format_date(detail.return_visit_date) if detail.return_visit_date else "-",
-                "complaints": detail.complaint or "-"
+                'visit_id': master.visit_id,
+                'visit_date': format_date(master.visit_date),
+                'visit_time': master.visit_time.strftime('%H:%M') if master.visit_time else '-',
+                'weight': detail.weight_kg or '-',
+                'blood_pressure': detail.blood_pressure or '-',
+                'contraceptive_method': detail.kb_method,
+                'follow_up_visit': format_date(detail.return_visit_date) if detail.return_visit_date else '-',
+                'complaints': detail.complaint or '-',
             })
 
         return jsonify(visit_list), 200
 
     except Exception as e:
-        return jsonify({"msg": "Server error", "error": str(e)}), 500
+        return jsonify({'msg': 'Terjadi kesalahan pada server.', 'error': str(e)}), 500
 
-    
-# get delivery record detailed
+
 @medical_record_bp.route('/get-delivery-record-data/<uuid>', methods=['GET'])
 @jwt_required()
 def get_delivery_record_data(uuid):
+    current_user, current_role, error_response = require_medical_record_access(require_clinic=True)
+
+    if error_response:
+        return error_response
+
     try:
-        # 1. Cari Rekam Medisnya dulu
-        record = MedicalRecord.query.filter_by(record_id=uuid).first()
-        if not record:
-            return jsonify({"msg": "Rekam medis tidak ditemukan"}), 404
+        _record, _patient, error_response = get_record_or_404(uuid, current_user, current_role)
+
+        if error_response:
+            return error_response
 
         current_delivery_record = DeliveryRecord.query.filter_by(record_id=uuid).first()
-        if not  current_delivery_record:
-            return jsonify({"msg": "Data Persalinan tidak ditemukan"}), 404
-        
+        if not current_delivery_record:
+            return jsonify({'msg': 'Data persalinan tidak ditemukan.'}), 404
 
         response_data = {
-            "delivery_date": format_date(current_delivery_record.delivery_date)  or "-",
-            "delivery_type": current_delivery_record.delivery_type  or "-", 
-            "deliver_complications": decrypt_data(current_delivery_record.deliver_complications)  or "-",
-            "baby_gender": current_delivery_record.baby_gender  or "-",
-            "apgar_score": current_delivery_record.apgar_score  or "-",
-            "baby_complications": decrypt_data(current_delivery_record.baby_complications)  or "-",
-            "vit_k_given":current_delivery_record.vit_k_given,
-            "hbo_given": current_delivery_record.hbo_given,
-            "eye_ointment": current_delivery_record.eye_ointment,
-            "imd": current_delivery_record.imd,
-            "baby_length": current_delivery_record.baby_length  or "-",
-            "baby_weight": current_delivery_record.baby_weight  or "-"
+            'delivery_date': format_date(current_delivery_record.delivery_date) or '-',
+            'delivery_type': current_delivery_record.delivery_type or '-',
+            'deliver_complications': safe_decrypt(current_delivery_record.deliver_complications),
+            'baby_gender': current_delivery_record.baby_gender or '-',
+            'apgar_score': current_delivery_record.apgar_score or '-',
+            'baby_complications': safe_decrypt(current_delivery_record.baby_complications),
+            'vit_k_given': current_delivery_record.vit_k_given,
+            'hbo_given': current_delivery_record.hbo_given,
+            'eye_ointment': current_delivery_record.eye_ointment,
+            'imd': current_delivery_record.imd,
+            'baby_length': current_delivery_record.baby_length or '-',
+            'baby_weight': current_delivery_record.baby_weight or '-',
         }
 
         return jsonify(response_data), 200
 
     except Exception as e:
-        return jsonify({"msg": "Server error", "error": str(e)}), 500
+        return jsonify({'msg': 'Terjadi kesalahan pada server.', 'error': str(e)}), 500
 
-   
-# get vaccine tracking 
+
 @medical_record_bp.route('/get-immunization-record-data/<uuid>', methods=['GET'])
 @jwt_required()
 def get_immunization_record_data(uuid):
-    try:
-        # get medical record
-        record = MedicalRecord.query.filter_by(record_id=uuid).first()
-        if not record:
-            return jsonify({"msg": "Rekam medis tidak ditemukan"}), 404
+    current_user, current_role, error_response = require_medical_record_access(require_clinic=True)
 
-        #get immunization record
+    if error_response:
+        return error_response
+
+    try:
+        _record, _patient, error_response = get_record_or_404(uuid, current_user, current_role)
+
+        if error_response:
+            return error_response
+
         current_immunization_record = ImmunizationRecord.query.filter_by(record_id=uuid).first()
-        if not  current_immunization_record:
-            return jsonify({"msg": "Data Bayi tidak ditemukan"}), 404
-        
+        if not current_immunization_record:
+            return jsonify({'msg': 'Data bayi tidak ditemukan.'}), 404
+
         response_data = {
-            "hbo_1": format_date(current_immunization_record.hbo_1),
-            "bcg_1": format_date(current_immunization_record.bcg_1),
-            "polio_1": format_date(current_immunization_record.polio_1),
-            "polio_2": format_date(current_immunization_record.polio_2),
-            "polio_3": format_date(current_immunization_record.polio_3),
-            "polio_4": format_date(current_immunization_record.polio_4),
-            "dpt_1": format_date(current_immunization_record.dpt_1),
-            "dpt_2": format_date(current_immunization_record.dpt_2),
-            "dpt_3": format_date(current_immunization_record.dpt_3),
-            "dpt_4": format_date(current_immunization_record.dpt_4),
-            "pcv_1": format_date(current_immunization_record.pcv_1),
-            "pcv_2": format_date(current_immunization_record.pcv_2),
-            "pcv_3": format_date(current_immunization_record.pcv_3),
-            "campak_1": format_date(current_immunization_record.campak_1),
-            "campak_2": format_date(current_immunization_record.campak_2),
-            "ipv_1": format_date(current_immunization_record.ipv_1),
-            "ipv_2": format_date(current_immunization_record.ipv_2),
-            "rotavirus_1": format_date(current_immunization_record.rotavirus_1),
-            "rotavirus_2": format_date(current_immunization_record.rotavirus_2),
-            "rotavirus_3": format_date(current_immunization_record.rotavirus_3)
+            'hbo_1': format_date(current_immunization_record.hbo_1),
+            'bcg_1': format_date(current_immunization_record.bcg_1),
+            'polio_1': format_date(current_immunization_record.polio_1),
+            'polio_2': format_date(current_immunization_record.polio_2),
+            'polio_3': format_date(current_immunization_record.polio_3),
+            'polio_4': format_date(current_immunization_record.polio_4),
+            'dpt_1': format_date(current_immunization_record.dpt_1),
+            'dpt_2': format_date(current_immunization_record.dpt_2),
+            'dpt_3': format_date(current_immunization_record.dpt_3),
+            'dpt_4': format_date(current_immunization_record.dpt_4),
+            'pcv_1': format_date(current_immunization_record.pcv_1),
+            'pcv_2': format_date(current_immunization_record.pcv_2),
+            'pcv_3': format_date(current_immunization_record.pcv_3),
+            'campak_1': format_date(current_immunization_record.campak_1),
+            'campak_2': format_date(current_immunization_record.campak_2),
+            'ipv_1': format_date(current_immunization_record.ipv_1),
+            'ipv_2': format_date(current_immunization_record.ipv_2),
+            'rotavirus_1': format_date(current_immunization_record.rotavirus_1),
+            'rotavirus_2': format_date(current_immunization_record.rotavirus_2),
+            'rotavirus_3': format_date(current_immunization_record.rotavirus_3),
         }
 
         return jsonify(response_data), 200
 
     except Exception as e:
-        return jsonify({"msg": "Server error", "error": str(e)}), 500
-    
+        return jsonify({'msg': 'Terjadi kesalahan pada server.', 'error': str(e)}), 500
 
-# get immunization visit
+
 @medical_record_bp.route('/get-immunization-visit-data/<uuid>', methods=['GET'])
 @jwt_required()
 def get_immunization_visit_data(uuid):
-    try:
-        results = db.session.query(VisitMaster, VisitImunization).\
-            join(VisitImunization, VisitMaster.visit_id == VisitImunization.visit_id).\
-            filter(VisitMaster.record_id == uuid).\
-            order_by(VisitMaster.visit_date.desc()).all()
+    current_user, current_role, error_response = require_medical_record_access(require_clinic=True)
 
-        if not results:
-            return jsonify([]), 200
+    if error_response:
+        return error_response
+
+    try:
+        _record, _patient, error_response = get_record_or_404(uuid, current_user, current_role)
+
+        if error_response:
+            return error_response
+
+        results = (
+            db.session.query(VisitMaster, VisitImunization)
+            .join(VisitImunization, VisitMaster.visit_id == VisitImunization.visit_id)
+            .filter(VisitMaster.record_id == uuid)
+            .order_by(VisitMaster.visit_date.desc())
+            .all()
+        )
 
         visit_list = []
         for master, detail in results:
             visit_list.append({
-                "visit_id": master.visit_id,
-                "visit_date": format_date(master.visit_date),
-                "visit_time": master.visit_time.strftime('%H:%M'),
-                "height": detail.baby_weight or "-",
-                "weight": detail.baby_weight or "-",
-                "body_temperature": detail.body_temp or "-",
-                "head_circumference": detail.head_circumference or "-",
-                "abdominal_circumference": detail.abdominal_circumference or "-",
-                "vaccine": detail.vaccine_given or "-", 
-                "dosage": detail.dosage_given or "-"
+                'visit_id': master.visit_id,
+                'visit_date': format_date(master.visit_date),
+                'visit_time': master.visit_time.strftime('%H:%M') if master.visit_time else '-',
+                'height': detail.baby_weight or '-',
+                'weight': detail.baby_weight or '-',
+                'body_temperature': detail.body_temp or '-',
+                'head_circumference': detail.head_circumference or '-',
+                'abdominal_circumference': detail.abdominal_circumference or '-',
+                'vaccine': detail.vaccine_given or '-',
+                'dosage': detail.dosage_given or '-',
             })
 
         return jsonify(visit_list), 200
 
     except Exception as e:
-        return jsonify({"msg": "Server error", "error": str(e)}), 500
+        return jsonify({'msg': 'Terjadi kesalahan pada server.', 'error': str(e)}), 500
 
-# get general visit detailed (medical record)
+
 @medical_record_bp.route('/get-general-visit-data/<uuid>', methods=['GET'])
 @jwt_required()
 def get_general_visit_data(uuid):
-    try:
-        results = db.session.query(VisitMaster, VisitGeneral).\
-            join(VisitGeneral, VisitMaster.visit_id == VisitGeneral.visit_id).\
-            filter(VisitMaster.record_id == uuid).\
-            order_by(VisitMaster.visit_date.desc()).all()
+    current_user, current_role, error_response = require_medical_record_access(require_clinic=True)
 
-        if not results:
-            return jsonify([]), 200
+    if error_response:
+        return error_response
+
+    try:
+        _record, _patient, error_response = get_record_or_404(uuid, current_user, current_role)
+
+        if error_response:
+            return error_response
+
+        results = (
+            db.session.query(VisitMaster, VisitGeneral)
+            .join(VisitGeneral, VisitMaster.visit_id == VisitGeneral.visit_id)
+            .filter(VisitMaster.record_id == uuid)
+            .order_by(VisitMaster.visit_date.desc())
+            .all()
+        )
 
         visit_list = []
         for master, detail in results:
             visit_list.append({
-                "visit_id": master.visit_id,
-                "visit_date": format_date(master.visit_date),
-                "visit_time": master.visit_time.strftime('%H:%M'),
-                "subjective": detail.subjective or "-",
-                "objective": detail.objective or "-",
-                "assessment": detail.assessment or "-",
-                "plan": detail.plan or "-",
+                'visit_id': master.visit_id,
+                'visit_date': format_date(master.visit_date),
+                'visit_time': master.visit_time.strftime('%H:%M') if master.visit_time else '-',
+                'subjective': detail.subjective or '-',
+                'objective': detail.objective or '-',
+                'assessment': detail.assessment or '-',
+                'plan': detail.plan or '-',
             })
 
         return jsonify(visit_list), 200
 
     except Exception as e:
-        return jsonify({"msg": "Server error", "error": str(e)}), 500
-    
+        return jsonify({'msg': 'Terjadi kesalahan pada server.', 'error': str(e)}), 500
+
+
+# -----------------------------------------------------------------------------
+# Delete / search / filter
+# -----------------------------------------------------------------------------
 @medical_record_bp.route('/delete-record/<uuid>', methods=['DELETE'])
 @jwt_required()
 def delete_medical_record(uuid):
+    current_user, current_role, error_response = require_medical_record_access(require_clinic=True)
+
+    if error_response:
+        return error_response
+
     try:
-        medical_record = MedicalRecord.query.filter_by(record_id=uuid).first()
-        if not medical_record:
-            return jsonify({
-                "msg": "Data rekam medis tidak ditemukan atau sudah dihapus sebelumnya"
-            }), 404
+        medical_record, patient, error_response = get_record_or_404(uuid, current_user, current_role)
 
-        patient_name = "Pasien"
-        if medical_record:
-                patient = Patient.query.get(medical_record.patient_id)            
-                if patient:
-                    patient_name = decrypt_data(patient.patient_name)
+        if error_response:
+            return error_response
 
-        # 3. Eksekusi penghapusan pada objek induk (VisitMaster)
+        patient_name = safe_decrypt(patient.patient_name, fallback='Pasien')
+
         db.session.delete(medical_record)
-        
-        # 4. Commit transaksi (ON DELETE CASCADE Supabase akan otomatis menghapus baris di pregnancy_visit & financial)
         db.session.commit()
 
         return jsonify({
-            "msg": f"Rekam Medis milik {patient_name} berhasil dihapus dari sistem",
-            "record_id": uuid
+            'msg': f'Rekam medis milik {patient_name} berhasil dihapus dari sistem.',
+            'record_id': uuid,
         }), 200
 
     except Exception as e:
-        # Jika terjadi kendala pada database, gagalkan seluruh operasi hapus
         db.session.rollback()
-        print(f"Error Delete Rekam Medis: {str(e)}")
         return jsonify({
-            "msg": "Terjadi kesalahan internal server saat mencoba menghapus data rekam medis",
-            "error": str(e)
+            'msg': 'Terjadi kesalahan internal server saat mencoba menghapus data rekam medis.',
+            'error': str(e),
         }), 500
-    
-# search medical record
+
+
 @medical_record_bp.route('/search-patients', methods=['GET'])
 @jwt_required()
 def search_patients():
+    current_user, current_role, error_response = require_medical_record_access(require_clinic=True)
+
+    if error_response:
+        return error_response
+
     try:
-        #take the search query from frontend and make it lowercase for case-insensitive search
-        search_query = request.args.get('query', '').lower()
-        
-        # pull all medical records with patient data
-        results = db.session.query(MedicalRecord, Patient)\
-            .join(Patient, MedicalRecord.patient_id == Patient.patient_id)\
-            .all()
+        search_query = request.args.get('query', '').lower().strip()
+
+        results = base_record_query(current_user, current_role).all()
 
         matched_records = []
-        
-        # search in every record to look for a match
+
         for record, patient in results:
-            #Logic to decryp the query (name, nik, date of birth)
-            decrypted_name = decrypt_data(patient.patient_name).lower()
-            decrypted_nik = str(decrypt_data(patient.national_id)).strip().lower()
-            decrypted_birthdate = decrypt_data(patient.birth_date)
-            
-            dob_searchable = ""
-            dob_display = "-"
+            decrypted_name = str(safe_decrypt(patient.patient_name, fallback='')).lower()
+            decrypted_nik = str(safe_decrypt(patient.national_id, fallback='')).strip().lower()
+            decrypted_birthdate = safe_decrypt(patient.birth_date, fallback='')
+            dob_searchable, dob_display = format_birth_date_for_search(decrypted_birthdate)
 
-            #logic to set dob format
-            if decrypted_birthdate:
-                decrypted_str = str(decrypted_birthdate)
-                
-                try:
-                    dob_obj = datetime.strptime(decrypted_str, '%Y-%m-%d') 
-                    
-                    INDONESIAN_MONTHS = {
-                        1: "Januari", 2: "Februari", 3: "Maret", 4: "April",
-                        5: "Mei", 6: "Juni", 7: "Juli", 8: "Agustus",
-                        9: "September", 10: "Oktober", 11: "November", 12: "Desember"
-                    }
-
-                    bulan_indo = INDONESIAN_MONTHS[dob_obj.month]  
-                    dob_searchable = f"{dob_obj.strftime('%d-%m-%Y')} {dob_obj.strftime('%d/%m/%Y')} {dob_obj.strftime('%Y-%m-%d')} {dob_obj.day} {bulan_indo} {dob_obj.year}".lower()
-                    #human readable day of birth
-                    dob_display = dob_obj.strftime('%d %B %Y')
-                
-                #fallback
-                except Exception:
-                    dob_searchable = decrypted_str
-                    dob_display = decrypted_str
-            
-            #check if the search query is in either name, nik, or date of birth
-            if (search_query in decrypted_name or 
-                search_query in decrypted_nik or 
-                search_query in dob_searchable):
-                
-                # if match show the record in the search result in array
+            if (
+                search_query in decrypted_name
+                or search_query in decrypted_nik
+                or search_query in dob_searchable
+            ):
                 matched_records.append({
-                    "rm_id": record.record_id,
-                    "record_number": record.record_number,
-                    "record_type": record.record_type,
-                    "patient_name": decrypted_name.title(), 
-                    "nik": decrypted_nik,
-                    "birth_date": dob_display,
-                    "status": record.status,
-                    "created_at": format_date(record.created_at),
-                    "updated_at": format_date(record.last_update) if record.last_update else "-"
+                    'rm_id': record.record_id,
+                    'record_number': record.record_number,
+                    'record_type': record.record_type,
+                    'patient_name': decrypted_name.title(),
+                    'nik': decrypted_nik,
+                    'birth_date': dob_display,
+                    'status': record.status,
+                    'created_at': format_date(record.created_at),
+                    'updated_at': format_date(record.last_update) if record.last_update else '-',
                 })
 
         return jsonify(matched_records), 200
 
-    # if error return the error message
     except Exception as e:
-        print(f"Search Error: {str(e)}")
-        return jsonify({"msg": "Server error", "error": str(e)}), 500
-    
-# filter RM by type
+        return jsonify({'msg': 'Terjadi kesalahan saat mencari pasien.', 'error': str(e)}), 500
+
+
 @medical_record_bp.route('/filter-rm-type', methods=['GET'])
 @jwt_required()
 def filter_rm_type():
+    current_user, current_role, error_response = require_medical_record_access(require_clinic=True)
+
+    if error_response:
+        return error_response
+
     try:
-        #take the selected record type from frontend
         selected_type = request.args.get('type')
 
-        #pull all medical records with patient data 
-        query = db.session.query(MedicalRecord, Patient).\
-                join(Patient, MedicalRecord.patient_id == Patient.patient_id)
-        
-        # if the selected type is not "All", filter the records by the selected type
-        if selected_type and selected_type != "All":
+        query = base_record_query(current_user, current_role)
+
+        if selected_type and selected_type != 'All':
             query = query.filter(MedicalRecord.record_type == selected_type)
 
-        # Sort by newest records first
         results = query.order_by(MedicalRecord.created_at.desc()).all()
 
         filtered_data = []
-        
-        #decrypt the data and prepare the response data to be sent to frontend 
-        for record, patient in results:
-            raw_name = decrypt_data(patient.patient_name)
-            raw_nik = decrypt_data(patient.national_id)
-            raw_dob = decrypt_data(patient.birth_date)
 
-            decrypted_name = str(raw_name) if raw_name else "Unknown"
-            decrypted_nik = str(raw_nik) if raw_nik else "-"
-            
-            dob_display = "-"
-            if raw_dob:
-                try:
-                    dob_str = str(raw_dob).strip()
-                    dob_obj = datetime.strptime(dob_str[:10], '%Y-%m-%d')
-                    dob_display = dob_obj.strftime('%d %B %Y')
-                except:
-                    dob_display = str(raw_dob)
+        for record, patient in results:
+            raw_name = safe_decrypt(patient.patient_name, fallback='Unknown')
+            raw_nik = safe_decrypt(patient.national_id, fallback='-')
+            raw_dob = safe_decrypt(patient.birth_date, fallback='')
+
+            decrypted_name = str(raw_name) if raw_name else 'Unknown'
+            decrypted_nik = str(raw_nik) if raw_nik else '-'
+
+            _dob_searchable, dob_display = format_birth_date_for_search(raw_dob)
 
             filtered_data.append({
-                "rm_id": record.record_id,
-                "record_number": record.record_number,
-                "record_type": record.record_type,
-                "patient_name": decrypted_name.title(),
-                "nik": decrypted_nik,
-                "birth_date": dob_display,
-                "status": record.status,
-                "created_at": format_date(record.created_at),
-                "updated_at": format_date(record.last_update) if record.last_update else "-"
+                'rm_id': record.record_id,
+                'record_number': record.record_number,
+                'record_type': record.record_type,
+                'patient_name': decrypted_name.title(),
+                'nik': decrypted_nik,
+                'birth_date': dob_display,
+                'status': record.status,
+                'created_at': format_date(record.created_at),
+                'updated_at': format_date(record.last_update) if record.last_update else '-',
             })
 
         return jsonify(filtered_data), 200
 
     except Exception as e:
-        print(f"Filter Error: {str(e)}")
-        return jsonify({"msg": "Gagal memfilter data", "error": str(e)}), 500
+        return jsonify({'msg': 'Gagal memfilter data.', 'error': str(e)}), 500
 
+
+# -----------------------------------------------------------------------------
+# Update data
+# -----------------------------------------------------------------------------
 @medical_record_bp.route('/update-patient-data/<uuid>', methods=['PUT'])
 @jwt_required()
 def update_patient_and_family_data(uuid):
+    current_user, current_role, error_response = require_medical_record_access(require_clinic=True)
+
+    if error_response:
+        return error_response
+
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         if not data:
-            return jsonify({"msg": "Payload data tidak boleh kosong"}), 400
+            return jsonify({'msg': 'Payload data tidak boleh kosong.'}), 400
 
-        record = MedicalRecord.query.filter_by(record_id=uuid).first()
-        if not record:
-            return jsonify({"msg": "Data rekam medis tidak ditemukan"}), 404
-        
-        target_patient_id = record.patient_id
+        record, patient, error_response = get_record_or_404(uuid, current_user, current_role)
 
-        patient = Patient.query.filter_by(patient_id=target_patient_id).first()
-        if not patient:
-            return jsonify({"msg": "Data profil pasien tidak ditemukan"}), 404
+        if error_response:
+            return error_response
 
         patient.patient_name = data.get('patient_name', patient.patient_name)
-        patient.birth_date = parse_date(data.get('birthdate'))  
-        patient.national_id = data.get('nik', patient.national_id) 
+        patient.birth_date = parse_date(data.get('birthdate'))
+        patient.national_id = data.get('nik', patient.national_id)
         patient.gender = data.get('gender', patient.gender)
         patient.patient_number = data.get('patient_number', patient.patient_number)
         patient.address = data.get('address', patient.address)
-        patient.education_level = data.get('education', patient.education_level)  
+        patient.education_level = data.get('education', patient.education_level)
         patient.occupation = data.get('occupation', patient.occupation)
-        patient.insurance_number = data.get('bpjs_number', patient.insurance_number)  
-        patient.primary_health_facility = data.get('primary_healthcare', patient.primary_health_facility)  
+        patient.insurance_number = data.get('bpjs_number', patient.insurance_number)
+        patient.primary_health_facility = data.get('primary_healthcare', patient.primary_health_facility)
 
-        
         family_id = patient.family_link_id
         family = None
 
         if family_id:
-          family = Patient.query.filter_by(patient_id=family_id).first()
+            family_query = Patient.query.filter_by(patient_id=family_id)
+            if current_role != 'admin':
+                family_query = family_query.filter(Patient.clinic_id == current_user.clinic_id)
+            family = family_query.first()
 
         if not family and data.get('family_name'):
             family = Patient(
                 role='family',
-                clinic_id=patient.clinic_id 
+                clinic_id=patient.clinic_id,
             )
             db.session.add(family)
-            db.session.flush()  
-            
+            db.session.flush()
+
             patient.family_link_id = family.patient_id
 
         if family:
             family.patient_name = data.get('family_name', family.patient_name)
-            family.birth_date = parse_date(data.get('family_birthdate')) 
-            family.national_id = data.get('family_nik', family.national_id)  
+            family.birth_date = parse_date(data.get('family_birthdate'))
+            family.national_id = data.get('family_nik', family.national_id)
             family.gender = data.get('family_gender', family.gender)
             family.relation = data.get('relation', family.relation)
             family.address = data.get('family_address', family.address)
@@ -1184,38 +1219,48 @@ def update_patient_and_family_data(uuid):
         db.session.commit()
 
         return jsonify({
-            "msg": "Informasi rekam medis pasien dan keluarga berhasil diperbarui",
-            "patient_id": uuid
+            'msg': 'Informasi rekam medis pasien dan keluarga berhasil diperbarui.',
+            'patient_id': uuid,
         }), 200
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({
-            "msg": "Terjadi kesalahan pada server", 
-            "error": str(e)
-        }), 500
-    
+        return jsonify({'msg': 'Terjadi kesalahan pada server.', 'error': str(e)}), 500
+
+
 @medical_record_bp.route('/update-pregnancy-record-data/<uuid>', methods=['PUT'])
 @jwt_required()
 def update_pregnancy_record_data(uuid):
+    current_user, current_role, error_response = require_medical_record_access(require_clinic=True)
+
+    if error_response:
+        return error_response
+
     try:
-        payload = request.get_json()
+        payload = request.get_json() or {}
         if not payload:
-            return jsonify({"msg": "Payload data tidak boleh kosong"}), 400
+            return jsonify({'msg': 'Payload data tidak boleh kosong.'}), 400
+
+        _record, _patient, error_response = get_record_or_404(uuid, current_user, current_role)
+
+        if error_response:
+            return error_response
 
         current_preg_data = payload.get('current_pregnancy', {})
         past_history_data = payload.get('past_obstetric_history', [])
 
-        record = MedicalRecord.query.filter_by(record_id=uuid).first()
-        if not record:
-            return jsonify({"msg": "Data rekam medis tidak ditemukan"}), 404
-        
-        pregnancy_record = PregnancyRecord.query.filter_by(record_id=uuid).first()   
-        if not pregnancy_record:  
-            return jsonify({"msg": "Data rekam medis kehamilan tidak ditemukan"}), 404
+        pregnancy_record = PregnancyRecord.query.filter_by(record_id=uuid).first()
+        if not pregnancy_record:
+            return jsonify({'msg': 'Data rekam medis kehamilan tidak ditemukan.'}), 404
 
-        pregnancy_record.contraceptive_history = current_preg_data.get('contraceptive_history', pregnancy_record.contraceptive_history)
-        pregnancy_record.family_med_history = current_preg_data.get('family_med_history', pregnancy_record.family_med_history)
+        pregnancy_record.contraceptive_history = current_preg_data.get(
+            'contraceptive_history',
+            pregnancy_record.contraceptive_history,
+        )
+        pregnancy_record.family_med_history = current_preg_data.get(
+            'family_med_history',
+            pregnancy_record.family_med_history,
+        )
         pregnancy_record.lab_results = current_preg_data.get('lab_results', pregnancy_record.lab_results)
         pregnancy_record.diagnosis = current_preg_data.get('diagnosis', pregnancy_record.diagnosis)
 
@@ -1230,7 +1275,6 @@ def update_pregnancy_record_data(uuid):
         pregnancy_record.weight_kg = clean_float(current_preg_data.get('weight_kg'))
         pregnancy_record.muac_cm = clean_float(current_preg_data.get('muac_cm'))
 
-    
         ObstetricHistory.query.filter_by(pr_id=pregnancy_record.pr_id).delete()
 
         for index, item in enumerate(past_history_data):
@@ -1238,7 +1282,7 @@ def update_pregnancy_record_data(uuid):
                 continue
 
             new_history = ObstetricHistory(
-                pr_id=pregnancy_record.pr_id, 
+                pr_id=pregnancy_record.pr_id,
                 pregnancy_no=item.get('pregnancy_no') or str(index + 1),
                 gestational_age=item.get('gestational_age'),
                 pregnancy_complications=item.get('pregnancy_complications'),
@@ -1248,65 +1292,88 @@ def update_pregnancy_record_data(uuid):
                 postpartum_complications=item.get('postpartum_complications'),
                 baby_complications=item.get('baby_complications'),
                 baby_weight=clean_float(item.get('baby_weight')),
-                baby_height=clean_float(item.get('baby_height'))
+                baby_height=clean_float(item.get('baby_height')),
             )
             db.session.add(new_history)
 
         db.session.commit()
-        return jsonify({"msg": "Berhasil diperbarui"}), 200
+        return jsonify({'msg': 'Berhasil diperbarui.'}), 200
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": "Terjadi kesalahan internal server", "error": str(e)}), 500
-    
-   
+        return jsonify({'msg': 'Terjadi kesalahan internal server.', 'error': str(e)}), 500
+
+
 @medical_record_bp.route('/update-family-planning-record-data/<uuid>', methods=['PUT'])
 @jwt_required()
 def update_family_planning_record_data(uuid):
+    current_user, current_role, error_response = require_medical_record_access(require_clinic=True)
+
+    if error_response:
+        return error_response
+
     try:
-        payload = request.get_json()
+        payload = request.get_json() or {}
         if not payload:
-            return jsonify({"msg": "Payload data tidak boleh kosong"}), 400
+            return jsonify({'msg': 'Payload data tidak boleh kosong.'}), 400
 
-        record = MedicalRecord.query.filter_by(record_id=uuid).first()
-        if not record:
-            return jsonify({"msg": "Data rekam medis tidak ditemukan"}), 404
-        
-        family_planning_record = FamilyPlanningRecord.query.filter_by(record_id=uuid).first()   
-        if not family_planning_record:  
-            return jsonify({"msg": "Data rekam medis KB tidak ditemukan"}), 404
+        _record, _patient, error_response = get_record_or_404(uuid, current_user, current_role)
 
-        family_planning_record.number_of_children = clean_float(payload.get('number_of_children', family_planning_record.number_of_children))
-        family_planning_record.youngest_child_age = payload.get('youngest_child_age', family_planning_record.youngest_child_age)
-        family_planning_record.family_med_history = payload.get('family_med_history', family_planning_record.family_med_history)
-    
+        if error_response:
+            return error_response
+
+        family_planning_record = FamilyPlanningRecord.query.filter_by(record_id=uuid).first()
+        if not family_planning_record:
+            return jsonify({'msg': 'Data rekam medis KB tidak ditemukan.'}), 404
+
+        family_planning_record.number_of_children = clean_float(
+            payload.get('number_of_children', family_planning_record.number_of_children),
+        )
+        family_planning_record.youngest_child_age = payload.get(
+            'youngest_child_age',
+            family_planning_record.youngest_child_age,
+        )
+        family_planning_record.family_med_history = payload.get(
+            'family_med_history',
+            family_planning_record.family_med_history,
+        )
 
         db.session.commit()
-        return jsonify({"msg": "Berhasil diperbarui"}), 200
+        return jsonify({'msg': 'Berhasil diperbarui.'}), 200
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": "Terjadi kesalahan internal server", "error": str(e)}), 500
-    
+        return jsonify({'msg': 'Terjadi kesalahan internal server.', 'error': str(e)}), 500
+
+
 @medical_record_bp.route('/update-delivery-record-data/<uuid>', methods=['PUT'])
 @jwt_required()
 def update_delivery_record_data(uuid):
-    try:
-        payload = request.get_json()
-        if not payload:
-            return jsonify({"msg": "Payload data tidak boleh kosong"}), 400
+    current_user, current_role, error_response = require_medical_record_access(require_clinic=True)
 
-        record = MedicalRecord.query.filter_by(record_id=uuid).first()
-        if not record:
-            return jsonify({"msg": "Data rekam medis tidak ditemukan"}), 404
-        
-        delivery_record = DeliveryRecord.query.filter_by(record_id=uuid).first()   
-        if not delivery_record:  
-            return jsonify({"msg": "Data rekam medis persalinan tidak ditemukan"}), 404
+    if error_response:
+        return error_response
+
+    try:
+        payload = request.get_json() or {}
+        if not payload:
+            return jsonify({'msg': 'Payload data tidak boleh kosong.'}), 400
+
+        _record, _patient, error_response = get_record_or_404(uuid, current_user, current_role)
+
+        if error_response:
+            return error_response
+
+        delivery_record = DeliveryRecord.query.filter_by(record_id=uuid).first()
+        if not delivery_record:
+            return jsonify({'msg': 'Data rekam medis persalinan tidak ditemukan.'}), 404
 
         delivery_record.delivery_date = payload.get('delivery_date', delivery_record.delivery_date)
         delivery_record.delivery_type = payload.get('delivery_type', delivery_record.delivery_type)
-        delivery_record.deliver_complications = payload.get('deliver_complications', delivery_record.deliver_complications)
+        delivery_record.deliver_complications = payload.get(
+            'deliver_complications',
+            delivery_record.deliver_complications,
+        )
         delivery_record.baby_gender = payload.get('baby_gender', delivery_record.baby_gender)
         delivery_record.vit_k_given = payload.get('vit_k_given', delivery_record.vit_k_given)
         delivery_record.baby_weight = clean_float(payload.get('baby_weight', delivery_record.baby_weight))
@@ -1315,11 +1382,14 @@ def update_delivery_record_data(uuid):
         delivery_record.apgar_score = payload.get('apgar_score', delivery_record.apgar_score)
         delivery_record.eye_ointment = payload.get('eye_ointment', delivery_record.eye_ointment)
         delivery_record.imd = payload.get('imd', delivery_record.imd)
-        delivery_record.baby_complications = payload.get('baby_complications', delivery_record.baby_complications)
+        delivery_record.baby_complications = payload.get(
+            'baby_complications',
+            delivery_record.baby_complications,
+        )
 
         db.session.commit()
-        return jsonify({"msg": "Berhasil diperbarui"}), 200
+        return jsonify({'msg': 'Berhasil diperbarui.'}), 200
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": "Terjadi kesalahan internal server", "error": str(e)}), 500
+        return jsonify({'msg': 'Terjadi kesalahan internal server.', 'error': str(e)}), 500

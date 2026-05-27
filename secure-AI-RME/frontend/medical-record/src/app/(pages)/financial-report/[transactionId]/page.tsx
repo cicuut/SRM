@@ -8,15 +8,20 @@ import LoadingOverlay from '@/components/loading';
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
-const FINANCIAL_ALLOWED_ROLES = ['admin', 'midwife'];
+const FINANCIAL_ALLOWED_ROLES = ['admin', 'midwife'] as const;
+
+type Role = 'admin' | 'midwife' | 'asisten' | '';
 
 type MeResponse = {
     msg?: string;
+    requires_clinic_setup?: boolean;
+    redirect_path?: string;
     user?: {
         id: string;
         fullname: string;
         email: string;
-        role: string;
+        role?: string;
+        user_role?: string;
         clinic_id?: string | null;
     };
 };
@@ -78,6 +83,94 @@ const readJson = async (response: Response) => {
     }
 };
 
+const normalizeRole = (role?: string | null): Role => {
+    const normalizedRole = String(role || '').trim().toLowerCase();
+
+    if (normalizedRole === 'admin') return 'admin';
+    if (normalizedRole === 'developer') return 'admin';
+
+    if (normalizedRole === 'midwife') return 'midwife';
+    if (normalizedRole === 'bidan') return 'midwife';
+    if (normalizedRole === 'owner') return 'midwife';
+
+    if (normalizedRole === 'asisten') return 'asisten';
+    if (normalizedRole === 'assistant') return 'asisten';
+    if (normalizedRole === 'staff') return 'asisten';
+
+    return '';
+};
+
+const translateMessage = (message?: string) => {
+    const rawMessage = String(message || '').trim();
+
+    if (!rawMessage) {
+        return 'Terjadi kesalahan. Silakan coba lagi.';
+    }
+
+    const normalizedMessage = rawMessage.toLowerCase();
+
+    if (normalizedMessage.includes('failed to fetch')) {
+        return 'Tidak dapat terhubung ke server. Pastikan backend sedang berjalan.';
+    }
+
+    if (normalizedMessage.includes('network error')) {
+        return 'Tidak dapat terhubung ke server. Pastikan backend sedang berjalan.';
+    }
+
+    if (normalizedMessage.includes('only admin or midwife')) {
+        return 'Hanya admin atau bidan yang dapat mengakses fitur ini.';
+    }
+
+    if (normalizedMessage.includes('only admin')) {
+        return 'Hanya admin yang dapat mengakses fitur ini.';
+    }
+
+    if (normalizedMessage.includes('only midwife')) {
+        return 'Hanya bidan yang dapat mengakses fitur ini.';
+    }
+
+    if (normalizedMessage.includes('forbidden')) {
+        return 'Kamu tidak memiliki izin untuk mengakses halaman ini.';
+    }
+
+    if (normalizedMessage.includes('invoice not found')) {
+        return 'Invoice tidak ditemukan.';
+    }
+
+    if (normalizedMessage.includes('financial')) {
+        return rawMessage
+            .replace('Failed to', 'Gagal')
+            .replace('failed to', 'gagal');
+    }
+
+    return rawMessage;
+};
+
+const ForbiddenView = () => {
+    return (
+        <div className="flex min-h-[calc(100dvh-150px)] w-full items-center justify-center px-4">
+            <div className="w-full max-w-[460px] rounded-[24px] border border-red-200 bg-white px-6 py-8 text-center shadow-sm">
+                <div className="mx-auto flex h-[58px] w-[58px] items-center justify-center rounded-full bg-red-50 text-[24px] font-extrabold text-red-600">
+                    403
+                </div>
+
+                <h1 className="mt-5 text-[24px] font-extrabold text-[#2F3A2F]">
+                    Forbidden Access
+                </h1>
+
+                <p className="mt-3 text-[13px] font-medium leading-relaxed text-[#6B6B6B]">
+                    Kamu tidak memiliki izin untuk mengakses detail invoice
+                    keuangan.
+                </p>
+
+                <p className="mt-2 text-[12px] font-semibold text-red-600">
+                    Halaman ini hanya dapat diakses oleh admin dan bidan.
+                </p>
+            </div>
+        </div>
+    );
+};
+
 const normalizeDateInput = (value?: string | null) => {
     if (!value) return '';
 
@@ -119,8 +212,8 @@ const formatTransactionType = (value: string) => {
 };
 
 const formatPaymentStatus = (value: string) => {
-    if (value === 'paid') return 'Paid';
-    if (value === 'unpaid') return 'Unpaid';
+    if (value === 'paid') return 'Dibayar';
+    if (value === 'unpaid') return 'Belum Dibayar';
 
     return value || '-';
 };
@@ -170,8 +263,9 @@ const DetailInvoicePage = () => {
         useState<DetailFormData | null>(null);
 
     const [hasAccess, setHasAccess] = useState(false);
+    const [isForbidden, setIsForbidden] = useState(false);
     const [isCheckingAccess, setIsCheckingAccess] = useState(true);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -193,13 +287,18 @@ const DetailInvoicePage = () => {
     };
 
     const clearSession = () => {
-        Cookies.remove('access_token');
+        Cookies.remove('access_token', { path: '/' });
+
+        if (typeof window === 'undefined') return;
 
         localStorage.removeItem('user_id');
+        localStorage.removeItem('temp_user_id');
         localStorage.removeItem('fullname');
         localStorage.removeItem('user_email');
         localStorage.removeItem('user_role');
         localStorage.removeItem('clinic_id');
+        localStorage.removeItem('profile_photo');
+        localStorage.removeItem('requires_clinic_setup');
     };
 
     const handleUnauthorized = () => {
@@ -208,13 +307,17 @@ const DetailInvoicePage = () => {
     };
 
     const handleForbidden = () => {
-        router.replace('/dashboard');
+        setHasAccess(false);
+        setIsForbidden(true);
+        setIsLoading(false);
+        setIsCheckingAccess(false);
     };
 
     const checkFinancialAccess = async () => {
         try {
             setIsCheckingAccess(true);
             setErrorMessage('');
+            setIsForbidden(false);
 
             const token = getToken();
 
@@ -239,26 +342,44 @@ const DetailInvoicePage = () => {
             }
 
             if (!response.ok || !data.user) {
-                throw new Error(data?.msg || 'Gagal mengecek akses pengguna');
+                throw new Error(data?.msg || 'Gagal mengecek akses pengguna.');
             }
 
-            if (!FINANCIAL_ALLOWED_ROLES.includes(data.user.role)) {
+            const userRole = normalizeRole(data.user.role || data.user.user_role);
+
+            if (
+                userRole === 'midwife' &&
+                data.requires_clinic_setup &&
+                !data.user.clinic_id
+            ) {
+                router.push(data.redirect_path || '/register-clinic');
+                return;
+            }
+
+            if (!FINANCIAL_ALLOWED_ROLES.includes(userRole as 'admin' | 'midwife')) {
                 handleForbidden();
                 return;
             }
 
-            localStorage.setItem('user_id', data.user.id || '');
-            localStorage.setItem('fullname', data.user.fullname || '');
-            localStorage.setItem('user_email', data.user.email || '');
-            localStorage.setItem('user_role', data.user.role || '');
-            localStorage.setItem('clinic_id', data.user.clinic_id || '');
+            if (typeof window !== 'undefined') {
+                localStorage.setItem('user_id', data.user.id || '');
+                localStorage.setItem('temp_user_id', data.user.id || '');
+                localStorage.setItem('fullname', data.user.fullname || '');
+                localStorage.setItem('user_email', data.user.email || '');
+                localStorage.setItem('user_role', userRole || '');
+                localStorage.setItem('clinic_id', data.user.clinic_id || '');
+                localStorage.setItem(
+                    'requires_clinic_setup',
+                    data.requires_clinic_setup ? 'true' : 'false',
+                );
+            }
 
             setHasAccess(true);
         } catch (error) {
             const message =
                 error instanceof Error
-                    ? error.message
-                    : 'Terjadi kesalahan saat mengecek akses';
+                    ? translateMessage(error.message)
+                    : 'Terjadi kesalahan saat mengecek akses.';
 
             setErrorMessage(message);
         } finally {
@@ -309,7 +430,7 @@ const DetailInvoicePage = () => {
             const invoice = (data?.data || data) as FinancialDetail;
 
             if (!response.ok || !invoice?.transaction_id) {
-                throw new Error(data?.msg || 'Gagal mengambil detail invoice');
+                throw new Error(data?.msg || 'Gagal mengambil detail invoice.');
             }
 
             const nextFormData = createFormFromDetail(invoice);
@@ -320,8 +441,8 @@ const DetailInvoicePage = () => {
         } catch (error) {
             const message =
                 error instanceof Error
-                    ? error.message
-                    : 'Terjadi kesalahan saat mengambil detail invoice';
+                    ? translateMessage(error.message)
+                    : 'Terjadi kesalahan saat mengambil detail invoice.';
 
             setErrorMessage(message);
         } finally {
@@ -442,7 +563,7 @@ const DetailInvoicePage = () => {
             const updatedInvoice = (data?.data || data) as FinancialDetail;
 
             if (!response.ok || !updatedInvoice?.transaction_id) {
-                throw new Error(data?.msg || 'Gagal menyimpan perubahan');
+                throw new Error(data?.msg || 'Gagal menyimpan perubahan.');
             }
 
             const nextFormData = createFormFromDetail(updatedInvoice);
@@ -454,8 +575,8 @@ const DetailInvoicePage = () => {
         } catch (error) {
             const message =
                 error instanceof Error
-                    ? error.message
-                    : 'Terjadi kesalahan saat menyimpan perubahan';
+                    ? translateMessage(error.message)
+                    : 'Terjadi kesalahan saat menyimpan perubahan.';
 
             setErrorMessage(message);
         } finally {
@@ -500,15 +621,15 @@ const DetailInvoicePage = () => {
             }
 
             if (!response.ok) {
-                throw new Error(data?.msg || 'Gagal menghapus invoice');
+                throw new Error(data?.msg || 'Gagal menghapus invoice.');
             }
 
             router.push('/financial-report');
         } catch (error) {
             const message =
                 error instanceof Error
-                    ? error.message
-                    : 'Terjadi kesalahan saat menghapus invoice';
+                    ? translateMessage(error.message)
+                    : 'Terjadi kesalahan saat menghapus invoice.';
 
             setErrorMessage(message);
             setShowDeleteConfirm(false);
@@ -516,6 +637,10 @@ const DetailInvoicePage = () => {
             setIsDeleting(false);
         }
     };
+
+    if (isForbidden) {
+        return <ForbiddenView />;
+    }
 
     if (isCheckingAccess || isLoading) {
         return (
@@ -537,7 +662,7 @@ const DetailInvoicePage = () => {
                         </h1>
 
                         <p className="mt-1 text-[12px] text-[#6B6B6B]">
-                            Edit data pembayaran invoice.
+                            Kelola data pembayaran invoice.
                         </p>
                     </div>
 
@@ -670,8 +795,8 @@ const DetailInvoicePage = () => {
                                 disabled={isSaving || isDeleting}
                                 className={selectClassName}
                             >
-                                <option value="paid">Paid</option>
-                                <option value="unpaid">Unpaid</option>
+                                <option value="paid">Dibayar</option>
+                                <option value="unpaid">Belum Dibayar</option>
                             </select>
                         </label>
 

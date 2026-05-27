@@ -8,15 +8,20 @@ import LoadingOverlay from '@/components/loading';
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
-const FINANCIAL_ALLOWED_ROLES = ['admin', 'midwife'];
+type Role = 'admin' | 'midwife' | 'asisten' | '';
+
+const FINANCIAL_ALLOWED_ROLES: Role[] = ['admin', 'midwife'];
 
 type MeResponse = {
     msg?: string;
+    requires_clinic_setup?: boolean;
+    redirect_path?: string;
     user?: {
         id: string;
         fullname: string;
         email: string;
-        role: string;
+        role?: string;
+        user_role?: string;
         clinic_id?: string | null;
     };
     clinic?: {
@@ -71,6 +76,88 @@ const formatRupiah = (value: string | number) => {
     }).format(Number.isNaN(numericValue) ? 0 : numericValue);
 };
 
+const normalizeRole = (value?: string | null): Role => {
+    const normalized = String(value || '').trim().toLowerCase();
+
+    if (normalized === 'admin') return 'admin';
+    if (normalized === 'developer') return 'admin';
+
+    if (normalized === 'midwife') return 'midwife';
+    if (normalized === 'bidan') return 'midwife';
+    if (normalized === 'owner') return 'midwife';
+
+    if (normalized === 'asisten') return 'asisten';
+    if (normalized === 'assistant') return 'asisten';
+    if (normalized === 'staff') return 'asisten';
+
+    return '';
+};
+
+const translateErrorMessage = (message?: string) => {
+    const rawMessage = String(message || '').trim();
+
+    if (!rawMessage) {
+        return 'Terjadi kesalahan. Silakan coba lagi.';
+    }
+
+    const normalized = rawMessage.toLowerCase();
+
+    if (normalized.includes('failed to fetch') || normalized.includes('network error')) {
+        return 'Tidak dapat terhubung ke server. Pastikan backend sedang berjalan.';
+    }
+
+    if (normalized.includes('only admin') || normalized.includes('only midwife')) {
+        return 'Kamu tidak memiliki izin untuk mengakses fitur keuangan.';
+    }
+
+    if (normalized.includes('forbidden')) {
+        return 'Kamu tidak memiliki izin untuk mengakses fitur keuangan.';
+    }
+
+    if (normalized.includes('unauthorized')) {
+        return 'Sesi login sudah berakhir. Silakan login kembali.';
+    }
+
+    if (normalized.includes('gagal membuat nomor transaksi')) {
+        return 'Gagal membuat nomor invoice.';
+    }
+
+    if (normalized.includes('gagal mengambil data laporan kunjungan')) {
+        return 'Gagal mengambil data laporan kunjungan.';
+    }
+
+    if (normalized.includes('gagal menambahkan invoice')) {
+        return 'Gagal menambahkan invoice.';
+    }
+
+    return rawMessage;
+};
+
+const ForbiddenView = () => {
+    return (
+        <div className="flex min-h-[calc(100dvh-150px)] w-full items-center justify-center px-4">
+            <div className="w-full max-w-[460px] rounded-[24px] border border-red-200 bg-white px-6 py-8 text-center shadow-sm">
+                <div className="mx-auto flex h-[58px] w-[58px] items-center justify-center rounded-full bg-red-50 text-[24px] font-extrabold text-red-600">
+                    403
+                </div>
+
+                <h1 className="mt-5 text-[24px] font-extrabold text-[#2F3A2F]">
+                    Forbidden Access
+                </h1>
+
+                <p className="mt-3 text-[13px] font-medium leading-relaxed text-[#6B6B6B]">
+                    Kamu tidak memiliki izin untuk mengakses halaman tambah
+                    invoice.
+                </p>
+
+                <p className="mt-2 text-[12px] font-semibold text-red-600">
+                    Halaman ini hanya dapat diakses oleh admin dan bidan.
+                </p>
+            </div>
+        </div>
+    );
+};
+
 const inputClassName =
     'mt-2 h-[42px] w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 disabled:cursor-not-allowed disabled:bg-[#F8FAF6] disabled:text-[#8A8A8A] disabled:opacity-70';
 
@@ -96,6 +183,7 @@ const AddInvoice = () => {
     });
 
     const [hasAccess, setHasAccess] = useState(false);
+    const [isForbidden, setIsForbidden] = useState(false);
     const [isCheckingAccess, setIsCheckingAccess] = useState(true);
     const [isLoadingVisits, setIsLoadingVisits] = useState(false);
     const [isLoadingTransactionNumber, setIsLoadingTransactionNumber] =
@@ -149,13 +237,18 @@ const AddInvoice = () => {
     };
 
     const clearSession = () => {
-        Cookies.remove('access_token');
+        Cookies.remove('access_token', { path: '/' });
+
+        if (typeof window === 'undefined') return;
 
         localStorage.removeItem('user_id');
+        localStorage.removeItem('temp_user_id');
         localStorage.removeItem('fullname');
         localStorage.removeItem('user_email');
         localStorage.removeItem('user_role');
         localStorage.removeItem('clinic_id');
+        localStorage.removeItem('profile_photo');
+        localStorage.removeItem('requires_clinic_setup');
     };
 
     const handleUnauthorized = () => {
@@ -164,7 +257,8 @@ const AddInvoice = () => {
     };
 
     const handleForbidden = () => {
-        router.replace('/dashboard');
+        setHasAccess(false);
+        setIsForbidden(true);
     };
 
     const checkFinancialAccess = async () => {
@@ -195,26 +289,41 @@ const AddInvoice = () => {
             }
 
             if (!response.ok || !data.user) {
-                throw new Error(data?.msg || 'Gagal mengecek akses pengguna');
+                throw new Error(data?.msg || 'Gagal mengecek akses pengguna.');
             }
 
-            if (!FINANCIAL_ALLOWED_ROLES.includes(data.user.role)) {
+            const role = normalizeRole(data.user.role || data.user.user_role);
+
+            if (role === 'midwife' && data.requires_clinic_setup) {
+                router.push(data.redirect_path || '/register-clinic');
+                return;
+            }
+
+            if (!FINANCIAL_ALLOWED_ROLES.includes(role)) {
                 handleForbidden();
                 return;
             }
 
-            localStorage.setItem('user_id', data.user.id || '');
-            localStorage.setItem('fullname', data.user.fullname || '');
-            localStorage.setItem('user_email', data.user.email || '');
-            localStorage.setItem('user_role', data.user.role || '');
-            localStorage.setItem('clinic_id', data.user.clinic_id || '');
+            if (typeof window !== 'undefined') {
+                localStorage.setItem('user_id', data.user.id || '');
+                localStorage.setItem('temp_user_id', data.user.id || '');
+                localStorage.setItem('fullname', data.user.fullname || '');
+                localStorage.setItem('user_email', data.user.email || '');
+                localStorage.setItem('user_role', role || '');
+                localStorage.setItem('clinic_id', data.user.clinic_id || '');
+                localStorage.setItem(
+                    'requires_clinic_setup',
+                    data.requires_clinic_setup ? 'true' : 'false',
+                );
+            }
 
+            setIsForbidden(false);
             setHasAccess(true);
         } catch (error) {
             const message =
                 error instanceof Error
-                    ? error.message
-                    : 'Terjadi kesalahan saat mengecek akses';
+                    ? translateErrorMessage(error.message)
+                    : 'Terjadi kesalahan saat mengecek akses.';
 
             setErrorMessage(message);
         } finally {
@@ -260,7 +369,7 @@ const AddInvoice = () => {
 
             if (!response.ok) {
                 throw new Error(
-                    data?.msg || 'Gagal membuat nomor transaksi',
+                    data?.msg || 'Gagal membuat nomor invoice.',
                 );
             }
 
@@ -304,9 +413,14 @@ const AddInvoice = () => {
                 return;
             }
 
+            if (response.status === 403) {
+                handleForbidden();
+                return;
+            }
+
             if (!response.ok) {
                 throw new Error(
-                    data?.msg || 'Gagal mengambil data laporan kunjungan',
+                    data?.msg || 'Gagal mengambil data laporan kunjungan.',
                 );
             }
 
@@ -314,8 +428,8 @@ const AddInvoice = () => {
         } catch (error) {
             const message =
                 error instanceof Error
-                    ? error.message
-                    : 'Terjadi kesalahan saat mengambil data laporan kunjungan';
+                    ? translateErrorMessage(error.message)
+                    : 'Terjadi kesalahan saat mengambil data laporan kunjungan.';
 
             setErrorMessage(message);
         } finally {
@@ -422,11 +536,11 @@ const AddInvoice = () => {
 
         if (formData.status === 'paid') {
             if (!formData.amount || Number(formData.amount) <= 0) {
-                return 'Nominal harus lebih dari 0 untuk status paid.';
+                return 'Nominal harus lebih dari 0 untuk status dibayar.';
             }
 
             if (!formData.payment_method) {
-                return 'Metode pembayaran wajib dipilih untuk status paid.';
+                return 'Metode pembayaran wajib dipilih untuk status dibayar.';
             }
 
             if (!['Transfer', 'QRIS', 'Cash'].includes(formData.payment_method)) {
@@ -488,15 +602,15 @@ const AddInvoice = () => {
             }
 
             if (!response.ok) {
-                throw new Error(data?.msg || 'Gagal menambahkan invoice');
+                throw new Error(data?.msg || 'Gagal menambahkan invoice.');
             }
 
             router.push('/financial-report');
         } catch (error) {
             const message =
                 error instanceof Error
-                    ? error.message
-                    : 'Terjadi kesalahan saat menambahkan invoice';
+                    ? translateErrorMessage(error.message)
+                    : 'Terjadi kesalahan saat menambahkan invoice.';
 
             setErrorMessage(message);
         } finally {
@@ -510,6 +624,10 @@ const AddInvoice = () => {
                 <LoadingOverlay />
             </div>
         );
+    }
+
+    if (isForbidden || !hasAccess) {
+        return <ForbiddenView />;
     }
 
     return (
@@ -615,8 +733,8 @@ const AddInvoice = () => {
                             disabled={isSubmitting}
                             className={selectClassName}
                         >
-                            <option value="paid">Paid</option>
-                            <option value="unpaid">Unpaid</option>
+                            <option value="paid">Dibayar</option>
+                            <option value="unpaid">Belum Dibayar</option>
                         </select>
                     </label>
 
@@ -633,7 +751,7 @@ const AddInvoice = () => {
                             disabled={isSubmitting || isUnpaid}
                             placeholder={
                                 isUnpaid
-                                    ? 'Nonaktif untuk status unpaid'
+                                    ? 'Nonaktif untuk status belum dibayar'
                                     : 'Masukkan nominal'
                             }
                             className={inputClassName}
@@ -662,12 +780,12 @@ const AddInvoice = () => {
                         >
                             <option value="">
                                 {isUnpaid
-                                    ? 'Nonaktif untuk status unpaid'
+                                    ? 'Nonaktif untuk status belum dibayar'
                                     : 'Pilih metode pembayaran'}
                             </option>
                             <option value="Transfer">Transfer</option>
                             <option value="QRIS">QRIS</option>
-                            <option value="Cash">Cash</option>
+                            <option value="Cash">Tunai</option>
                         </select>
 
                         {isUnpaid && (

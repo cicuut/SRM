@@ -36,6 +36,8 @@ const FALLBACK_SERVICE_COLORS = [
     '#0891B2',
 ];
 
+type Role = 'admin' | 'midwife' | 'asisten' | '';
+
 interface DateLabelProps {
     className?: string;
     emptyValue?: string;
@@ -67,11 +69,16 @@ export const DateLabel = ({
 
 interface CurrentUser {
     fullname: string;
-    role: string;
+    role?: string;
+    user_role?: string;
+    clinic_id?: string | null;
     profile_photo?: string | null;
 }
 
 type AuthMeResponse = {
+    msg?: string;
+    requires_clinic_setup?: boolean;
+    redirect_path?: string;
     user: CurrentUser;
 };
 
@@ -118,17 +125,42 @@ interface TopAssessmentItem {
 interface TopAssessmentsResponse {
     month: string;
     total_visits_with_assessment: number;
-    total_assessment_fragments: number;
+    total_assessment_fragments?: number;
     summary?: string;
     top_assessments: TopAssessmentItem[];
     msg?: string;
     error?: string;
 }
 
-function formatDisplayRole(role: string): string {
-    if (!role.trim()) return '';
+function normalizeRole(role?: string | null): Role {
+    const normalizedRole = String(role || '').trim().toLowerCase();
 
-    if (role === 'asisten') return 'Asisten';
+    if (normalizedRole === 'admin') return 'admin';
+    if (normalizedRole === 'developer') return 'admin';
+
+    if (normalizedRole === 'midwife') return 'midwife';
+    if (normalizedRole === 'bidan') return 'midwife';
+    if (normalizedRole === 'owner') return 'midwife';
+
+    if (normalizedRole === 'asisten') return 'asisten';
+    if (normalizedRole === 'assistant') return 'asisten';
+    if (normalizedRole === 'staff') return 'asisten';
+
+    return '';
+}
+
+function canViewFinancialByRole(role: Role) {
+    return role === 'admin' || role === 'midwife';
+}
+
+function formatDisplayRole(role: string): string {
+    const normalizedRole = normalizeRole(role);
+
+    if (normalizedRole === 'admin') return 'Admin';
+    if (normalizedRole === 'midwife') return 'Bidan';
+    if (normalizedRole === 'asisten') return 'Asisten';
+
+    if (!role.trim()) return '';
 
     return role
         .split(/[\s_-]+/)
@@ -285,7 +317,7 @@ const SectionCard = ({
     className = '',
 }: {
     title: string;
-    subtitle?: React.ReactNode;
+    subtitle?: string;
     icon?: React.ReactNode;
     children: React.ReactNode;
     className?: string;
@@ -301,9 +333,9 @@ const SectionCard = ({
                     </h2>
 
                     {subtitle && (
-                        <div className="mt-2 text-[12px] font-medium leading-relaxed text-[#6B6B6B]">
+                        <p className="mt-2 text-[12px] font-medium leading-relaxed text-[#6B6B6B]">
                             {subtitle}
-                        </div>
+                        </p>
                     )}
                 </div>
 
@@ -322,6 +354,7 @@ const SectionCard = ({
 const Dashboard = () => {
     const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
     const [profilePhoto, setProfilePhoto] = useState('');
+    const [storedRole, setStoredRole] = useState<Role>('');
     const [loading, setLoading] = useState(true);
 
     const [forecastData, setForecastData] =
@@ -342,14 +375,20 @@ const Dashboard = () => {
         null,
     );
     const [assessmentVisitCount, setAssessmentVisitCount] = useState(0);
-    const [assessmentEntriesCount, setAssessmentEntriesCount] = useState(0);
     const [assessmentLoading, setAssessmentLoading] = useState(true);
     const [assessmentError, setAssessmentError] = useState<string | null>(null);
 
+    const currentRole = normalizeRole(
+        currentUser?.role || currentUser?.user_role || storedRole,
+    );
+    const canViewFinancial = canViewFinancialByRole(currentRole);
+
     const displayName = currentUser?.fullname?.trim() || '';
-    const displayRole = currentUser?.role
-        ? formatDisplayRole(currentUser.role)
-        : '';
+    const displayRole = currentRole
+        ? formatDisplayRole(currentRole)
+        : currentUser?.role
+          ? formatDisplayRole(currentUser.role)
+          : '';
     const initials = getInitials(displayName);
 
     const netIncome = Number(monthlyIncome || 0) - Number(monthlyExpense || 0);
@@ -373,175 +412,217 @@ const Dashboard = () => {
         : [];
 
     const loadLocalProfilePhoto = () => {
+        if (typeof window === 'undefined') return;
+
         setProfilePhoto(localStorage.getItem('profile_photo') || '');
+        setStoredRole(normalizeRole(localStorage.getItem('user_role')));
     };
 
-    const fetchDashboardData = async () => {
+    const saveUserToLocalStorage = (
+        user: CurrentUser,
+        role: Role,
+        requiresClinicSetup?: boolean,
+    ) => {
+        if (typeof window === 'undefined') return;
+
+        localStorage.setItem('fullname', user.fullname || '');
+        localStorage.setItem('user_role', role || '');
+        localStorage.setItem('clinic_id', user.clinic_id || '');
+        localStorage.setItem(
+            'requires_clinic_setup',
+            requiresClinicSetup ? 'true' : 'false',
+        );
+    };
+
+    useEffect(() => {
         let cancelled = false;
 
-        const token = Cookies.get('access_token');
+        const fetchDashboardData = async () => {
+            const token = Cookies.get('access_token');
 
-        loadLocalProfilePhoto();
+            loadLocalProfilePhoto();
 
-        if (!token) {
-            setLoading(false);
-            setAssessmentLoading(false);
-
-            return () => {
-                cancelled = true;
-            };
-        }
-
-        try {
-            setLoading(true);
-            setAssessmentLoading(true);
-
-            try {
-                const userResponse = await api.get<AuthMeResponse>('/auth/me', {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                });
-
-                if (!cancelled) {
-                    const user = userResponse.data.user;
-
-                    setCurrentUser(user);
-
-                    const backendProfilePhoto =
-                        user?.profile_photo?.trim() || '';
-
-                    if (backendProfilePhoto) {
-                        localStorage.setItem(
-                            'profile_photo',
-                            backendProfilePhoto,
-                        );
-                        setProfilePhoto(backendProfilePhoto);
-                    } else {
-                        loadLocalProfilePhoto();
-                    }
-                }
-            } catch (error) {
-                console.error('Failed to load current user:', error);
+            if (!token) {
+                setLoading(false);
+                setAssessmentLoading(false);
+                return;
             }
 
             try {
-                const forecastResponse =
-                    await api.get<ForecastResponse>('/forecast/visitors');
+                setLoading(true);
+                setAssessmentLoading(true);
 
-                if (!cancelled) {
-                    setForecastData(forecastResponse.data);
-                    setForecastError(null);
-                }
-            } catch (error) {
-                console.error('Failed to load forecast data:', error);
-
-                if (!cancelled) {
-                    setForecastData(null);
-                    setForecastError(
-                        getApiErrorMessage(
-                            error,
-                            'Gagal memuat data perkiraan pengunjung',
-                        ),
-                    );
-                }
-            }
-
-            try {
-                const financialResponse =
-                    await api.get<MonthlyFinancialSummary>(
-                        '/financial/monthly-summary',
-                    );
-
-                if (!cancelled) {
-                    setMonthlyIncome(financialResponse.data.monthly_income);
-                    setMonthlyExpense(financialResponse.data.monthly_expense);
-                    setDailyIncome(financialResponse.data.daily_income ?? []);
-                    setDailyExpense(financialResponse.data.daily_expense ?? []);
-                    setFinancialError(null);
-                }
-            } catch (error) {
-                console.error(
-                    'Failed to load monthly financial summary:',
-                    error,
+                let activeRole = normalizeRole(
+                    typeof window !== 'undefined'
+                        ? localStorage.getItem('user_role')
+                        : '',
                 );
 
-                if (!cancelled) {
+                try {
+                    const userResponse = await api.get<AuthMeResponse>(
+                        '/auth/me',
+                        {
+                            headers: {
+                                Authorization: `Bearer ${token}`,
+                            },
+                        },
+                    );
+
+                    if (!cancelled) {
+                        const user = userResponse.data.user;
+                        activeRole = normalizeRole(
+                            user?.role || user?.user_role,
+                        );
+
+                        setCurrentUser(user);
+                        setStoredRole(activeRole);
+                        saveUserToLocalStorage(
+                            user,
+                            activeRole,
+                            userResponse.data.requires_clinic_setup,
+                        );
+
+                        const backendProfilePhoto =
+                            user?.profile_photo?.trim() || '';
+
+                        if (backendProfilePhoto) {
+                            if (typeof window !== 'undefined') {
+                                localStorage.setItem(
+                                    'profile_photo',
+                                    backendProfilePhoto,
+                                );
+                            }
+
+                            setProfilePhoto(backendProfilePhoto);
+                        } else {
+                            loadLocalProfilePhoto();
+                        }
+                    }
+                } catch (error) {
+                    console.error('Gagal memuat data user:', error);
+                }
+
+                try {
+                    const forecastResponse =
+                        await api.get<ForecastResponse>('/forecast/visitors');
+
+                    if (!cancelled) {
+                        setForecastData(forecastResponse.data);
+                        setForecastError(null);
+                    }
+                } catch (error) {
+                    console.error('Gagal memuat data forecast:', error);
+
+                    if (!cancelled) {
+                        setForecastData(null);
+                        setForecastError(
+                            getApiErrorMessage(
+                                error,
+                                'Gagal memuat data perkiraan pengunjung',
+                            ),
+                        );
+                    }
+                }
+
+                if (canViewFinancialByRole(activeRole)) {
+                    try {
+                        const financialResponse =
+                            await api.get<MonthlyFinancialSummary>(
+                                '/financial/monthly-summary',
+                            );
+
+                        if (!cancelled) {
+                            setMonthlyIncome(
+                                financialResponse.data.monthly_income,
+                            );
+                            setMonthlyExpense(
+                                financialResponse.data.monthly_expense,
+                            );
+                            setDailyIncome(
+                                financialResponse.data.daily_income ?? [],
+                            );
+                            setDailyExpense(
+                                financialResponse.data.daily_expense ?? [],
+                            );
+                            setFinancialError(null);
+                        }
+                    } catch (error) {
+                        console.error(
+                            'Gagal memuat ringkasan keuangan:',
+                            error,
+                        );
+
+                        if (!cancelled) {
+                            setMonthlyIncome(null);
+                            setMonthlyExpense(null);
+                            setDailyIncome([]);
+                            setDailyExpense([]);
+                            setFinancialError(
+                                getApiErrorMessage(
+                                    error,
+                                    'Gagal memuat grafik keuangan',
+                                ),
+                            );
+                        }
+                    }
+                } else if (!cancelled) {
                     setMonthlyIncome(null);
                     setMonthlyExpense(null);
                     setDailyIncome([]);
                     setDailyExpense([]);
-                    setFinancialError(
-                        getApiErrorMessage(
-                            error,
-                            'Gagal memuat grafik keuangan',
-                        ),
-                    );
+                    setFinancialError(null);
                 }
-            }
 
-            try {
-                const assessmentResponse =
-                    await api.get<TopAssessmentsResponse>(
-                        '/dashboard/top-assessments',
-                    );
+                try {
+                    const assessmentResponse =
+                        await api.get<TopAssessmentsResponse>(
+                            '/dashboard/top-assessments',
+                        );
 
+                    if (!cancelled) {
+                        setTopAssessments(
+                            assessmentResponse.data.top_assessments ?? [],
+                        );
+                        setAssessmentMonth(
+                            assessmentResponse.data.month ?? null,
+                        );
+                        setAssessmentSummary(
+                            assessmentResponse.data.summary ?? null,
+                        );
+                        setAssessmentVisitCount(
+                            assessmentResponse.data
+                                .total_visits_with_assessment ?? 0,
+                        );
+                        setAssessmentError(null);
+                    }
+                } catch (error) {
+                    console.error('Gagal memuat top assessment:', error);
+
+                    if (!cancelled) {
+                        setTopAssessments([]);
+                        setAssessmentMonth(null);
+                        setAssessmentSummary(null);
+                        setAssessmentVisitCount(0);
+                        setAssessmentError(
+                            getApiErrorMessage(
+                                error,
+                                'Gagal memuat top assessment',
+                            ),
+                        );
+                    }
+                }
+            } finally {
                 if (!cancelled) {
-                    setTopAssessments(
-                        assessmentResponse.data.top_assessments ?? [],
-                    );
-                    setAssessmentMonth(assessmentResponse.data.month ?? null);
-                    setAssessmentSummary(
-                        assessmentResponse.data.summary ?? null,
-                    );
-                    setAssessmentVisitCount(
-                        assessmentResponse.data
-                            .total_visits_with_assessment ?? 0,
-                    );
-                    setAssessmentEntriesCount(
-                        assessmentResponse.data
-                            .total_assessment_fragments ?? 0,
-                    );
-                    setAssessmentError(null);
+                    setLoading(false);
+                    setAssessmentLoading(false);
                 }
-            } catch (error) {
-                console.error('Failed to load top assessments:', error);
+            }
+        };
 
-                if (!cancelled) {
-                    setTopAssessments([]);
-                    setAssessmentMonth(null);
-                    setAssessmentSummary(null);
-                    setAssessmentVisitCount(0);
-                    setAssessmentEntriesCount(0);
-                    setAssessmentError(
-                        getApiErrorMessage(
-                            error,
-                            'Gagal memuat top assessment',
-                        ),
-                    );
-                }
-            }
-        } finally {
-            if (!cancelled) {
-                setLoading(false);
-                setAssessmentLoading(false);
-            }
-        }
+        fetchDashboardData();
 
         return () => {
             cancelled = true;
-        };
-    };
-
-    useEffect(() => {
-        let cleanup: (() => void) | undefined;
-
-        fetchDashboardData().then((result) => {
-            cleanup = result;
-        });
-
-        return () => {
-            cleanup?.();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -591,9 +672,9 @@ const Dashboard = () => {
                             </h1>
 
                             <p className="mt-3 max-w-[660px] text-[15px] font-medium leading-relaxed text-white/90 sm:text-[16px]">
-                                Pantau aktivitas klinik, prediksi kunjungan,
-                                performa keuangan, dan assessment pasien dalam
-                                satu dashboard yang rapi.
+                                {canViewFinancial
+                                    ? 'Pantau aktivitas klinik, prediksi kunjungan, performa keuangan, dan assessment pasien dalam satu dashboard yang rapi.'
+                                    : 'Pantau aktivitas klinik, prediksi kunjungan, dan assessment pasien dalam satu dashboard yang rapi.'}
                             </p>
 
                             <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -650,7 +731,11 @@ const Dashboard = () => {
                 </div>
             </section>
 
-            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <section
+                className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${
+                    canViewFinancial ? 'xl:grid-cols-4' : 'xl:grid-cols-2'
+                }`}
+            >
                 <StatCard
                     title="Pengunjung Bulanan"
                     value={
@@ -687,39 +772,44 @@ const Dashboard = () => {
                     tone="blue"
                 />
 
-                <StatCard
-                    title="Pemasukan"
-                    value={
-                        monthlyIncome !== null
-                            ? formatRupiah(monthlyIncome)
-                            : financialError
-                              ? '—'
-                              : 'Memuat...'
-                    }
-                    subtitle="Total pemasukan bulan ini"
-                    icon={<ArrowUpCircle className="h-5 w-5" />}
-                    tone="green"
-                />
+                {canViewFinancial && (
+                    <>
+                        <StatCard
+                            title="Pemasukan"
+                            value={
+                                monthlyIncome !== null
+                                    ? formatRupiah(monthlyIncome)
+                                    : financialError
+                                      ? '—'
+                                      : 'Memuat...'
+                            }
+                            subtitle="Total pemasukan bulan ini"
+                            icon={<ArrowUpCircle className="h-5 w-5" />}
+                            tone="green"
+                        />
 
-                <StatCard
-                    title="Saldo Bulanan"
-                    value={
-                        monthlyIncome !== null || monthlyExpense !== null
-                            ? formatRupiah(netIncome)
-                            : financialError
-                              ? '—'
-                              : 'Memuat...'
-                    }
-                    subtitle={`Pengeluaran: ${
-                        monthlyExpense !== null
-                            ? formatRupiah(monthlyExpense)
-                            : financialError
-                              ? '—'
-                              : 'Memuat...'
-                    }`}
-                    icon={<Wallet className="h-5 w-5" />}
-                    tone={netIncome < 0 ? 'red' : 'gold'}
-                />
+                        <StatCard
+                            title="Saldo Bulanan"
+                            value={
+                                monthlyIncome !== null ||
+                                monthlyExpense !== null
+                                    ? formatRupiah(netIncome)
+                                    : financialError
+                                      ? '—'
+                                      : 'Memuat...'
+                            }
+                            subtitle={`Pengeluaran: ${
+                                monthlyExpense !== null
+                                    ? formatRupiah(monthlyExpense)
+                                    : financialError
+                                      ? '—'
+                                      : 'Memuat...'
+                            }`}
+                            icon={<Wallet className="h-5 w-5" />}
+                            tone={netIncome < 0 ? 'red' : 'gold'}
+                        />
+                    </>
+                )}
             </section>
 
             <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1.35fr_0.9fr]">
@@ -822,21 +912,20 @@ const Dashboard = () => {
                 </SectionCard>
             </section>
 
-            <section className="grid grid-cols-1 gap-5 xl:grid-cols-[0.95fr_1.35fr]">
+            <section
+                className={`grid grid-cols-1 gap-5 ${
+                    canViewFinancial
+                        ? 'xl:grid-cols-[0.95fr_1.35fr]'
+                        : 'xl:grid-cols-1'
+                }`}
+            >
                 <SectionCard
                     title="Top 5 Assessment Bulanan"
                     subtitle={
-                        assessmentMonth
-                            ? `Periode: ${assessmentMonthLabel}${
-                                  assessmentVisitCount > 0 ||
-                                  assessmentEntriesCount > 0
-                                      ? ` · ${assessmentVisitCount} kunjungan · ${assessmentEntriesCount} entri`
-                                      : ''
-                              }`
-                            : assessmentSummary ||
-                              (assessmentMonthLabel
-                                  ? `Assessment terbanyak bulan ${assessmentMonthLabel}.`
-                                  : 'Assessment terbanyak bulan ini.')
+                        assessmentSummary ||
+                        (assessmentMonthLabel
+                            ? `Assessment terbanyak bulan ${assessmentMonthLabel}.`
+                            : 'Assessment terbanyak bulan ini.')
                     }
                     icon={<ClipboardList className="h-5 w-5" />}
                     className="min-h-[390px]"
@@ -845,6 +934,8 @@ const Dashboard = () => {
                         <ErrorNotice message={assessmentError} />
                     ) : (
                         <TopAssessmentList
+                            month={assessmentMonth}
+                            totalVisits={assessmentVisitCount}
                             items={topAssessments}
                             isLoading={assessmentLoading}
                             emptyMessage="Belum ada assessment atau keluhan KB bulan ini."
@@ -852,28 +943,30 @@ const Dashboard = () => {
                     )}
                 </SectionCard>
 
-                <SectionCard
-                    title="Grafik Keuangan Bulanan"
-                    subtitle="Pantau pemasukan dan pengeluaran harian bulan ini."
-                    icon={<Wallet className="h-5 w-5" />}
-                    className="min-h-[390px]"
-                >
-                    {financialError && (
-                        <div className="mb-4">
-                            <ErrorNotice message={financialError} />
-                        </div>
-                    )}
+                {canViewFinancial && (
+                    <SectionCard
+                        title="Grafik Keuangan Bulanan"
+                        subtitle="Pantau pemasukan dan pengeluaran harian bulan ini."
+                        icon={<Wallet className="h-5 w-5" />}
+                        className="min-h-[390px]"
+                    >
+                        {financialError && (
+                            <div className="mb-4">
+                                <ErrorNotice message={financialError} />
+                            </div>
+                        )}
 
-                    <FinancialChart
-                        title=""
-                        income={dailyIncome}
-                        expense={dailyExpense}
-                        emptyMessage={
-                            financialError ||
-                            'Belum ada data keuangan bulan ini'
-                        }
-                    />
-                </SectionCard>
+                        <FinancialChart
+                            title=""
+                            income={dailyIncome}
+                            expense={dailyExpense}
+                            emptyMessage={
+                                financialError ||
+                                'Belum ada data keuangan bulan ini'
+                            }
+                        />
+                    </SectionCard>
+                )}
             </section>
         </div>
     );

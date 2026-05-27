@@ -8,6 +8,8 @@ import LoadingOverlay from '@/components/loading';
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
+type Role = 'admin' | 'midwife' | 'asisten' | '';
+
 type DetailItem = {
     key: string;
     label: string;
@@ -44,12 +46,90 @@ type DetailResponse = {
     data?: ActivityDetail;
 };
 
+type MeResponse = {
+    msg?: string;
+    requires_clinic_setup?: boolean;
+    redirect_path?: string;
+    user?: {
+        id: string;
+        fullname: string;
+        email: string;
+        role?: string;
+        user_role?: string;
+        clinic_id?: string | null;
+        is_active?: boolean;
+    };
+    clinic?: {
+        id: string;
+        clinic_name: string;
+    } | null;
+};
+
+const ACTIVITY_ALLOWED_ROLES: Role[] = ['admin', 'midwife'];
+
 const readJson = async (response: Response) => {
     try {
         return await response.json();
     } catch {
         return {};
     }
+};
+
+const normalizeRole = (value?: string | null): Role => {
+    const role = String(value || '').trim().toLowerCase();
+
+    if (role === 'admin') return 'admin';
+    if (role === 'developer') return 'admin';
+
+    if (role === 'midwife') return 'midwife';
+    if (role === 'bidan') return 'midwife';
+    if (role === 'owner') return 'midwife';
+
+    if (role === 'asisten') return 'asisten';
+    if (role === 'assistant') return 'asisten';
+    if (role === 'staff') return 'asisten';
+
+    return '';
+};
+
+const translateMessage = (message?: string) => {
+    const rawMessage = String(message || '').trim();
+
+    if (!rawMessage) {
+        return 'Terjadi kesalahan. Silakan coba lagi.';
+    }
+
+    const normalized = rawMessage.toLowerCase();
+
+    if (normalized.includes('failed to fetch')) {
+        return 'Tidak dapat terhubung ke server. Pastikan backend sedang berjalan.';
+    }
+
+    if (normalized.includes('network error')) {
+        return 'Tidak dapat terhubung ke server. Pastikan backend sedang berjalan.';
+    }
+
+    if (normalized.includes('user not found')) {
+        return 'User tidak ditemukan.';
+    }
+
+    if (normalized.includes('inactive')) {
+        return 'Akun Anda sedang tidak aktif.';
+    }
+
+    if (normalized.includes('forbidden') || normalized.includes('access denied')) {
+        return 'Kamu tidak memiliki izin untuk mengakses detail riwayat aktivitas.';
+    }
+
+    if (normalized.includes('not found')) {
+        return 'Detail riwayat aktivitas tidak ditemukan.';
+    }
+
+    if (normalized.includes('failed to get')) {
+        return 'Gagal mengambil detail riwayat aktivitas.';
+    }
+
+    return rawMessage;
 };
 
 const formatActionLabel = (value: string) => {
@@ -67,9 +147,13 @@ const formatActionLabel = (value: string) => {
 };
 
 const formatRole = (value: string) => {
-    if (!value) return '-';
+    const role = normalizeRole(value);
 
-    if (value === 'asisten') return 'Asisten';
+    if (role === 'admin') return 'Admin';
+    if (role === 'midwife') return 'Bidan';
+    if (role === 'asisten') return 'Asisten';
+
+    if (!value) return '-';
 
     return value
         .replace(/_/g, ' ')
@@ -211,12 +295,37 @@ const ValueList = ({
     );
 };
 
+const ForbiddenView = () => {
+    return (
+        <div className="flex min-h-[calc(100dvh-48px)] w-full items-center justify-center px-4">
+            <div className="w-full max-w-[460px] rounded-[24px] border border-red-200 bg-white px-6 py-8 text-center shadow-sm">
+                <div className="mx-auto flex h-[58px] w-[58px] items-center justify-center rounded-full bg-red-50 text-[24px] font-extrabold text-red-600">
+                    403
+                </div>
+
+                <h1 className="mt-5 text-[24px] font-extrabold text-[#2F3A2F]">
+                    Forbidden Access
+                </h1>
+
+                <p className="mt-3 text-[13px] font-medium leading-relaxed text-[#6B6B6B]">
+                    Kamu tidak memiliki izin untuk mengakses detail riwayat
+                    aktivitas.
+                </p>
+
+                <p className="mt-2 text-[12px] font-semibold text-red-600">
+                    Halaman ini hanya dapat diakses oleh admin dan bidan.
+                </p>
+            </div>
+        </div>
+    );
+};
+
 const ActivityHistoryDetail = () => {
     const router = useRouter();
     const params = useParams();
 
     const auditId = useMemo(() => {
-        const value = params?.auditId;
+        const value = params?.auditId || params?.id;
 
         if (Array.isArray(value)) {
             return value[0] || '';
@@ -227,16 +336,20 @@ const ActivityHistoryDetail = () => {
 
     const [detail, setDetail] = useState<ActivityDetail | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isForbidden, setIsForbidden] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
 
     const clearSession = () => {
-        Cookies.remove('access_token');
+        Cookies.remove('access_token', { path: '/' });
 
         localStorage.removeItem('user_id');
+        localStorage.removeItem('temp_user_id');
         localStorage.removeItem('fullname');
         localStorage.removeItem('user_email');
         localStorage.removeItem('user_role');
         localStorage.removeItem('clinic_id');
+        localStorage.removeItem('profile_photo');
+        localStorage.removeItem('requires_clinic_setup');
     };
 
     const handleUnauthorized = () => {
@@ -244,15 +357,79 @@ const ActivityHistoryDetail = () => {
         router.push('/login');
     };
 
+    const saveUserSession = (data: MeResponse, role: Role) => {
+        if (!data.user) return;
+
+        localStorage.setItem('user_id', data.user.id || '');
+        localStorage.setItem('temp_user_id', data.user.id || '');
+        localStorage.setItem('fullname', data.user.fullname || '');
+        localStorage.setItem('user_email', data.user.email || '');
+        localStorage.setItem('user_role', role || '');
+        localStorage.setItem('clinic_id', data.user.clinic_id || '');
+        localStorage.setItem(
+            'requires_clinic_setup',
+            data.requires_clinic_setup ? 'true' : 'false',
+        );
+    };
+
+    const checkAccess = async () => {
+        const token = Cookies.get('access_token');
+
+        if (!token) {
+            handleUnauthorized();
+            return null;
+        }
+
+        const response = await fetch(`${API_BASE_URL}/auth/me`, {
+            method: 'GET',
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        const data = (await readJson(response)) as MeResponse;
+
+        if (response.status === 401 || response.status === 422) {
+            handleUnauthorized();
+            return null;
+        }
+
+        if (response.status === 403) {
+            setIsForbidden(true);
+            return null;
+        }
+
+        if (!response.ok || !data.user) {
+            throw new Error(data?.msg || 'Gagal memeriksa akses user.');
+        }
+
+        const role = normalizeRole(data.user.role || data.user.user_role);
+
+        saveUserSession(data, role);
+
+        if (role === 'midwife' && data.requires_clinic_setup) {
+            router.push(data.redirect_path || '/register-clinic');
+            return null;
+        }
+
+        if (!ACTIVITY_ALLOWED_ROLES.includes(role)) {
+            setIsForbidden(true);
+            return null;
+        }
+
+        return token;
+    };
+
     const fetchDetail = async () => {
         try {
             setIsLoading(true);
+            setIsForbidden(false);
             setErrorMessage('');
 
-            const token = Cookies.get('access_token');
+            const token = await checkAccess();
 
             if (!token) {
-                handleUnauthorized();
                 return;
             }
 
@@ -275,20 +452,22 @@ const ActivityHistoryDetail = () => {
             }
 
             if (response.status === 403) {
-                router.push('/dashboard');
+                setIsForbidden(true);
                 return;
             }
 
             if (!response.ok || !data.data) {
-                throw new Error(data?.msg || 'Gagal mengambil detail activity');
+                throw new Error(
+                    data?.msg || 'Gagal mengambil detail riwayat aktivitas.',
+                );
             }
 
             setDetail(data.data);
         } catch (error) {
             const message =
                 error instanceof Error
-                    ? error.message
-                    : 'Terjadi kesalahan saat mengambil detail activity';
+                    ? translateMessage(error.message)
+                    : 'Terjadi kesalahan saat mengambil detail riwayat aktivitas.';
 
             setErrorMessage(message);
             setDetail(null);
@@ -312,6 +491,10 @@ const ActivityHistoryDetail = () => {
         );
     }
 
+    if (isForbidden) {
+        return <ForbiddenView />;
+    }
+
     const activityMode = detail ? getActivityMode(detail.action) : 'update';
 
     return (
@@ -324,7 +507,7 @@ const ActivityHistoryDetail = () => {
 
             {!detail ? (
                 <section className="rounded-[22px] border border-[#D2D8CF] bg-white px-5 py-8 text-center text-[13px] text-gray-500 shadow-sm">
-                    Detail activity tidak ditemukan.
+                    Detail riwayat aktivitas tidak ditemukan.
                 </section>
             ) : (
                 <>
@@ -345,7 +528,7 @@ const ActivityHistoryDetail = () => {
 
                         <div className="grid grid-cols-1 gap-4 px-5 py-5 sm:px-6 md:grid-cols-2 lg:grid-cols-3">
                             <DetailField
-                                label="Audit ID"
+                                label="Nomor Audit"
                                 value={detail.audit_number}
                             />
 
@@ -355,12 +538,12 @@ const ActivityHistoryDetail = () => {
                             />
 
                             <DetailField
-                                label="Module"
+                                label="Modul"
                                 value={detail.module}
                             />
 
                             <DetailField
-                                label="Record ID"
+                                label="ID Record"
                                 value={detail.record_id}
                             />
 
@@ -380,7 +563,7 @@ const ActivityHistoryDetail = () => {
                             />
 
                             <DetailField
-                                label="Action"
+                                label="Aksi"
                                 value={formatActionLabel(detail.action)}
                             />
                         </div>
@@ -511,4 +694,4 @@ const ActivityHistoryDetail = () => {
     );
 };
 
-export default ActivityHistoryDetail;   
+export default ActivityHistoryDetail;

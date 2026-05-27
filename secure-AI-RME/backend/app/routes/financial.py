@@ -7,8 +7,6 @@ from app.utils import (
     write_audit_log,
     reserve_next_sequence,
     get_next_sequence_preview,
-    reserve_next_sequence, 
-    get_next_sequence_preview
 )
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
@@ -19,7 +17,11 @@ import uuid
 
 financial_bp = Blueprint("financial", __name__)
 
-FINANCIAL_ALLOWED_ROLES = ["admin", "midwife"]
+ADMIN_ROLE = "admin"
+MIDWIFE_ROLE = "midwife"
+ASSISTANT_ROLE = "asisten"
+
+FINANCIAL_ALLOWED_ROLES = [ADMIN_ROLE, MIDWIFE_ROLE]
 
 
 # -----------------------------------------------------------------------------
@@ -37,9 +39,30 @@ def role_to_text(value):
         return ""
 
     if hasattr(value, "value"):
-        return str(value.value)
+        value = value.value
 
-    return str(value)
+    normalized = str(value or "").strip().lower()
+
+    role_aliases = {
+        "admin": ADMIN_ROLE,
+        "developer": ADMIN_ROLE,
+        "midwife": MIDWIFE_ROLE,
+        "bidan": MIDWIFE_ROLE,
+        "owner": MIDWIFE_ROLE,
+        "asisten": ASSISTANT_ROLE,
+        "assistant": ASSISTANT_ROLE,
+        "staff": ASSISTANT_ROLE,
+    }
+
+    return role_aliases.get(normalized, normalized)
+
+
+def is_admin_user(user):
+    return role_to_text(getattr(user, "user_role", "")) == ADMIN_ROLE
+
+
+def is_midwife_user(user):
+    return role_to_text(getattr(user, "user_role", "")) == MIDWIFE_ROLE
 
 
 def safe_decrypt(value):
@@ -61,14 +84,28 @@ def get_current_user():
     return db.session.get(User, user_id)
 
 
+def get_financial_scope_clinic_id(user):
+    """
+    Admin adalah developer, jadi admin boleh mengakses semua data financial.
+    Jika admin tidak punya clinic_id, scope clinic dikosongkan agar query tidak
+    dipersempit ke satu klinik.
+
+    Bidan tetap hanya mengakses data kliniknya sendiri.
+    """
+    if is_admin_user(user):
+        return None
+
+    return user.clinic_id
+
+
 def require_financial_access():
     current_user = get_current_user()
 
     if not current_user:
-        return None, (jsonify({"msg": "User not found"}), 404)
+        return None, (jsonify({"msg": "User tidak ditemukan."}), 404)
 
     if not current_user.is_active:
-        return None, (jsonify({"msg": "Your account is inactive"}), 403)
+        return None, (jsonify({"msg": "Akun Anda sedang tidak aktif."}), 403)
 
     current_role = role_to_text(current_user.user_role)
 
@@ -76,15 +113,21 @@ def require_financial_access():
         return None, (
             jsonify(
                 {
-                    "msg": "Access denied. Only admin and midwife can access financial report."
+                    "msg": "Akses ditolak. Hanya admin dan bidan yang dapat mengakses laporan keuangan."
                 }
             ),
             403,
         )
 
-    if not current_user.clinic_id:
+    if is_midwife_user(current_user) and not current_user.clinic_id:
         return None, (
-            jsonify({"msg": "Your account is not linked to a clinic"}),
+            jsonify(
+                {
+                    "msg": "Akun bidan belum terhubung dengan klinik.",
+                    "requires_clinic_setup": True,
+                    "redirect_path": "/register-clinic",
+                }
+            ),
             400,
         )
 
@@ -100,7 +143,10 @@ def parse_payment_date(value):
     if "T" in raw_value:
         raw_value = raw_value.split("T")[0]
 
-    return datetime.strptime(raw_value, "%Y-%m-%d").date()
+    try:
+        return datetime.strptime(raw_value, "%Y-%m-%d").date()
+    except ValueError:
+        raise ValueError("Format tanggal tidak valid. Gunakan format YYYY-MM-DD.")
 
 
 def format_date(value):
@@ -125,16 +171,24 @@ def parse_amount(value, allow_zero=False):
     try:
         amount = Decimal(str(value))
     except (InvalidOperation, ValueError, TypeError):
-        raise ValueError("Amount must be a valid number")
+        raise ValueError("Nominal harus berupa angka yang valid.")
 
     if allow_zero:
         if amount < 0:
-            raise ValueError("Amount cannot be negative")
+            raise ValueError("Nominal tidak boleh negatif.")
     else:
         if amount <= 0:
-            raise ValueError("Amount must be greater than 0")
+            raise ValueError("Nominal harus lebih besar dari 0.")
 
     return amount
+
+
+def is_income_type(trans_type):
+    return str(trans_type or "").strip().lower() in ("pemasukan",)
+
+
+def is_expense_type(trans_type):
+    return str(trans_type or "").strip().lower() in ("pengeluaran",)
 
 
 # -----------------------------------------------------------------------------
@@ -228,19 +282,21 @@ def get_column_db_type_name(table_name, column_name, schema_name="public"):
     ).mappings().first()
 
     if not row:
-        raise ValueError(f"Column {schema_name}.{table_name}.{column_name} was not found")
+        raise ValueError(
+            f"Kolom {schema_name}.{table_name}.{column_name} tidak ditemukan."
+        )
 
     return f"{quote_identifier(row['type_schema'])}.{quote_identifier(row['type_name'])}"
 
 
 def normalize_column_enum_value(table_name, column_name, value, allowed_fallback=None):
     if value is None:
-        raise ValueError(f"{column_name} is required")
+        raise ValueError(f"{column_name} wajib diisi.")
 
     raw_value = str(value).strip()
 
     if not raw_value:
-        raise ValueError(f"{column_name} is required")
+        raise ValueError(f"{column_name} wajib diisi.")
 
     enum_labels = get_column_enum_labels(table_name, column_name)
 
@@ -261,7 +317,7 @@ def normalize_column_enum_value(table_name, column_name, value, allowed_fallback
     allowed_values = ", ".join(enum_labels)
 
     raise ValueError(
-        f"Invalid value '{raw_value}' for {column_name}. Allowed values: {allowed_values}"
+        f"Nilai '{raw_value}' tidak valid untuk {column_name}. Nilai yang tersedia: {allowed_values}."
     )
 
 
@@ -289,7 +345,7 @@ def normalize_financial_input(data, include_required=True):
 
         if missing_fields:
             raise ValueError(
-                "All required data must be filled: " + ", ".join(missing_fields)
+                "Data wajib belum lengkap: " + ", ".join(missing_fields)
             )
 
     payment_date = parse_payment_date(data.get("payment_date"))
@@ -321,10 +377,10 @@ def normalize_financial_input(data, include_required=True):
         }
 
     if data.get("amount") is None or data.get("amount") == "":
-        raise ValueError("Amount is required when payment status is paid")
+        raise ValueError("Nominal wajib diisi jika status pembayaran dibayar.")
 
     if data.get("payment_method") is None or data.get("payment_method") == "":
-        raise ValueError("Payment method is required when payment status is paid")
+        raise ValueError("Metode pembayaran wajib diisi jika status pembayaran dibayar.")
 
     amount = parse_amount(data.get("amount"))
 
@@ -348,15 +404,22 @@ def normalize_financial_input(data, include_required=True):
 # -----------------------------------------------------------------------------
 # Visit / record reference helpers
 # -----------------------------------------------------------------------------
-def resolve_visit_or_record_reference(reference_id, clinic_id):
+def resolve_visit_or_record_reference(reference_id, clinic_id=None):
     if not reference_id:
         return None
 
     reference_id = str(reference_id).strip()
 
+    visit_conditions = ["vm.visit_id::text = :reference_id"]
+    visit_params = {"reference_id": reference_id}
+
+    if clinic_id:
+        visit_conditions.append("p.clinic_id::text = :clinic_id")
+        visit_params["clinic_id"] = str(clinic_id)
+
     visit_row = db.session.execute(
         text(
-            """
+            f"""
             SELECT
                 vm.visit_id::text AS visit_id,
                 vm.visit_number,
@@ -371,22 +434,25 @@ def resolve_visit_or_record_reference(reference_id, clinic_id):
                 ON mr.record_id::text = vm.record_id::text
             JOIN patient p
                 ON p.patient_id::text = mr.patient_id::text
-            WHERE vm.visit_id::text = :reference_id
-              AND p.clinic_id::text = :clinic_id
+            WHERE {' AND '.join(visit_conditions)}
             """
         ),
-        {
-            "reference_id": reference_id,
-            "clinic_id": str(clinic_id),
-        },
+        visit_params,
     ).mappings().first()
 
     if visit_row:
         return dict(visit_row)
 
+    record_conditions = ["mr.record_id::text = :reference_id"]
+    record_params = {"reference_id": reference_id}
+
+    if clinic_id:
+        record_conditions.append("p.clinic_id::text = :clinic_id")
+        record_params["clinic_id"] = str(clinic_id)
+
     record_row = db.session.execute(
         text(
-            """
+            f"""
             SELECT
                 NULL::text AS visit_id,
                 NULL::text AS visit_number,
@@ -399,14 +465,10 @@ def resolve_visit_or_record_reference(reference_id, clinic_id):
             FROM medical_record mr
             JOIN patient p
                 ON p.patient_id::text = mr.patient_id::text
-            WHERE mr.record_id::text = :reference_id
-              AND p.clinic_id::text = :clinic_id
+            WHERE {' AND '.join(record_conditions)}
             """
         ),
-        {
-            "reference_id": reference_id,
-            "clinic_id": str(clinic_id),
-        },
+        record_params,
     ).mappings().first()
 
     if not record_row:
@@ -509,7 +571,9 @@ def serialize_financial_row(row):
         "visit_id": row.get("visit_id"),
         "user_id": row.get("user_id"),
         "patient_id": row.get("patient_id"),
-        "clinic_id": row.get("clinic_id") or row.get("patient_clinic_id") or row.get("user_clinic_id"),
+        "clinic_id": row.get("clinic_id")
+        or row.get("patient_clinic_id")
+        or row.get("user_clinic_id"),
         "transaction_number": row.get("transaction_number"),
         "trans_id": payment_date,
         "payment_date": payment_date,
@@ -553,130 +617,54 @@ def fetch_financial_by_transaction_id(transaction_id, clinic_id=None):
     return row
 
 
-def build_daily_financial_series(clinic_id, month_start, month_end):
-    rows = db.session.execute(
-        text(
-            """
-            SELECT
-                CAST(f.payment_date AS date) AS payment_day,
-                LOWER(f.trans_type::text) AS trans_type,
-                COALESCE(SUM(f.amount), 0) AS total
-            FROM financial f
-            LEFT JOIN visit_master vm
-                ON vm.visit_id::text = f.visit_id::text
-            LEFT JOIN medical_record mr
-                ON mr.record_id::text = vm.record_id::text
-            LEFT JOIN patient p
-                ON p.patient_id::text = COALESCE(f.patient_id::text, mr.patient_id::text)
-            LEFT JOIN users u
-                ON u.user_id::text = f.user_id::text
-            WHERE (
-                p.clinic_id::text = :clinic_id
-                OR (
-                    p.patient_id IS NULL
-                    AND u.clinic_id::text = :clinic_id
-                )
-            )
-            AND CAST(f.payment_date AS date) >= :month_start
-            AND CAST(f.payment_date AS date) <= :month_end
-            GROUP BY CAST(f.payment_date AS date), f.trans_type
-            ORDER BY payment_day
-            """
-        ),
-        {
-            "clinic_id": str(clinic_id),
-            "month_start": month_start,
-            "month_end": month_end,
-        },
-    ).mappings().all()
-
-    income_by_day = {}
-    expense_by_day = {}
-    current = month_start
-    while current <= month_end:
-        day_key = current.isoformat()
-        income_by_day[day_key] = 0.0
-        expense_by_day[day_key] = 0.0
-        current += timedelta(days=1)
-
-    for row in rows:
-        day_key = row["payment_day"].isoformat()
-        total = float(row.get("total") or 0)
-        trans_type = str(row.get("trans_type") or "").strip().lower()
-        if is_income_type(trans_type):
-            income_by_day[day_key] = income_by_day.get(day_key, 0.0) + total
-        elif is_expense_type(trans_type):
-            expense_by_day[day_key] = expense_by_day.get(day_key, 0.0) + total
-
-    daily_income = [
-        {"date": day, "amount": income_by_day[day]}
-        for day in sorted(income_by_day.keys())
-    ]
-    daily_expense = [
-        {"date": day, "amount": expense_by_day[day]}
-        for day in sorted(expense_by_day.keys())
-    ]
-    return daily_income, daily_expense
-
-
 def get_month_bounds(reference=None):
     today = reference or date.today()
     month_start = today.replace(day=1)
+
     if today.month == 12:
         month_end = date(today.year + 1, 1, 1) - timedelta(days=1)
     else:
         month_end = date(today.year, today.month + 1, 1) - timedelta(days=1)
+
     return month_start, month_end
 
 
-def is_income_type(trans_type):
-    return str(trans_type or "").strip().lower() in ("pemasukan")
-
-
-def is_expense_type(trans_type):
-    return str(trans_type or "").strip().lower() in ("pengeluaran")
-
-
 def build_daily_financial_series(clinic_id, month_start, month_end):
+    conditions = [
+        "CAST(f.payment_date AS date) >= :month_start",
+        "CAST(f.payment_date AS date) <= :month_end",
+    ]
+
+    params = {
+        "month_start": month_start,
+        "month_end": month_end,
+    }
+
+    if clinic_id:
+        conditions.append("f.clinic_id::text = :clinic_id")
+        params["clinic_id"] = str(clinic_id)
+
     rows = db.session.execute(
         text(
-            """
+            f"""
             SELECT
                 CAST(f.payment_date AS date) AS payment_day,
                 LOWER(f.trans_type::text) AS trans_type,
                 COALESCE(SUM(f.amount), 0) AS total
             FROM financial f
-            LEFT JOIN visit_master vm
-                ON vm.visit_id::text = f.visit_id::text
-            LEFT JOIN medical_record mr
-                ON mr.record_id::text = vm.record_id::text
-            LEFT JOIN patient p
-                ON p.patient_id::text = COALESCE(f.patient_id::text, mr.patient_id::text)
-            LEFT JOIN users u
-                ON u.user_id::text = f.user_id::text
-            WHERE (
-                p.clinic_id::text = :clinic_id
-                OR (
-                    p.patient_id IS NULL
-                    AND u.clinic_id::text = :clinic_id
-                )
-            )
-            AND CAST(f.payment_date AS date) >= :month_start
-            AND CAST(f.payment_date AS date) <= :month_end
+            WHERE {' AND '.join(conditions)}
             GROUP BY CAST(f.payment_date AS date), f.trans_type
             ORDER BY payment_day
             """
         ),
-        {
-            "clinic_id": str(clinic_id),
-            "month_start": month_start,
-            "month_end": month_end,
-        },
+        params,
     ).mappings().all()
 
     income_by_day = {}
     expense_by_day = {}
+
     current = month_start
+
     while current <= month_end:
         day_key = current.isoformat()
         income_by_day[day_key] = 0.0
@@ -687,6 +675,7 @@ def build_daily_financial_series(clinic_id, month_start, month_end):
         day_key = row["payment_day"].isoformat()
         total = float(row.get("total") or 0)
         trans_type = str(row.get("trans_type") or "").strip().lower()
+
         if is_income_type(trans_type):
             income_by_day[day_key] = income_by_day.get(day_key, 0.0) + total
         elif is_expense_type(trans_type):
@@ -700,6 +689,7 @@ def build_daily_financial_series(clinic_id, month_start, month_end):
         {"date": day, "amount": expense_by_day[day]}
         for day in sorted(expense_by_day.keys())
     ]
+
     return daily_income, daily_expense
 
 
@@ -740,14 +730,14 @@ def get_transaction_number():
             200,
         )
 
-    except ValueError:
-        return jsonify({"msg": "Invalid date format. Use YYYY-MM-DD"}), 400
+    except ValueError as e:
+        return jsonify({"msg": str(e)}), 400
 
     except Exception as e:
         return (
             jsonify(
                 {
-                    "msg": "Failed to generate transaction number",
+                    "msg": "Gagal membuat nomor transaksi.",
                     "error": str(e),
                 }
             ),
@@ -758,49 +748,41 @@ def get_transaction_number():
 @financial_bp.route("/monthly-summary", methods=["GET"])
 @jwt_required()
 def get_monthly_summary():
-    current_user = get_current_user()
+    current_user, error_response = require_financial_access()
 
-    if not current_user:
-        return jsonify({"msg": "User not found"}), 404
-
-    if not current_user.clinic_id:
-        return jsonify({"msg": "Akun belum terhubung ke klinik"}), 400
+    if error_response:
+        return error_response
 
     try:
+        current_clinic_id = get_financial_scope_clinic_id(current_user)
         month_start, month_end = get_month_bounds()
+
+        conditions = [
+            "CAST(f.payment_date AS date) >= :month_start",
+            "CAST(f.payment_date AS date) <= :month_end",
+        ]
+
+        params = {
+            "month_start": month_start,
+            "month_end": month_end,
+        }
+
+        if current_clinic_id:
+            conditions.append("f.clinic_id::text = :clinic_id")
+            params["clinic_id"] = str(current_clinic_id)
 
         rows = db.session.execute(
             text(
-                """
+                f"""
                 SELECT
                     LOWER(f.trans_type::text) AS trans_type,
                     COALESCE(SUM(f.amount), 0) AS total
                 FROM financial f
-                LEFT JOIN visit_master vm
-                    ON vm.visit_id::text = f.visit_id::text
-                LEFT JOIN medical_record mr
-                    ON mr.record_id::text = vm.record_id::text
-                LEFT JOIN patient p
-                    ON p.patient_id::text = COALESCE(f.patient_id::text, mr.patient_id::text)
-                LEFT JOIN users u
-                    ON u.user_id::text = f.user_id::text
-                WHERE (
-                    p.clinic_id::text = :clinic_id
-                    OR (
-                        p.patient_id IS NULL
-                        AND u.clinic_id::text = :clinic_id
-                    )
-                )
-                AND CAST(f.payment_date AS date) >= :month_start
-                AND CAST(f.payment_date AS date) <= :month_end
+                WHERE {' AND '.join(conditions)}
                 GROUP BY f.trans_type
                 """
             ),
-            {
-                "clinic_id": str(current_user.clinic_id),
-                "month_start": month_start,
-                "month_end": month_end,
-            },
+            params,
         ).mappings().all()
 
         monthly_income = 0.0
@@ -816,7 +798,9 @@ def get_monthly_summary():
                 monthly_expense += total
 
         daily_income, daily_expense = build_daily_financial_series(
-            current_user.clinic_id, month_start, month_end
+            current_clinic_id,
+            month_start,
+            month_end,
         )
 
         return (
@@ -836,7 +820,7 @@ def get_monthly_summary():
         return (
             jsonify(
                 {
-                    "msg": "Gagal mengambil ringkasan keuangan bulanan",
+                    "msg": "Gagal mengambil ringkasan keuangan bulanan.",
                     "error": str(e),
                 }
             ),
@@ -853,16 +837,17 @@ def get_all_financial_transactions():
         return error_response
 
     try:
-        current_clinic_id = current_user.clinic_id
+        current_clinic_id = get_financial_scope_clinic_id(current_user)
 
         date_filter = request.args.get("date")
         search_query = request.args.get("search", "").strip()
 
-        conditions = ["f.clinic_id::text = :clinic_id"]
+        conditions = []
+        params = {}
 
-        params = {
-            "clinic_id": str(current_clinic_id),
-        }
+        if current_clinic_id:
+            conditions.append("f.clinic_id::text = :clinic_id")
+            params["clinic_id"] = str(current_clinic_id)
 
         if date_filter:
             conditions.append("CAST(f.payment_date AS date) = :payment_date")
@@ -881,13 +866,12 @@ def get_all_financial_transactions():
                     OR LOWER(COALESCE(f.status::text, '')) LIKE :search
                     OR LOWER(COALESCE(CAST(f.amount AS text), '')) LIKE :search
                     OR LOWER(COALESCE(u.fullname, '')) LIKE :search
-                    OR LOWER(COALESCE(p.patient_number, '')) LIKE :search
                 )
                 """
             )
             params["search"] = f"%{search_query.lower()}%"
 
-        where_clause = "WHERE " + " AND ".join(conditions)
+        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
 
         rows = db.session.execute(
             text(
@@ -902,14 +886,14 @@ def get_all_financial_transactions():
 
         return jsonify([serialize_financial_row(row) for row in rows]), 200
 
-    except ValueError:
-        return jsonify({"msg": "Invalid date format. Use YYYY-MM-DD"}), 400
+    except ValueError as e:
+        return jsonify({"msg": str(e)}), 400
 
     except Exception as e:
         return (
             jsonify(
                 {
-                    "msg": "Failed to get financial data",
+                    "msg": "Gagal mengambil data keuangan.",
                     "error": str(e),
                 }
             ),
@@ -925,8 +909,8 @@ def add_financial_transaction():
     if error_response:
         return error_response
 
-    current_clinic_id = current_user.clinic_id
     current_user_id = current_user.user_id
+    scope_clinic_id = get_financial_scope_clinic_id(current_user)
 
     data = request.get_json() or {}
 
@@ -947,7 +931,7 @@ def add_financial_transaction():
         return (
             jsonify(
                 {
-                    "msg": "All required data must be filled",
+                    "msg": "Data wajib belum lengkap.",
                     "missing_fields": missing_fields,
                 }
             ),
@@ -960,17 +944,28 @@ def add_financial_transaction():
 
         resolved_reference = resolve_visit_or_record_reference(
             reference_id,
-            current_clinic_id,
+            scope_clinic_id,
         )
 
         if not resolved_reference:
-            return jsonify({"msg": "Visit or medical record not found in your clinic"}), 404
+            return jsonify({"msg": "Visit atau rekam medis tidak ditemukan."}), 404
 
         visit_id = resolved_reference.get("visit_id")
         patient_id = resolved_reference.get("patient_id")
+        transaction_clinic_id = resolved_reference.get("clinic_id") or scope_clinic_id
+
+        if not transaction_clinic_id:
+            return jsonify({"msg": "Klinik untuk transaksi tidak ditemukan."}), 400
 
         if not visit_id:
-            return jsonify({"msg": "Selected medical record does not have a visit report"}), 400
+            return (
+                jsonify(
+                    {
+                        "msg": "Rekam medis yang dipilih belum memiliki laporan kunjungan."
+                    }
+                ),
+                400,
+            )
 
         year = normalized_data["payment_date"].year
         sequence_number = reserve_next_sequence(year)
@@ -1017,7 +1012,7 @@ def add_financial_transaction():
                 "visit_id": visit_id,
                 "user_id": str(current_user_id),
                 "patient_id": patient_id,
-                "clinic_id": str(current_clinic_id),
+                "clinic_id": str(transaction_clinic_id),
                 "transaction_number": transaction_number,
                 "trans_type": normalized_data["trans_type"],
                 "amount": normalized_data["amount"],
@@ -1028,7 +1023,11 @@ def add_financial_transaction():
             },
         )
 
-        saved_row = fetch_financial_by_transaction_id(transaction_id, current_clinic_id)
+        fetch_scope_clinic_id = None if is_admin_user(current_user) else transaction_clinic_id
+        saved_row = fetch_financial_by_transaction_id(
+            transaction_id,
+            fetch_scope_clinic_id,
+        )
         saved_data = serialize_financial_row(saved_row)
 
         write_audit_log(
@@ -1046,7 +1045,7 @@ def add_financial_transaction():
         return (
             jsonify(
                 {
-                    "msg": "Financial transaction added successfully",
+                    "msg": "Transaksi keuangan berhasil ditambahkan.",
                     "data": saved_data,
                 }
             ),
@@ -1062,7 +1061,7 @@ def add_financial_transaction():
         return (
             jsonify(
                 {
-                    "msg": "Transaction number already exists. Please try again.",
+                    "msg": "Nomor transaksi sudah digunakan. Silakan coba lagi.",
                     "error": str(e),
                 }
             ),
@@ -1074,7 +1073,7 @@ def add_financial_transaction():
         return (
             jsonify(
                 {
-                    "msg": "Failed to add financial transaction",
+                    "msg": "Gagal menambahkan transaksi keuangan.",
                     "error": str(e),
                 }
             ),
@@ -1091,10 +1090,11 @@ def get_financial_detail(transaction_id):
         return error_response
 
     try:
-        row = fetch_financial_by_transaction_id(transaction_id, current_user.clinic_id)
+        current_clinic_id = get_financial_scope_clinic_id(current_user)
+        row = fetch_financial_by_transaction_id(transaction_id, current_clinic_id)
 
         if not row:
-            return jsonify({"msg": "Invoice not found"}), 404
+            return jsonify({"msg": "Invoice tidak ditemukan."}), 404
 
         return jsonify({"data": serialize_financial_row(row)}), 200
 
@@ -1102,7 +1102,7 @@ def get_financial_detail(transaction_id):
         return (
             jsonify(
                 {
-                    "msg": "Failed to get invoice detail",
+                    "msg": "Gagal mengambil detail invoice.",
                     "error": str(e),
                 }
             ),
@@ -1121,14 +1121,33 @@ def update_financial_detail(transaction_id):
     data = request.get_json() or {}
 
     try:
-        current_row = fetch_financial_by_transaction_id(transaction_id, current_user.clinic_id)
+        current_clinic_id = get_financial_scope_clinic_id(current_user)
+        current_row = fetch_financial_by_transaction_id(
+            transaction_id,
+            current_clinic_id,
+        )
 
         if not current_row:
-            return jsonify({"msg": "Invoice not found"}), 404
+            return jsonify({"msg": "Invoice tidak ditemukan."}), 404
 
         old_data = serialize_financial_row(current_row)
         normalized_data = normalize_financial_input(data)
         enum_types = get_financial_enum_type_names()
+
+        conditions = ["transaction_id::text = :transaction_id"]
+        params = {
+            "transaction_id": str(transaction_id),
+            "payment_date": normalized_data["payment_date"],
+            "trans_type": normalized_data["trans_type"],
+            "amount": normalized_data["amount"],
+            "payment_method": normalized_data["payment_method"],
+            "status": normalized_data["status"],
+            "description": normalized_data["description"],
+        }
+
+        if current_clinic_id:
+            conditions.append("clinic_id::text = :clinic_id")
+            params["clinic_id"] = str(current_clinic_id)
 
         db.session.execute(
             text(
@@ -1141,23 +1160,16 @@ def update_financial_detail(transaction_id):
                     payment_method = CAST(:payment_method AS {enum_types['payment_method']}),
                     status = CAST(:status AS {enum_types['status']}),
                     description = :description
-                WHERE transaction_id::text = :transaction_id
-                  AND clinic_id::text = :clinic_id
+                WHERE {' AND '.join(conditions)}
                 """
             ),
-            {
-                "transaction_id": str(transaction_id),
-                "clinic_id": str(current_user.clinic_id),
-                "payment_date": normalized_data["payment_date"],
-                "trans_type": normalized_data["trans_type"],
-                "amount": normalized_data["amount"],
-                "payment_method": normalized_data["payment_method"],
-                "status": normalized_data["status"],
-                "description": normalized_data["description"],
-            },
+            params,
         )
 
-        updated_row = fetch_financial_by_transaction_id(transaction_id, current_user.clinic_id)
+        updated_row = fetch_financial_by_transaction_id(
+            transaction_id,
+            current_clinic_id,
+        )
         updated_data = serialize_financial_row(updated_row)
 
         write_audit_log(
@@ -1178,7 +1190,7 @@ def update_financial_detail(transaction_id):
         return (
             jsonify(
                 {
-                    "msg": "Invoice updated successfully",
+                    "msg": "Invoice berhasil diperbarui.",
                     "data": updated_data,
                 }
             ),
@@ -1194,7 +1206,7 @@ def update_financial_detail(transaction_id):
         return (
             jsonify(
                 {
-                    "msg": "Failed to update invoice",
+                    "msg": "Gagal memperbarui invoice.",
                     "error": str(e),
                 }
             ),
@@ -1211,25 +1223,32 @@ def delete_financial_detail(transaction_id):
         return error_response
 
     try:
-        current_row = fetch_financial_by_transaction_id(transaction_id, current_user.clinic_id)
+        current_clinic_id = get_financial_scope_clinic_id(current_user)
+        current_row = fetch_financial_by_transaction_id(
+            transaction_id,
+            current_clinic_id,
+        )
 
         if not current_row:
-            return jsonify({"msg": "Invoice not found"}), 404
+            return jsonify({"msg": "Invoice tidak ditemukan."}), 404
 
         old_data = serialize_financial_row(current_row)
 
+        conditions = ["transaction_id::text = :transaction_id"]
+        params = {"transaction_id": str(transaction_id)}
+
+        if current_clinic_id:
+            conditions.append("clinic_id::text = :clinic_id")
+            params["clinic_id"] = str(current_clinic_id)
+
         db.session.execute(
             text(
-                """
+                f"""
                 DELETE FROM financial
-                WHERE transaction_id::text = :transaction_id
-                  AND clinic_id::text = :clinic_id
+                WHERE {' AND '.join(conditions)}
                 """
             ),
-            {
-                "transaction_id": str(transaction_id),
-                "clinic_id": str(current_user.clinic_id),
-            },
+            params,
         )
 
         write_audit_log(
@@ -1247,7 +1266,7 @@ def delete_financial_detail(transaction_id):
         return (
             jsonify(
                 {
-                    "msg": "Invoice deleted successfully",
+                    "msg": "Invoice berhasil dihapus.",
                     "data": old_data,
                 }
             ),
@@ -1259,7 +1278,7 @@ def delete_financial_detail(transaction_id):
         return (
             jsonify(
                 {
-                    "msg": "Failed to delete invoice",
+                    "msg": "Gagal menghapus invoice.",
                     "error": str(e),
                 }
             ),

@@ -12,12 +12,14 @@ import {
     Plus,
     Search,
 } from 'lucide-react';
-import LoadingOverlay from '@/components/loading';;
+import LoadingOverlay from '@/components/loading';
 
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
-const FINANCIAL_ALLOWED_ROLES = ['admin', 'midwife'];
+type Role = 'admin' | 'midwife' | 'asisten' | '';
+
+const FINANCIAL_ALLOWED_ROLES: Role[] = ['admin', 'midwife'];
 
 type FinancialTransaction = {
     transaction_id: string;
@@ -42,11 +44,14 @@ type FinancialTransaction = {
 
 type MeResponse = {
     msg?: string;
+    requires_clinic_setup?: boolean;
+    redirect_path?: string;
     user?: {
         id: string;
         fullname: string;
         email: string;
-        role: string;
+        role?: string;
+        user_role?: string;
         clinic_id?: string | null;
     };
     clinic?: {
@@ -83,7 +88,7 @@ type FilterOptions = {
 
 const tableHeaders: TableHeader[] = [
     {
-        label: 'Invoice No',
+        label: 'Nomor Invoice',
         key: 'transaction_number',
     },
     {
@@ -95,7 +100,7 @@ const tableHeaders: TableHeader[] = [
         key: 'trans_type',
     },
     {
-        label: 'Visit / Record',
+        label: 'Visit / Rekam Medis',
         key: 'visit_display',
     },
     {
@@ -113,21 +118,21 @@ const tableHeaders: TableHeader[] = [
 ];
 
 const monthNames = [
-    'January',
-    'February',
-    'March',
+    'Januari',
+    'Februari',
+    'Maret',
     'April',
-    'May',
-    'June',
-    'July',
-    'August',
+    'Mei',
+    'Juni',
+    'Juli',
+    'Agustus',
     'September',
-    'October',
+    'Oktober',
     'November',
-    'December',
+    'Desember',
 ];
 
-const dayLabels = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const dayLabels = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 
 const getTodayInputValue = () => {
     const date = new Date();
@@ -230,8 +235,8 @@ const formatEnumLabel = (value: string) => {
     if (lowerValue === 'qris') return 'QRIS';
     if (lowerValue === 'pemasukan') return 'Pemasukan';
     if (lowerValue === 'pengeluaran') return 'Pengeluaran';
-    if (lowerValue === 'paid') return 'Paid';
-    if (lowerValue === 'unpaid') return 'Unpaid';
+    if (lowerValue === 'paid') return 'Dibayar';
+    if (lowerValue === 'unpaid') return 'Belum Dibayar';
 
     return normalizedValue
         .split(' ')
@@ -336,6 +341,84 @@ const sortFinancialNewestFirst = (items: FinancialTransaction[]) => {
     });
 };
 
+const normalizeRole = (role?: string | null): Role => {
+    const normalizedRole = String(role || '').trim().toLowerCase();
+
+    if (normalizedRole === 'admin') return 'admin';
+    if (normalizedRole === 'developer') return 'admin';
+
+    if (normalizedRole === 'midwife') return 'midwife';
+    if (normalizedRole === 'bidan') return 'midwife';
+    if (normalizedRole === 'owner') return 'midwife';
+
+    if (normalizedRole === 'asisten') return 'asisten';
+    if (normalizedRole === 'assistant') return 'asisten';
+    if (normalizedRole === 'staff') return 'asisten';
+
+    return '';
+};
+
+const translateMessage = (message?: string) => {
+    const rawMessage = String(message || '').trim();
+
+    if (!rawMessage) {
+        return 'Terjadi kesalahan. Silakan coba lagi.';
+    }
+
+    const normalizedMessage = rawMessage.toLowerCase();
+
+    if (
+        normalizedMessage.includes('failed to fetch') ||
+        normalizedMessage.includes('network error')
+    ) {
+        return 'Tidak dapat terhubung ke server. Pastikan backend sedang berjalan.';
+    }
+
+    if (
+        normalizedMessage.includes('only admin') ||
+        normalizedMessage.includes('only midwife') ||
+        normalizedMessage.includes('forbidden') ||
+        normalizedMessage.includes('permission')
+    ) {
+        return 'Anda tidak memiliki izin untuk mengakses halaman laporan keuangan.';
+    }
+
+    if (normalizedMessage.includes('inactive')) {
+        return 'Akun Anda sedang tidak aktif.';
+    }
+
+    if (normalizedMessage.includes('akun anda sedang tidak aktif')) {
+        return 'Akun Anda sedang tidak aktif.';
+    }
+
+    return rawMessage;
+};
+
+const ForbiddenView = () => {
+    return (
+        <div className="flex min-h-[calc(100dvh-48px)] w-full items-center justify-center px-4">
+            <div className="w-full max-w-[460px] rounded-[24px] border border-red-200 bg-white px-6 py-8 text-center shadow-sm">
+                <div className="mx-auto flex h-[58px] w-[58px] items-center justify-center rounded-full bg-red-50 text-[24px] font-extrabold text-red-600">
+                    403
+                </div>
+
+                <h1 className="mt-5 text-[24px] font-extrabold text-[#2F3A2F]">
+                    Forbidden Access
+                </h1>
+
+                <p className="mt-3 text-[13px] font-medium leading-relaxed text-[#6B6B6B]">
+                    Kamu tidak memiliki izin untuk mengakses halaman Laporan
+                    Keuangan.
+                </p>
+
+                <p className="mt-2 text-[12px] font-semibold text-red-600">
+                    Halaman ini hanya dapat diakses oleh admin dan bidan.
+                </p>
+            </div>
+        </div>
+    );
+};
+
 const FinancialReport = () => {
     const router = useRouter();
     const today = getTodayInputValue();
@@ -361,6 +444,7 @@ const FinancialReport = () => {
     );
 
     const [hasAccess, setHasAccess] = useState(false);
+    const [isForbidden, setIsForbidden] = useState(false);
     const [isCheckingAccess, setIsCheckingAccess] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
@@ -383,13 +467,16 @@ const FinancialReport = () => {
     };
 
     const clearSession = () => {
-        Cookies.remove('access_token');
+        Cookies.remove('access_token', { path: '/' });
 
         localStorage.removeItem('user_id');
+        localStorage.removeItem('temp_user_id');
         localStorage.removeItem('fullname');
         localStorage.removeItem('user_email');
         localStorage.removeItem('user_role');
         localStorage.removeItem('clinic_id');
+        localStorage.removeItem('profile_photo');
+        localStorage.removeItem('requires_clinic_setup');
     };
 
     const handleUnauthorized = () => {
@@ -398,12 +485,14 @@ const FinancialReport = () => {
     };
 
     const handleForbidden = () => {
-        router.replace('/dashboard');
+        setHasAccess(false);
+        setIsForbidden(true);
     };
 
     const checkFinancialAccess = async () => {
         try {
             setIsCheckingAccess(true);
+            setIsForbidden(false);
             setErrorMessage('');
 
             const token = getToken();
@@ -428,27 +517,39 @@ const FinancialReport = () => {
                 return;
             }
 
-            if (!response.ok || !data.user) {
-                throw new Error(data?.msg || 'Gagal mengecek akses user');
+            if (response.status === 403) {
+                handleForbidden();
+                return;
             }
 
-            if (!FINANCIAL_ALLOWED_ROLES.includes(data.user.role)) {
+            if (!response.ok || !data.user) {
+                throw new Error(data?.msg || 'Gagal mengecek akses user.');
+            }
+
+            const role = normalizeRole(data.user.role || data.user.user_role);
+
+            if (!FINANCIAL_ALLOWED_ROLES.includes(role)) {
                 handleForbidden();
                 return;
             }
 
             localStorage.setItem('user_id', data.user.id || '');
+            localStorage.setItem('temp_user_id', data.user.id || '');
             localStorage.setItem('fullname', data.user.fullname || '');
             localStorage.setItem('user_email', data.user.email || '');
-            localStorage.setItem('user_role', data.user.role || '');
+            localStorage.setItem('user_role', role || '');
             localStorage.setItem('clinic_id', data.user.clinic_id || '');
+            localStorage.setItem(
+                'requires_clinic_setup',
+                data.requires_clinic_setup ? 'true' : 'false',
+            );
 
             setHasAccess(true);
         } catch (error) {
             const message =
                 error instanceof Error
-                    ? error.message
-                    : 'Terjadi kesalahan saat mengecek akses';
+                    ? translateMessage(error.message)
+                    : 'Terjadi kesalahan saat mengecek akses.';
 
             setErrorMessage(message);
         } finally {
@@ -483,13 +584,18 @@ const FinancialReport = () => {
                 return;
             }
 
+            if (response.status === 400 && data?.requires_clinic_setup) {
+                router.push(data.redirect_path || '/register-clinic');
+                return;
+            }
+
             if (response.status === 403) {
                 handleForbidden();
                 return;
             }
 
             if (!response.ok) {
-                throw new Error(data?.msg || 'Gagal mengambil data keuangan');
+                throw new Error(data?.msg || 'Gagal mengambil data keuangan.');
             }
 
             const rawTransactions = Array.isArray(data) ? data : data?.data || [];
@@ -498,8 +604,8 @@ const FinancialReport = () => {
         } catch (error) {
             const message =
                 error instanceof Error
-                    ? error.message
-                    : 'Terjadi kesalahan saat mengambil data keuangan';
+                    ? translateMessage(error.message)
+                    : 'Terjadi kesalahan saat mengambil data keuangan.';
 
             setErrorMessage(message);
             setTransactions([]);
@@ -834,7 +940,7 @@ const FinancialReport = () => {
                 escapeCsvValue(formattedSelectedDateRange),
             ].join(','),
             [
-                escapeCsvValue('Total Records'),
+                escapeCsvValue('Total Data'),
                 escapeCsvValue(filteredTransactions.length),
             ].join(','),
         ];
@@ -849,9 +955,9 @@ const FinancialReport = () => {
         const link = document.createElement('a');
 
         link.href = url;
-        link.download = `financial-report-${
-            selectedStartDate || 'all'
-        }-${selectedEndDate || 'dates'}.csv`;
+        link.download = `laporan-keuangan-${
+            selectedStartDate || 'semua'
+        }-${selectedEndDate || 'tanggal'}.csv`;
         link.click();
 
         URL.revokeObjectURL(url);
@@ -909,6 +1015,10 @@ const FinancialReport = () => {
         );
     }
 
+    if (isForbidden) {
+        return <ForbiddenView />;
+    }
+
     return (
         <div className="relative flex w-full min-w-0 flex-col gap-5">
             {showLoadingOverlay && <LoadingOverlay />}
@@ -924,7 +1034,7 @@ const FinancialReport = () => {
                             onChange={(event) =>
                                 setSearchQuery(event.target.value)
                             }
-                            placeholder="Cari invoice, visit, record, tipe, metode, status..."
+                            placeholder="Cari nomor invoice, visit, rekam medis, tipe, metode, atau status..."
                             className="w-full bg-transparent pl-8 text-[13px] text-gray-700 outline-none placeholder-gray-400"
                         />
                     </div>
@@ -1206,7 +1316,7 @@ const FinancialReport = () => {
                 <div className="flex flex-col gap-[16px] border-b border-[#E4E8E1] px-5 py-[20px] sm:px-[26px] lg:flex-row lg:items-center lg:justify-between">
                     <div className="min-w-0">
                         <h2 className="text-[20px] font-extrabold leading-none text-[#5F785F]">
-                            Financial List
+                            Daftar Keuangan
                         </h2>
                     </div>
 
@@ -1231,7 +1341,7 @@ const FinancialReport = () => {
                             className="flex min-h-[38px] items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             <FileDown className="w-4" />
-                            <span>Download</span>
+                            <span>Unduh</span>
                         </button>
                     </div>
                 </div>
@@ -1429,7 +1539,7 @@ const FinancialReport = () => {
             <div className="flex items-center justify-between border-t px-4 py-4 sm:px-6">
                 <div className="hidden sm:block">
                     <p className="text-[11px] text-gray-500">
-                        Showing{' '}
+                        Menampilkan{' '}
                         <span className="font-semibold text-black">
                             {showingStart}
                         </span>{' '}
@@ -1455,7 +1565,7 @@ const FinancialReport = () => {
                         className="flex items-center gap-x-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-[12px] font-bold text-gray-600 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         <ChevronLeft className="h-4 w-4" />
-                        <span>Previous</span>
+                        <span>Sebelumnya</span>
                     </button>
 
                     {getPageNumbers().map((page, index) => {
@@ -1496,7 +1606,7 @@ const FinancialReport = () => {
                         disabled={currentPage === totalPages}
                         className="flex items-center gap-x-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-[12px] font-bold text-gray-600 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                        <span>Next</span>
+                        <span>Berikutnya</span>
                         <ChevronRight className="h-4 w-4" />
                     </button>
                 </div>

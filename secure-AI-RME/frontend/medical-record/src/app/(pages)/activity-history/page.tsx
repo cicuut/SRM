@@ -19,13 +19,81 @@ const API_BASE_URL =
 
 type MeResponse = {
     msg?: string;
+    requires_clinic_setup?: boolean;
+    redirect_path?: string;
     user?: {
         id: string;
         fullname: string;
         email: string;
-        role: string;
+        role?: string;
+        user_role?: string;
         clinic_id?: string | null;
+        is_active?: boolean;
     };
+};
+
+type Role = 'admin' | 'midwife' | 'asisten' | '';
+
+const normalizeRole = (role?: string | null): Role => {
+    const normalizedRole = String(role || '').trim().toLowerCase();
+
+    if (normalizedRole === 'admin') return 'admin';
+    if (normalizedRole === 'developer') return 'admin';
+
+    if (normalizedRole === 'midwife') return 'midwife';
+    if (normalizedRole === 'bidan') return 'midwife';
+    if (normalizedRole === 'owner') return 'midwife';
+
+    if (normalizedRole === 'asisten') return 'asisten';
+    if (normalizedRole === 'assistant') return 'asisten';
+    if (normalizedRole === 'staff') return 'asisten';
+
+    return '';
+};
+
+const canAccessActivityHistory = (role: Role) => {
+    return role === 'admin' || role === 'midwife';
+};
+
+const translateMessage = (message?: string) => {
+    const rawMessage = String(message || '').trim();
+
+    if (!rawMessage) {
+        return 'Terjadi kesalahan. Silakan coba lagi.';
+    }
+
+    const normalizedMessage = rawMessage.toLowerCase();
+
+    if (normalizedMessage.includes('failed to fetch') || normalizedMessage.includes('network error')) {
+        return 'Tidak dapat terhubung ke server. Pastikan backend sedang berjalan.';
+    }
+
+    if (normalizedMessage.includes('user not found')) {
+        return 'User tidak ditemukan.';
+    }
+
+    if (normalizedMessage.includes('account is inactive') || normalizedMessage.includes('inactive')) {
+        return 'Akun Anda sedang tidak aktif.';
+    }
+
+    if (
+        normalizedMessage.includes('access denied') ||
+        normalizedMessage.includes('only admin') ||
+        normalizedMessage.includes('only admin and midwife') ||
+        normalizedMessage.includes('forbidden')
+    ) {
+        return 'Kamu tidak memiliki izin untuk mengakses Activity History.';
+    }
+
+    if (normalizedMessage.includes('invalid date format')) {
+        return 'Format tanggal tidak valid. Gunakan format YYYY-MM-DD.';
+    }
+
+    if (normalizedMessage.includes('failed to get') || normalizedMessage.includes('gagal mengambil')) {
+        return 'Gagal mengambil data Activity History.';
+    }
+
+    return rawMessage;
 };
 
 type AuditLog = {
@@ -63,32 +131,32 @@ type CalendarDay = {
 };
 
 const tableHeaders: TableHeader[] = [
-    { label: 'Audit ID', key: 'audit_number' },
+    { label: 'ID Audit', key: 'audit_number' },
     { label: 'Tanggal', key: 'date_time' },
-    { label: 'User', key: 'user' },
-    { label: 'Action', key: 'action' },
+    { label: 'Pengguna', key: 'user' },
+    { label: 'Aksi', key: 'action' },
     { label: 'Module', key: 'module' },
     { label: 'Record ID', key: 'record_id' },
-    { label: 'Old Value', key: 'old_value' },
-    { label: 'New Value', key: 'new_value' },
+    { label: 'Data Lama', key: 'old_value' },
+    { label: 'Data Baru', key: 'new_value' },
 ];
 
 const monthNames = [
-    'January',
-    'February',
-    'March',
+    'Januari',
+    'Februari',
+    'Maret',
     'April',
-    'May',
-    'June',
-    'July',
-    'August',
+    'Mei',
+    'Juni',
+    'Juli',
+    'Agustus',
     'September',
-    'October',
+    'Oktober',
     'November',
-    'December',
+    'Desember',
 ];
 
-const dayLabels = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const dayLabels = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 
 const getTodayInputValue = () => {
     const date = new Date();
@@ -232,7 +300,8 @@ const getActionBadgeClassName = (action: string) => {
 
     if (
         normalizedAction.includes('delete') ||
-        normalizedAction.includes('remove')
+        normalizedAction.includes('remove') ||
+        normalizedAction.includes('hapus')
     ) {
         return 'bg-red-50 text-red-600';
     }
@@ -240,7 +309,9 @@ const getActionBadgeClassName = (action: string) => {
     if (
         normalizedAction.includes('add') ||
         normalizedAction.includes('create') ||
-        normalizedAction.includes('register')
+        normalizedAction.includes('register') ||
+        normalizedAction.includes('tambah') ||
+        normalizedAction.includes('buat')
     ) {
         return 'bg-[#D2E3C8] text-[#4F6F52]';
     }
@@ -248,7 +319,9 @@ const getActionBadgeClassName = (action: string) => {
     if (
         normalizedAction.includes('update') ||
         normalizedAction.includes('change') ||
-        normalizedAction.includes('edit')
+        normalizedAction.includes('edit') ||
+        normalizedAction.includes('ubah') ||
+        normalizedAction.includes('perbarui')
     ) {
         return 'bg-[#EAF1E4] text-[#5F785F]';
     }
@@ -294,6 +367,31 @@ const getUniqueOptions = (values: Array<string | null | undefined>) => {
     ).sort((a, b) => a.localeCompare(b));
 };
 
+const ForbiddenView = () => {
+    return (
+        <div className="flex min-h-[calc(100dvh-48px)] w-full items-center justify-center px-4">
+            <div className="w-full max-w-[460px] rounded-[24px] border border-red-200 bg-white px-6 py-8 text-center shadow-sm">
+                <div className="mx-auto flex h-[58px] w-[58px] items-center justify-center rounded-full bg-red-50 text-[24px] font-extrabold text-red-600">
+                    403
+                </div>
+
+                <h1 className="mt-5 text-[24px] font-extrabold text-[#2F3A2F]">
+                    Forbidden Access
+                </h1>
+
+                <p className="mt-3 text-[13px] font-medium leading-relaxed text-[#6B6B6B]">
+                    Kamu tidak memiliki izin untuk mengakses halaman Activity
+                    History.
+                </p>
+
+                <p className="mt-2 text-[12px] font-semibold text-red-600">
+                    Halaman ini hanya dapat diakses oleh admin dan bidan.
+                </p>
+            </div>
+        </div>
+    );
+};
+
 const ActivityHistory = () => {
     const router = useRouter();
     const today = getTodayInputValue();
@@ -314,6 +412,7 @@ const ActivityHistory = () => {
 
     const [isCheckingAccess, setIsCheckingAccess] = useState(true);
     const [hasAccess, setHasAccess] = useState(false);
+    const [isForbidden, setIsForbidden] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
 
@@ -331,13 +430,16 @@ const ActivityHistory = () => {
     const showLoadingOverlay = isCheckingAccess || isLoading;
 
     const clearSession = () => {
-        Cookies.remove('access_token');
+        Cookies.remove('access_token', { path: '/' });
 
         localStorage.removeItem('user_id');
+        localStorage.removeItem('temp_user_id');
         localStorage.removeItem('fullname');
         localStorage.removeItem('user_email');
         localStorage.removeItem('user_role');
         localStorage.removeItem('clinic_id');
+        localStorage.removeItem('profile_photo');
+        localStorage.removeItem('requires_clinic_setup');
     };
 
     const handleUnauthorized = () => {
@@ -346,12 +448,15 @@ const ActivityHistory = () => {
     };
 
     const handleForbidden = () => {
-        router.push('/dashboard');
+        setHasAccess(false);
+        setIsForbidden(true);
     };
 
-    const checkAdminAccess = async () => {
+    const checkActivityAccess = async () => {
         try {
             setIsCheckingAccess(true);
+            setIsForbidden(false);
+            setHasAccess(false);
             setErrorMessage('');
 
             const token = Cookies.get('access_token');
@@ -376,24 +481,50 @@ const ActivityHistory = () => {
                 return;
             }
 
-            if (!response.ok || !data.user) {
+            if (response.status === 403) {
                 handleForbidden();
                 return;
             }
 
-            if (data.user.role !== 'admin') {
+            if (!response.ok || !data.user) {
+                throw new Error(data?.msg || 'Gagal memeriksa akses user.');
+            }
+
+            const role = normalizeRole(data.user.role || data.user.user_role);
+
+            if (!canAccessActivityHistory(role)) {
                 handleForbidden();
+                return;
+            }
+
+            if (
+                role === 'midwife' &&
+                data.requires_clinic_setup &&
+                data.redirect_path
+            ) {
+                router.push(data.redirect_path || '/register-clinic');
                 return;
             }
 
             localStorage.setItem('user_id', data.user.id || '');
+            localStorage.setItem('temp_user_id', data.user.id || '');
             localStorage.setItem('fullname', data.user.fullname || '');
             localStorage.setItem('user_email', data.user.email || '');
-            localStorage.setItem('user_role', data.user.role || '');
+            localStorage.setItem('user_role', role || '');
             localStorage.setItem('clinic_id', data.user.clinic_id || '');
+            localStorage.setItem(
+                'requires_clinic_setup',
+                data.requires_clinic_setup ? 'true' : 'false',
+            );
 
             setHasAccess(true);
-        } catch {
+        } catch (error) {
+            const message =
+                error instanceof Error
+                    ? translateMessage(error.message)
+                    : 'Tidak dapat memeriksa akses user.';
+
+            setErrorMessage(message);
             handleForbidden();
         } finally {
             setIsCheckingAccess(false);
@@ -424,6 +555,11 @@ const ActivityHistory = () => {
 
             if (response.status === 401 || response.status === 422) {
                 handleUnauthorized();
+                return;
+            }
+
+            if (response.status === 400 && data?.requires_clinic_setup) {
+                router.push(data.redirect_path || '/register-clinic');
                 return;
             }
 
@@ -488,21 +624,26 @@ const ActivityHistory = () => {
                 return;
             }
 
+            if (response.status === 400 && data?.requires_clinic_setup) {
+                router.push(data.redirect_path || '/register-clinic');
+                return;
+            }
+
             if (response.status === 403) {
                 handleForbidden();
                 return;
             }
 
             if (!response.ok) {
-                throw new Error(data?.msg || 'Gagal mengambil activity history');
+                throw new Error(data?.msg || 'Gagal mengambil Activity History.');
             }
 
             setAuditLogs(sortAuditNewestFirst(Array.isArray(data) ? data : []));
         } catch (error) {
             const message =
                 error instanceof Error
-                    ? error.message
-                    : 'Terjadi kesalahan saat mengambil activity history';
+                    ? translateMessage(error.message)
+                    : 'Terjadi kesalahan saat mengambil Activity History.';
 
             setErrorMessage(message);
             setAuditLogs([]);
@@ -512,7 +653,7 @@ const ActivityHistory = () => {
     };
 
     useEffect(() => {
-        checkAdminAccess();
+        checkActivityAccess();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -752,7 +893,7 @@ const ActivityHistory = () => {
                 escapeCsvValue(formattedSelectedDate),
             ].join(','),
             [
-                escapeCsvValue('Total Records'),
+                escapeCsvValue('Total Data'),
                 escapeCsvValue(filteredAuditLogs.length),
             ].join(','),
         ];
@@ -767,7 +908,7 @@ const ActivityHistory = () => {
         const link = document.createElement('a');
 
         link.href = url;
-        link.download = `activity-history-${selectedDate || 'all-dates'}.csv`;
+        link.download = `riwayat-aktivitas-${selectedDate || 'semua-tanggal'}.csv`;
         link.click();
 
         URL.revokeObjectURL(url);
@@ -808,6 +949,10 @@ const ActivityHistory = () => {
         );
     }
 
+    if (isForbidden) {
+        return <ForbiddenView />;
+    }
+
     if (!hasAccess) {
         return null;
     }
@@ -828,7 +973,7 @@ const ActivityHistory = () => {
                             type="text"
                             value={searchQuery}
                             onChange={handleSearchChange}
-                            placeholder="Cari audit ID, user, action, module, record ID..."
+                            placeholder="Cari ID audit, pengguna, aksi, modul, atau record ID..."
                             className="w-full bg-transparent pl-8 text-[13px] text-gray-700 outline-none placeholder-gray-400"
                         />
                     </form>
@@ -1007,7 +1152,7 @@ const ActivityHistory = () => {
                                     }
                                     className="mt-[8px] h-[36px] w-full min-w-0 rounded-[8px] border border-[#BFC7BB] bg-white px-3 text-[12px] text-black outline-none focus:border-[#739072] focus:ring-1 focus:ring-[#739072]"
                                 >
-                                    <option value="all">All Action</option>
+                                    <option value="all">Semua Aksi</option>
 
                                     {fallbackActionOptions.map((action) => (
                                         <option key={action} value={action}>
@@ -1058,7 +1203,7 @@ const ActivityHistory = () => {
                         className="flex min-h-[38px] items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
                     >
                         <FileDown className="w-4" />
-                        <span>Download</span>
+                        <span>Unduh</span>
                     </button>
                 </div>
 
@@ -1066,11 +1211,11 @@ const ActivityHistory = () => {
                     <div className="grid grid-cols-1 gap-[12px] px-4 py-4 sm:grid-cols-2">
                         {isLoading ? (
                             <div className="col-span-full rounded-[14px] border border-[#E4E8E1] bg-[#F8FAF6] px-4 py-8 text-center text-[12px] text-gray-500">
-                                Memuat activity history...
+                                Memuat riwayat aktivitas...
                             </div>
                         ) : currentAuditLogs.length === 0 ? (
                             <div className="col-span-full rounded-[14px] border border-[#E4E8E1] bg-[#F8FAF6] px-4 py-8 text-center text-[12px] text-gray-500">
-                                Tidak ada activity history untuk{' '}
+                                Tidak ada riwayat aktivitas untuk{' '}
                                 {formattedSelectedDate}
                             </div>
                         ) : (
@@ -1149,7 +1294,7 @@ const ActivityHistory = () => {
                                     <div className="mt-[14px] grid grid-cols-1 gap-3">
                                         <div>
                                             <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">
-                                                Old Value
+                                                Data Lama
                                             </p>
 
                                             <p
@@ -1165,7 +1310,7 @@ const ActivityHistory = () => {
 
                                         <div>
                                             <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">
-                                                New Value
+                                                Data Baru
                                             </p>
 
                                             <p
@@ -1211,7 +1356,7 @@ const ActivityHistory = () => {
                                         colSpan={tableHeaders.length}
                                         className="px-6 py-20 text-center text-gray-400"
                                     >
-                                        Memuat activity history...
+                                        Memuat riwayat aktivitas...
                                     </td>
                                 </tr>
                             ) : currentAuditLogs.length === 0 ? (
@@ -1222,7 +1367,7 @@ const ActivityHistory = () => {
                                     >
                                         <div className="flex flex-col items-center justify-center gap-2">
                                             <p className="text-sm">
-                                                Tidak ada activity history untuk{' '}
+                                                Tidak ada riwayat aktivitas untuk{' '}
                                                 {formattedSelectedDate}
                                             </p>
                                         </div>
@@ -1269,19 +1414,19 @@ const ActivityHistory = () => {
             <div className="flex items-center justify-between border-t px-4 py-4 sm:px-6">
                 <div className="hidden sm:block">
                     <p className="text-[11px] text-gray-500">
-                        Showing{' '}
+                        Menampilkan{' '}
                         <span className="font-semibold text-black">
                             {showingStart}
                         </span>{' '}
-                        to{' '}
+                        sampai{' '}
                         <span className="font-semibold text-black">
                             {showingEnd}
                         </span>{' '}
-                        of{' '}
+                        dari{' '}
                         <span className="font-semibold text-black">
                             {filteredAuditLogs.length}
                         </span>{' '}
-                        records
+                        data
                     </p>
                 </div>
 
@@ -1295,7 +1440,7 @@ const ActivityHistory = () => {
                         className="flex items-center gap-x-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-[12px] font-bold text-gray-600 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         <ChevronLeft className="h-4 w-4" />
-                        <span>Previous</span>
+                        <span>Sebelumnya</span>
                     </button>
 
                     {getPageNumbers().map((page, index) => {
@@ -1336,7 +1481,7 @@ const ActivityHistory = () => {
                         disabled={currentPage === totalPages}
                         className="flex items-center gap-x-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-[12px] font-bold text-gray-600 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                        <span>Next</span>
+                        <span>Berikutnya</span>
                         <ChevronRight className="h-4 w-4" />
                     </button>
                 </div>

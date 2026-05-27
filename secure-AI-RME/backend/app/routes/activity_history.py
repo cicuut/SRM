@@ -8,9 +8,12 @@ import json
 activity_history_bp = Blueprint("activity_history", __name__)
 
 
+ACTIVITY_ALLOWED_ROLES = ["admin", "midwife"]
+
+
 FIELD_LABELS = {
-    "module": "Module",
-    "record_code": "Record ID",
+    "module": "Modul",
+    "record_code": "ID Record",
     "transaction_number": "Nomor Invoice",
     "patient_name": "Nama Pasien",
     "patient_number": "No. Pasien",
@@ -140,6 +143,23 @@ def to_str(value):
     return str(value)
 
 
+def normalize_role(role):
+    normalized = str(role or "").strip().lower()
+
+    role_aliases = {
+        "admin": "admin",
+        "developer": "admin",
+        "midwife": "midwife",
+        "bidan": "midwife",
+        "owner": "midwife",
+        "asisten": "asisten",
+        "assistant": "asisten",
+        "staff": "asisten",
+    }
+
+    return role_aliases.get(normalized, normalized)
+
+
 def format_datetime(value):
     if not value:
         return ""
@@ -171,22 +191,40 @@ def get_current_user():
     return db.session.get(User, user_id)
 
 
-def require_admin():
+def require_activity_history_access():
     current_user = get_current_user()
 
     if not current_user:
-        return None, (jsonify({"msg": "User not found"}), 404)
+        return None, "", (jsonify({"msg": "User tidak ditemukan."}), 404)
 
     if not current_user.is_active:
-        return None, (jsonify({"msg": "Your account is inactive"}), 403)
+        return None, "", (jsonify({"msg": "Akun Anda sedang tidak aktif."}), 403)
 
-    if current_user.user_role != "admin":
-        return None, (jsonify({"msg": "Only admin can access activity history"}), 403)
+    current_role = normalize_role(current_user.user_role)
 
-    if not current_user.clinic_id:
-        return None, (jsonify({"msg": "Your account is not linked to a clinic"}), 400)
+    if current_role not in ACTIVITY_ALLOWED_ROLES:
+        return None, current_role, (
+            jsonify(
+                {
+                    "msg": "Akses ditolak. Hanya admin dan bidan yang dapat mengakses riwayat aktivitas."
+                }
+            ),
+            403,
+        )
 
-    return current_user, None
+    if current_role == "midwife" and not current_user.clinic_id:
+        return None, current_role, (
+            jsonify(
+                {
+                    "msg": "Akun bidan belum terhubung dengan klinik.",
+                    "requires_clinic_setup": True,
+                    "redirect_path": "/register-clinic",
+                }
+            ),
+            400,
+        )
+
+    return current_user, current_role, None
 
 
 def stringify_json(value):
@@ -271,27 +309,28 @@ def format_enum_label(value):
     lower_value = text_value.lower()
 
     enum_map = {
-        "paid": "Paid",
-        "unpaid": "Unpaid",
+        "paid": "Dibayar",
+        "unpaid": "Belum Dibayar",
         "pemasukan": "Pemasukan",
         "pengeluaran": "Pengeluaran",
-        "cash": "Cash",
+        "cash": "Tunai",
         "transfer": "Transfer",
         "qris": "QRIS",
         "admin": "Admin",
-        "midwife": "Midwife",
+        "midwife": "Bidan",
+        "bidan": "Bidan",
         "asisten": "Asisten",
-        "assistant": "Assistant",
+        "assistant": "Asisten",
+        "active": "Aktif",
+        "inactive": "Tidak Aktif",
+        "true": "Ya",
+        "false": "Tidak",
     }
 
     if lower_value in enum_map:
         return enum_map[lower_value]
 
-    return (
-        text_value.replace("_", " ")
-        .replace("-", " ")
-        .title()
-    )
+    return text_value.replace("_", " ").replace("-", " ").title()
 
 
 def get_module_from_values(old_values, new_values):
@@ -766,10 +805,22 @@ def apply_search_filter(serialized_rows, search_query):
     return filtered_rows
 
 
+def build_activity_query(current_user, current_role):
+    query = (
+        db.session.query(Audit, User)
+        .outerjoin(User, Audit.user_id == User.user_id)
+    )
+
+    if current_role == "midwife":
+        query = query.filter(User.clinic_id == current_user.clinic_id)
+
+    return query
+
+
 @activity_history_bp.route("/get-all", methods=["GET"])
 @jwt_required()
 def get_all_activity_history():
-    current_user, error_response = require_admin()
+    current_user, current_role, error_response = require_activity_history_access()
 
     if error_response:
         return error_response
@@ -779,11 +830,7 @@ def get_all_activity_history():
         search_query = (request.args.get("search") or "").strip().lower()
         action_filter = (request.args.get("action") or "").strip()
 
-        query = (
-            db.session.query(Audit, User)
-            .outerjoin(User, Audit.user_id == User.user_id)
-            .filter(User.clinic_id == current_user.clinic_id)
-        )
+        query = build_activity_query(current_user, current_role)
 
         if date_filter:
             selected_date = parse_date(date_filter)
@@ -818,53 +865,73 @@ def get_all_activity_history():
         return jsonify(serialized_rows), 200
 
     except ValueError:
-        return jsonify({"msg": "Invalid date format. Use YYYY-MM-DD"}), 400
+        return jsonify({"msg": "Format tanggal tidak valid. Gunakan YYYY-MM-DD."}), 400
 
     except Exception as e:
-        return jsonify({"msg": "Failed to get activity history", "error": str(e)}), 500
+        return (
+            jsonify(
+                {
+                    "msg": "Gagal mengambil riwayat aktivitas.",
+                    "error": str(e),
+                }
+            ),
+            500,
+        )
 
 
 @activity_history_bp.route("/detail/<audit_id>", methods=["GET"])
 @jwt_required()
 def get_activity_history_detail(audit_id):
-    current_user, error_response = require_admin()
+    current_user, current_role, error_response = require_activity_history_access()
 
     if error_response:
         return error_response
 
     try:
-        row = (
-            db.session.query(Audit, User)
-            .outerjoin(User, Audit.user_id == User.user_id)
-            .filter(Audit.log_id == str(audit_id))
-            .filter(User.clinic_id == current_user.clinic_id)
-            .first()
-        )
+        query = build_activity_query(current_user, current_role)
+        row = query.filter(Audit.log_id == str(audit_id)).first()
 
         if not row:
-            return jsonify({"msg": "Activity log not found"}), 404
+            return jsonify({"msg": "Log aktivitas tidak ditemukan."}), 404
 
         audit, user = row
 
         return jsonify({"data": serialize_audit_detail(audit, user)}), 200
 
     except Exception as e:
-        return jsonify({"msg": "Failed to get activity detail", "error": str(e)}), 500
+        return (
+            jsonify(
+                {
+                    "msg": "Gagal mengambil detail riwayat aktivitas.",
+                    "error": str(e),
+                }
+            ),
+            500,
+        )
 
 
 @activity_history_bp.route("/actions", methods=["GET"])
 @jwt_required()
 def get_activity_actions():
-    current_user, error_response = require_admin()
+    current_user, current_role, error_response = require_activity_history_access()
 
     if error_response:
         return error_response
 
     try:
+        query = db.session.query(Audit.action)
+
+        if current_role == "midwife":
+            query = (
+                query
+                .join(User, Audit.user_id == User.user_id)
+                .filter(User.clinic_id == current_user.clinic_id)
+            )
+        else:
+            query = query.outerjoin(User, Audit.user_id == User.user_id)
+
         rows = (
-            db.session.query(Audit.action)
-            .join(User, Audit.user_id == User.user_id)
-            .filter(User.clinic_id == current_user.clinic_id)
+            query
             .filter(Audit.action.isnot(None))
             .distinct()
             .order_by(Audit.action.asc())
@@ -876,4 +943,12 @@ def get_activity_actions():
         return jsonify(actions), 200
 
     except Exception as e:
-        return jsonify({"msg": "Failed to get activity actions", "error": str(e)}), 500
+        return (
+            jsonify(
+                {
+                    "msg": "Gagal mengambil daftar aksi aktivitas.",
+                    "error": str(e),
+                }
+            ),
+            500,
+        )

@@ -7,8 +7,13 @@ from datetime import datetime
 
 auth_bp = Blueprint("auth", __name__)
 
-ALLOWED_ROLES = ["admin", "midwife", "asisten"]
 ADMIN_ROLE = "admin"
+MIDWIFE_ROLE = "midwife"
+ASSISTANT_ROLE = "asisten"
+
+ALLOWED_ROLES = [ADMIN_ROLE, MIDWIFE_ROLE, ASSISTANT_ROLE]
+MANAGEMENT_ROLES = [ADMIN_ROLE, MIDWIFE_ROLE]
+CLINIC_SETUP_ROLES = [MIDWIFE_ROLE]
 
 PROFILE_PHOTO_MAX_LENGTH = 3_500_000
 
@@ -21,23 +26,41 @@ def to_str(value):
 
 
 def normalize_role(role):
-    normalized = str(role or "asisten").strip().lower()
+    normalized = str(role or ASSISTANT_ROLE).strip().lower()
 
-    if normalized == "assistant":
-        normalized = "asisten"
+    role_aliases = {
+        "admin": ADMIN_ROLE,
+        "developer": ADMIN_ROLE,
+        "midwife": MIDWIFE_ROLE,
+        "bidan": MIDWIFE_ROLE,
+        "owner": MIDWIFE_ROLE,
+        "asisten": ASSISTANT_ROLE,
+        "assistant": ASSISTANT_ROLE,
+        "staff": ASSISTANT_ROLE,
+    }
 
-    if normalized == "staff":
-        normalized = "asisten"
-
-    if normalized == "owner":
-        normalized = "admin"
+    normalized = role_aliases.get(normalized, normalized)
 
     if normalized not in ALLOWED_ROLES:
         raise ValueError(
-            f"Invalid role. Allowed roles: {', '.join(ALLOWED_ROLES)}"
+            "Role tidak valid. Role yang tersedia: admin, midwife, asisten."
         )
 
     return normalized
+
+
+def role_to_text(role):
+    try:
+        return normalize_role(role)
+    except Exception:
+        return str(role or "").strip().lower()
+
+
+def requires_clinic_setup_for_user(user):
+    if not user:
+        return False
+
+    return role_to_text(user.user_role) in CLINIC_SETUP_ROLES and not user.clinic_id
 
 
 def parse_bool(value, default=True):
@@ -50,10 +73,10 @@ def parse_bool(value, default=True):
     if isinstance(value, str):
         normalized = value.strip().lower()
 
-        if normalized in ["true", "1", "yes", "active"]:
+        if normalized in ["true", "1", "yes", "active", "aktif"]:
             return True
 
-        if normalized in ["false", "0", "no", "inactive"]:
+        if normalized in ["false", "0", "no", "inactive", "tidak aktif"]:
             return False
 
     return bool(value)
@@ -64,7 +87,7 @@ def normalize_profile_photo(value):
         return None
 
     if not isinstance(value, str):
-        raise ValueError("Profile photo must be a string")
+        raise ValueError("Foto profil harus berupa teks.")
 
     photo = value.strip()
 
@@ -72,7 +95,9 @@ def normalize_profile_photo(value):
         return None
 
     if len(photo) > PROFILE_PHOTO_MAX_LENGTH:
-        raise ValueError("Profile photo is too large. Maximum size is around 2MB image file.")
+        raise ValueError(
+            "Ukuran foto profil terlalu besar. Maksimal sekitar file gambar 2MB."
+        )
 
     if photo.startswith("data:image/"):
         return photo
@@ -80,7 +105,7 @@ def normalize_profile_photo(value):
     if photo.startswith("http://") or photo.startswith("https://"):
         return photo
 
-    raise ValueError("Profile photo must be an image data URL or image URL")
+    raise ValueError("Foto profil harus berupa data URL gambar atau URL gambar.")
 
 
 def user_has_profile_photo_column(user):
@@ -158,9 +183,15 @@ def serialize_account(user):
     if user and user.clinic_id:
         clinic = db.session.get(Clinic, user.clinic_id)
 
+    requires_clinic_setup = requires_clinic_setup_for_user(user)
+
     return {
         "user": serialize_user(user, user.user_id if user else None),
         "clinic": serialize_clinic(clinic),
+        "requires_clinic_setup": requires_clinic_setup,
+        "redirect_path": "/register-clinic"
+        if requires_clinic_setup
+        else "/dashboard",
     }
 
 
@@ -168,28 +199,52 @@ def require_login():
     user = get_current_user()
 
     if not user:
-        return None, (jsonify({"msg": "User not found"}), 404)
+        return None, (jsonify({"msg": "User tidak ditemukan."}), 404)
 
     if not user.is_active:
-        return None, (jsonify({"msg": "Your account is inactive"}), 403)
+        return None, (jsonify({"msg": "Akun Anda sedang tidak aktif."}), 403)
 
     return user, None
 
 
-def require_admin(require_clinic=True):
+def require_admin():
     user, error_response = require_login()
 
     if error_response:
         return None, error_response
 
-    if user.user_role != ADMIN_ROLE:
-        return None, (jsonify({"msg": "Only admin can access this feature"}), 403)
+    if role_to_text(user.user_role) != ADMIN_ROLE:
+        return None, (
+            jsonify({"msg": "Hanya admin yang dapat mengakses fitur ini."}),
+            403,
+        )
 
-    if require_clinic and not user.clinic_id:
+    return user, None
+
+
+def require_management_access(require_clinic=True):
+    user, error_response = require_login()
+
+    if error_response:
+        return None, error_response
+
+    user_role = role_to_text(user.user_role)
+
+    if user_role not in MANAGEMENT_ROLES:
         return None, (
             jsonify(
                 {
-                    "msg": "Admin account is not linked to a clinic",
+                    "msg": "Hanya admin atau bidan yang dapat mengakses fitur ini."
+                }
+            ),
+            403,
+        )
+
+    if require_clinic and user_role == MIDWIFE_ROLE and not user.clinic_id:
+        return None, (
+            jsonify(
+                {
+                    "msg": "Akun bidan belum terhubung dengan klinik.",
                     "requires_clinic_setup": True,
                     "redirect_path": "/register-clinic",
                 }
@@ -198,17 +253,6 @@ def require_admin(require_clinic=True):
         )
 
     return user, None
-
-
-def has_other_active_admin(clinic_id, exclude_user_id):
-    other_admin = User.query.filter(
-        User.clinic_id == clinic_id,
-        User.user_id != exclude_user_id,
-        User.user_role == ADMIN_ROLE,
-        User.is_active.is_(True),
-    ).first()
-
-    return other_admin is not None
 
 
 def clinic_old_values(clinic):
@@ -243,40 +287,74 @@ def user_old_values(user, module="User Access"):
     }
 
 
-def get_management_payload(admin):
-    clinic = db.session.get(Clinic, admin.clinic_id)
+def get_management_payload(manager):
+    manager_role = role_to_text(manager.user_role)
+
+    if manager_role == ADMIN_ROLE:
+        employees = User.query.filter(
+            User.user_role == MIDWIFE_ROLE
+        ).order_by(User.created_at.desc()).all()
+
+        active_count = sum(1 for employee in employees if employee.is_active)
+        inactive_count = len(employees) - active_count
+
+        return {
+            "user": serialize_user(manager, manager.user_id),
+            "clinic": None,
+            "employees": [
+                serialize_user(employee, manager.user_id) for employee in employees
+            ],
+            "stats": {
+                "total_employees": len(employees),
+                "active_employees": active_count,
+                "inactive_employees": inactive_count,
+                "admins": 0,
+                "midwives": len(employees),
+                "asistens": 0,
+            },
+            "roles": [MIDWIFE_ROLE],
+            "can_create_midwife": True,
+            "can_create_assistant": False,
+        }
+
+    if not manager.clinic_id:
+        return None
+
+    clinic = db.session.get(Clinic, manager.clinic_id)
 
     if not clinic:
         return None
 
     employees = User.query.filter(
-        User.clinic_id == admin.clinic_id
+        User.clinic_id == manager.clinic_id
     ).order_by(User.created_at.desc()).all()
 
     active_count = sum(1 for employee in employees if employee.is_active)
     inactive_count = len(employees) - active_count
 
     return {
-        "user": serialize_user(admin, admin.user_id),
+        "user": serialize_user(manager, manager.user_id),
         "clinic": serialize_clinic(clinic),
         "employees": [
-            serialize_user(employee, admin.user_id) for employee in employees
+            serialize_user(employee, manager.user_id) for employee in employees
         ],
         "stats": {
             "total_employees": len(employees),
             "active_employees": active_count,
             "inactive_employees": inactive_count,
             "admins": sum(
-                1 for employee in employees if employee.user_role == "admin"
+                1 for employee in employees if employee.user_role == ADMIN_ROLE
             ),
             "midwives": sum(
-                1 for employee in employees if employee.user_role == "midwife"
+                1 for employee in employees if employee.user_role == MIDWIFE_ROLE
             ),
             "asistens": sum(
-                1 for employee in employees if employee.user_role == "asisten"
+                1 for employee in employees if employee.user_role == ASSISTANT_ROLE
             ),
         },
-        "roles": ALLOWED_ROLES,
+        "roles": [ASSISTANT_ROLE],
+        "can_create_midwife": False,
+        "can_create_assistant": True,
     }
 
 
@@ -293,7 +371,7 @@ def register():
         return (
             jsonify(
                 {
-                    "msg": "Public registration is disabled. Please ask admin to create your account from Management Setting."
+                    "msg": "Registrasi publik sudah ditutup. Admin dapat membuat akun bidan melalui Management Setting."
                 }
             ),
             403,
@@ -307,16 +385,23 @@ def register():
     strnumber = (data.get("strnumber") or "").strip()
 
     if not fullname or not email or not password or not strnumber:
-        return jsonify({"msg": "Full name, email, password, and STR number are required"}), 400
+        return (
+            jsonify(
+                {
+                    "msg": "Nama lengkap, email, password, dan nomor STR wajib diisi."
+                }
+            ),
+            400,
+        )
 
     if len(password) < 8:
-        return jsonify({"msg": "Password must be at least 8 characters"}), 400
+        return jsonify({"msg": "Password minimal 8 karakter."}), 400
 
     if User.query.filter_by(email=email).first():
-        return jsonify({"msg": "Email is taken"}), 409
+        return jsonify({"msg": "Email sudah digunakan."}), 409
 
     if User.query.filter_by(strnumber=strnumber).first():
-        return jsonify({"msg": "STR number is taken"}), 409
+        return jsonify({"msg": "Nomor STR sudah digunakan."}), 409
 
     try:
         new_user = User(
@@ -354,10 +439,10 @@ def register():
         return (
             jsonify(
                 {
-                    "msg": "First admin account created successfully. Please set up clinic information.",
+                    "msg": "Akun admin pertama berhasil dibuat.",
                     "access_token": create_token_for_user(new_user),
-                    "requires_clinic_setup": True,
-                    "redirect_path": "/register-clinic",
+                    "requires_clinic_setup": False,
+                    "redirect_path": "/dashboard",
                     "user": serialize_user(new_user, new_user.user_id),
                 }
             ),
@@ -366,15 +451,106 @@ def register():
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": f"Failed to create first admin: {str(e)}"}), 500
+        return jsonify({"msg": f"Gagal membuat akun admin pertama: {str(e)}"}), 500
 
 
-@auth_bp.route("/register-clinic", methods=["POST"])
-def create_or_update_clinic():
-    admin, error_response = require_admin(require_clinic=False)
+@auth_bp.route("/management/initial-midwife", methods=["POST"])
+@jwt_required()
+def create_initial_midwife_by_admin():
+    admin, error_response = require_admin()
 
     if error_response:
         return error_response
+
+    data = request.get_json() or {}
+
+    fullname = (data.get("fullname") or "").strip()
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password")
+    strnumber = (data.get("strnumber") or "").strip()
+    is_active = parse_bool(data.get("is_active", True), default=True)
+
+    if not fullname or not email or not password or not strnumber:
+        return (
+            jsonify(
+                {
+                    "msg": "Nama lengkap, email, password, dan nomor STR wajib diisi."
+                }
+            ),
+            400,
+        )
+
+    if len(password) < 8:
+        return jsonify({"msg": "Password minimal 8 karakter."}), 400
+
+    if User.query.filter_by(email=email).first():
+        return jsonify({"msg": "Email sudah digunakan."}), 409
+
+    if User.query.filter_by(strnumber=strnumber).first():
+        return jsonify({"msg": "Nomor STR sudah digunakan."}), 409
+
+    try:
+        new_midwife = User(
+            fullname=fullname,
+            email=email,
+            strnumber=strnumber,
+            user_role=MIDWIFE_ROLE,
+            is_active=is_active,
+            clinic_id=None,
+        )
+        new_midwife.set_password(password)
+
+        db.session.add(new_midwife)
+        db.session.flush()
+
+        write_audit_log(
+            user_id=admin.user_id,
+            action="CREATE_INITIAL_MIDWIFE",
+            old_values={},
+            new_values={
+                **user_old_values(new_midwife, module="Initial Midwife Account"),
+                "created_by_admin": True,
+                "requires_clinic_setup": True,
+            },
+        )
+
+        db.session.commit()
+        db.session.refresh(new_midwife)
+
+        return (
+            jsonify(
+                {
+                    "msg": "Akun bidan berhasil dibuat. Bidan perlu login dan melengkapi data klinik.",
+                    "employee": serialize_user(new_midwife, admin.user_id),
+                    "requires_clinic_setup": True,
+                    "redirect_path": "/register-clinic",
+                }
+            ),
+            201,
+        )
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": f"Gagal membuat akun bidan: {str(e)}"}), 500
+
+
+@auth_bp.route("/register-clinic", methods=["POST"])
+@jwt_required()
+def create_or_update_clinic():
+    user, error_response = require_login()
+
+    if error_response:
+        return error_response
+
+    if role_to_text(user.user_role) != MIDWIFE_ROLE:
+        return (
+            jsonify(
+                {
+                    "msg": "Hanya bidan yang dapat membuat atau memperbarui profil klinik."
+                }
+            ),
+            403,
+        )
 
     data = request.get_json() or {}
 
@@ -385,30 +561,30 @@ def create_or_update_clinic():
     clinic_phone = (data.get("clinic_phone") or "").strip()
 
     if not all([clinic_name, clinic_address, license_number, clinic_email, clinic_phone]):
-        return jsonify({"msg": "All clinic data must be filled"}), 400
+        return jsonify({"msg": "Semua data klinik wajib diisi."}), 400
 
     try:
         existing_clinic_email = Clinic.query.filter(
             Clinic.clinic_email == clinic_email,
-            Clinic.clinic_id != admin.clinic_id,
+            Clinic.clinic_id != user.clinic_id,
         ).first()
 
         if existing_clinic_email:
-            return jsonify({"msg": "Clinic email is taken"}), 409
+            return jsonify({"msg": "Email klinik sudah digunakan."}), 409
 
         existing_license = Clinic.query.filter(
             Clinic.license_number == license_number,
-            Clinic.clinic_id != admin.clinic_id,
+            Clinic.clinic_id != user.clinic_id,
         ).first()
 
         if existing_license:
-            return jsonify({"msg": "SIPB number is taken"}), 409
+            return jsonify({"msg": "Nomor SIPB sudah digunakan."}), 409
 
-        if admin.clinic_id:
-            clinic = db.session.get(Clinic, admin.clinic_id)
+        if user.clinic_id:
+            clinic = db.session.get(Clinic, user.clinic_id)
 
             if not clinic:
-                return jsonify({"msg": "Clinic not found"}), 404
+                return jsonify({"msg": "Data klinik tidak ditemukan."}), 404
 
             old_values = clinic_old_values(clinic)
             action_name = "UPDATE_CLINIC"
@@ -434,28 +610,27 @@ def create_or_update_clinic():
             db.session.add(clinic)
             db.session.flush()
 
-            admin.clinic_id = clinic.clinic_id
-            admin.user_role = ADMIN_ROLE
-            admin.is_active = True
+            user.clinic_id = clinic.clinic_id
+            user.is_active = True
 
         write_audit_log(
-            user_id=admin.user_id,
+            user_id=user.user_id,
             action=action_name,
             old_values=old_values,
             new_values=clinic_old_values(clinic),
         )
 
         db.session.commit()
-        db.session.refresh(admin)
+        db.session.refresh(user)
 
         return (
             jsonify(
                 {
-                    "msg": "Clinic information saved successfully",
-                    "access_token": create_token_for_user(admin),
+                    "msg": "Informasi klinik berhasil disimpan.",
+                    "access_token": create_token_for_user(user),
                     "requires_clinic_setup": False,
                     "redirect_path": "/dashboard",
-                    **serialize_account(admin),
+                    **serialize_account(user),
                 }
             ),
             200,
@@ -463,7 +638,7 @@ def create_or_update_clinic():
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": f"Failed to save clinic: {str(e)}"}), 500
+        return jsonify({"msg": f"Gagal menyimpan data klinik: {str(e)}"}), 500
 
 
 @auth_bp.route("/login", methods=["POST"])
@@ -474,15 +649,15 @@ def login():
     password = data.get("password")
 
     if not email or not password:
-        return jsonify({"msg": "Email and password are required"}), 400
+        return jsonify({"msg": "Email dan password wajib diisi."}), 400
 
     user = User.query.filter_by(email=email).first()
 
     if not user or not user.check_password(password):
-        return jsonify({"msg": "Invalid email or password"}), 401
+        return jsonify({"msg": "Email atau password salah."}), 401
 
     if not user.is_active:
-        return jsonify({"msg": "Your account is inactive"}), 403
+        return jsonify({"msg": "Akun Anda sedang tidak aktif."}), 403
 
     try:
         old_values = {
@@ -512,12 +687,12 @@ def login():
     except Exception:
         db.session.rollback()
 
-    requires_clinic_setup = user.user_role == ADMIN_ROLE and not user.clinic_id
+    requires_clinic_setup = requires_clinic_setup_for_user(user)
 
     return (
         jsonify(
             {
-                "msg": "Login successful",
+                "msg": "Login berhasil.",
                 "access_token": create_token_for_user(user),
                 "requires_clinic_setup": requires_clinic_setup,
                 "redirect_path": "/register-clinic"
@@ -563,7 +738,7 @@ def update_current_user():
             fullname = fullname.strip()
 
             if not fullname:
-                return jsonify({"msg": "Full name is required"}), 400
+                return jsonify({"msg": "Nama lengkap wajib diisi."}), 400
 
             user.fullname = fullname
 
@@ -571,7 +746,7 @@ def update_current_user():
             email = email.strip().lower()
 
             if not email:
-                return jsonify({"msg": "Email is required"}), 400
+                return jsonify({"msg": "Email wajib diisi."}), 400
 
             existing_email = User.query.filter(
                 User.email == email,
@@ -579,7 +754,7 @@ def update_current_user():
             ).first()
 
             if existing_email:
-                return jsonify({"msg": "Email is taken"}), 409
+                return jsonify({"msg": "Email sudah digunakan."}), 409
 
             user.email = email
 
@@ -587,7 +762,7 @@ def update_current_user():
             strnumber = strnumber.strip()
 
             if not strnumber:
-                return jsonify({"msg": "STR number is required"}), 400
+                return jsonify({"msg": "Nomor STR wajib diisi."}), 400
 
             existing_str = User.query.filter(
                 User.strnumber == strnumber,
@@ -595,7 +770,7 @@ def update_current_user():
             ).first()
 
             if existing_str:
-                return jsonify({"msg": "STR number is taken"}), 409
+                return jsonify({"msg": "Nomor STR sudah digunakan."}), 409
 
             user.strnumber = strnumber
 
@@ -604,7 +779,7 @@ def update_current_user():
                 return (
                     jsonify(
                         {
-                            "msg": "Column profile_photo belum ada di model User. Tambahkan profile_photo = db.Column(db.Text, nullable=True) di app/models.py dan jalankan ALTER TABLE users ADD COLUMN profile_photo TEXT."
+                            "msg": "Kolom profile_photo belum tersedia pada model User."
                         }
                     ),
                     400,
@@ -640,7 +815,7 @@ def update_current_user():
         return (
             jsonify(
                 {
-                    "msg": "Account updated successfully",
+                    "msg": "Akun berhasil diperbarui.",
                     **serialize_account(user),
                 }
             ),
@@ -653,7 +828,7 @@ def update_current_user():
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": f"Failed to update account: {str(e)}"}), 500
+        return jsonify({"msg": f"Gagal memperbarui akun: {str(e)}"}), 500
 
 
 @auth_bp.route("/change-password", methods=["PATCH"])
@@ -671,19 +846,22 @@ def change_password():
     confirm_new_password = data.get("confirm_new_password")
 
     if not current_password or not new_password or not confirm_new_password:
-        return jsonify({"msg": "All password fields must be filled"}), 400
+        return jsonify({"msg": "Semua field password wajib diisi."}), 400
 
     if new_password != confirm_new_password:
-        return jsonify({"msg": "New password confirmation does not match"}), 400
+        return jsonify({"msg": "Konfirmasi password baru tidak sesuai."}), 400
 
     if len(new_password) < 8:
-        return jsonify({"msg": "New password must be at least 8 characters"}), 400
+        return jsonify({"msg": "Password baru minimal 8 karakter."}), 400
 
     if current_password == new_password:
-        return jsonify({"msg": "New password cannot be the same as current password"}), 400
+        return (
+            jsonify({"msg": "Password baru tidak boleh sama dengan password lama."}),
+            400,
+        )
 
     if not user.check_password(current_password):
-        return jsonify({"msg": "Current password is incorrect"}), 401
+        return jsonify({"msg": "Password lama salah."}), 401
 
     try:
         user.set_password(new_password)
@@ -705,25 +883,39 @@ def change_password():
 
         db.session.commit()
 
-        return jsonify({"msg": "Password changed successfully"}), 200
+        return jsonify({"msg": "Password berhasil diubah."}), 200
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": f"Failed to change password: {str(e)}"}), 500
+        return jsonify({"msg": f"Gagal mengubah password: {str(e)}"}), 500
 
 
 @auth_bp.route("/management/overview", methods=["GET"])
 @jwt_required()
 def get_management_overview():
-    admin, error_response = require_admin(require_clinic=True)
+    manager, error_response = require_management_access(require_clinic=False)
 
     if error_response:
         return error_response
 
-    payload = get_management_payload(admin)
+    manager_role = role_to_text(manager.user_role)
+
+    if manager_role == MIDWIFE_ROLE and not manager.clinic_id:
+        return (
+            jsonify(
+                {
+                    "msg": "Akun bidan belum terhubung dengan klinik.",
+                    "requires_clinic_setup": True,
+                    "redirect_path": "/register-clinic",
+                }
+            ),
+            400,
+        )
+
+    payload = get_management_payload(manager)
 
     if not payload:
-        return jsonify({"msg": "Clinic not found"}), 404
+        return jsonify({"msg": "Data management tidak ditemukan."}), 404
 
     return jsonify(payload), 200
 
@@ -731,15 +923,18 @@ def get_management_overview():
 @auth_bp.route("/management/clinic", methods=["PATCH"])
 @jwt_required()
 def update_management_clinic():
-    admin, error_response = require_admin(require_clinic=True)
+    manager, error_response = require_management_access(require_clinic=True)
 
     if error_response:
         return error_response
 
-    clinic = db.session.get(Clinic, admin.clinic_id)
+    if role_to_text(manager.user_role) != MIDWIFE_ROLE:
+        return jsonify({"msg": "Hanya bidan yang dapat memperbarui data klinik."}), 403
+
+    clinic = db.session.get(Clinic, manager.clinic_id)
 
     if not clinic:
-        return jsonify({"msg": "Clinic not found"}), 404
+        return jsonify({"msg": "Data klinik tidak ditemukan."}), 404
 
     data = request.get_json() or {}
 
@@ -756,7 +951,7 @@ def update_management_clinic():
             clinic_name = clinic_name.strip()
 
             if not clinic_name:
-                return jsonify({"msg": "Clinic name is required"}), 400
+                return jsonify({"msg": "Nama klinik wajib diisi."}), 400
 
             clinic.clinic_name = clinic_name
 
@@ -764,7 +959,7 @@ def update_management_clinic():
             clinic_address = clinic_address.strip()
 
             if not clinic_address:
-                return jsonify({"msg": "Clinic address is required"}), 400
+                return jsonify({"msg": "Alamat klinik wajib diisi."}), 400
 
             clinic.clinic_address = clinic_address
 
@@ -772,7 +967,7 @@ def update_management_clinic():
             license_number = license_number.strip()
 
             if not license_number:
-                return jsonify({"msg": "SIPB number is required"}), 400
+                return jsonify({"msg": "Nomor SIPB wajib diisi."}), 400
 
             existing_license = Clinic.query.filter(
                 Clinic.license_number == license_number,
@@ -780,7 +975,7 @@ def update_management_clinic():
             ).first()
 
             if existing_license:
-                return jsonify({"msg": "SIPB number is taken"}), 409
+                return jsonify({"msg": "Nomor SIPB sudah digunakan."}), 409
 
             clinic.license_number = license_number
 
@@ -788,7 +983,7 @@ def update_management_clinic():
             clinic_email = clinic_email.strip().lower()
 
             if not clinic_email:
-                return jsonify({"msg": "Clinic email is required"}), 400
+                return jsonify({"msg": "Email klinik wajib diisi."}), 400
 
             existing_clinic_email = Clinic.query.filter(
                 Clinic.clinic_email == clinic_email,
@@ -796,7 +991,7 @@ def update_management_clinic():
             ).first()
 
             if existing_clinic_email:
-                return jsonify({"msg": "Clinic email is taken"}), 409
+                return jsonify({"msg": "Email klinik sudah digunakan."}), 409
 
             clinic.clinic_email = clinic_email
 
@@ -804,7 +999,7 @@ def update_management_clinic():
             clinic_phone = clinic_phone.strip()
 
             if not clinic_phone:
-                return jsonify({"msg": "Clinic phone is required"}), 400
+                return jsonify({"msg": "Nomor telepon klinik wajib diisi."}), 400
 
             clinic.clinic_phone = clinic_phone
 
@@ -817,10 +1012,10 @@ def update_management_clinic():
                 clinic.clinic_phone,
             ]
         ):
-            return jsonify({"msg": "All clinic data must be filled"}), 400
+            return jsonify({"msg": "Semua data klinik wajib diisi."}), 400
 
         write_audit_log(
-            user_id=admin.user_id,
+            user_id=manager.user_id,
             action="UPDATE_CLINIC",
             old_values=old_values,
             new_values=clinic_old_values(clinic),
@@ -832,7 +1027,7 @@ def update_management_clinic():
         return (
             jsonify(
                 {
-                    "msg": "Clinic information updated successfully",
+                    "msg": "Informasi klinik berhasil diperbarui.",
                     "clinic": serialize_clinic(clinic),
                 }
             ),
@@ -841,13 +1036,13 @@ def update_management_clinic():
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": f"Failed to update clinic: {str(e)}"}), 500
+        return jsonify({"msg": f"Gagal memperbarui data klinik: {str(e)}"}), 500
 
 
 @auth_bp.route("/management/users", methods=["POST"])
 @jwt_required()
 def create_management_user():
-    admin, error_response = require_admin(require_clinic=True)
+    manager, error_response = require_management_access(require_clinic=False)
 
     if error_response:
         return error_response
@@ -861,51 +1056,88 @@ def create_management_user():
     is_active = parse_bool(data.get("is_active", True), default=True)
 
     try:
-        role = normalize_role(data.get("role", "asisten"))
+        role = normalize_role(data.get("role", ASSISTANT_ROLE))
     except ValueError as e:
         return jsonify({"msg": str(e)}), 400
 
+    manager_role = role_to_text(manager.user_role)
+
+    if manager_role == ADMIN_ROLE and role != MIDWIFE_ROLE:
+        return jsonify({"msg": "Admin hanya dapat membuat akun bidan."}), 403
+
+    if manager_role == MIDWIFE_ROLE:
+        if not manager.clinic_id:
+            return (
+                jsonify(
+                    {
+                        "msg": "Akun bidan belum terhubung dengan klinik.",
+                        "requires_clinic_setup": True,
+                        "redirect_path": "/register-clinic",
+                    }
+                ),
+                400,
+            )
+
+        if role != ASSISTANT_ROLE:
+            return jsonify({"msg": "Bidan hanya dapat membuat akun asisten."}), 403
+
     if not fullname or not email or not password or not strnumber:
-        return jsonify({"msg": "Full name, email, password, and STR number are required"}), 400
+        return (
+            jsonify(
+                {
+                    "msg": "Nama lengkap, email, password, dan nomor STR wajib diisi."
+                }
+            ),
+            400,
+        )
 
     if len(password) < 8:
-        return jsonify({"msg": "Password must be at least 8 characters"}), 400
+        return jsonify({"msg": "Password minimal 8 karakter."}), 400
 
     existing_user_by_email = User.query.filter_by(email=email).first()
     existing_user_by_strnumber = User.query.filter_by(strnumber=strnumber).first()
 
     if existing_user_by_strnumber and (
         not existing_user_by_email
-        or str(existing_user_by_strnumber.user_id) != str(existing_user_by_email.user_id)
+        or str(existing_user_by_strnumber.user_id)
+        != str(existing_user_by_email.user_id)
     ):
-        return jsonify({"msg": "STR number is already used by another account"}), 409
+        return jsonify({"msg": "Nomor STR sudah digunakan oleh akun lain."}), 409
 
     try:
         if existing_user_by_email:
             old_values = user_old_values(existing_user_by_email, module="User Access")
 
-            if existing_user_by_email.clinic_id == admin.clinic_id and existing_user_by_email.is_active:
-                return jsonify({"msg": "Email is already active in this clinic"}), 409
+            if existing_user_by_email.is_active:
+                return jsonify({"msg": "Email sudah aktif digunakan."}), 409
 
-            if existing_user_by_email.clinic_id and existing_user_by_email.clinic_id != admin.clinic_id:
-                return jsonify({"msg": "Email is already used by another clinic"}), 409
+            if (
+                existing_user_by_email.clinic_id
+                and manager_role == MIDWIFE_ROLE
+                and existing_user_by_email.clinic_id != manager.clinic_id
+            ):
+                return jsonify({"msg": "Email sudah digunakan oleh klinik lain."}), 409
 
             existing_user_by_email.fullname = fullname
             existing_user_by_email.strnumber = strnumber
             existing_user_by_email.user_role = role
-            existing_user_by_email.clinic_id = admin.clinic_id
+            existing_user_by_email.clinic_id = (
+                None if manager_role == ADMIN_ROLE else manager.clinic_id
+            )
             existing_user_by_email.is_active = is_active
             existing_user_by_email.set_password(password)
 
             db.session.flush()
 
             write_audit_log(
-                user_id=admin.user_id,
+                user_id=manager.user_id,
                 action="REACTIVATE_ACCOUNT",
                 old_values=old_values,
                 new_values={
                     **user_old_values(existing_user_by_email, module="User Access"),
                     "reactivated": True,
+                    "requires_clinic_setup": role == MIDWIFE_ROLE
+                    and not existing_user_by_email.clinic_id,
                 },
             )
 
@@ -915,15 +1147,20 @@ def create_management_user():
             return (
                 jsonify(
                     {
-                        "msg": "User account reactivated successfully",
-                        "employee": serialize_user(existing_user_by_email, admin.user_id),
+                        "msg": "Akun user berhasil diaktifkan kembali.",
+                        "employee": serialize_user(
+                            existing_user_by_email,
+                            manager.user_id,
+                        ),
+                        "requires_clinic_setup": role == MIDWIFE_ROLE
+                        and not existing_user_by_email.clinic_id,
                     }
                 ),
                 200,
             )
 
         new_user = User(
-            clinic_id=admin.clinic_id,
+            clinic_id=None if manager_role == ADMIN_ROLE else manager.clinic_id,
             fullname=fullname,
             email=email,
             strnumber=strnumber,
@@ -936,10 +1173,19 @@ def create_management_user():
         db.session.flush()
 
         write_audit_log(
-            user_id=admin.user_id,
-            action="ADD_ACCOUNT",
+            user_id=manager.user_id,
+            action="CREATE_INITIAL_MIDWIFE" if role == MIDWIFE_ROLE else "ADD_ACCOUNT",
             old_values={},
-            new_values=user_old_values(new_user, module="User Access"),
+            new_values={
+                **user_old_values(
+                    new_user,
+                    module="Initial Midwife Account"
+                    if role == MIDWIFE_ROLE
+                    else "User Access",
+                ),
+                "requires_clinic_setup": role == MIDWIFE_ROLE
+                and not new_user.clinic_id,
+            },
         )
 
         db.session.commit()
@@ -948,8 +1194,10 @@ def create_management_user():
         return (
             jsonify(
                 {
-                    "msg": "User account created successfully",
-                    "employee": serialize_user(new_user, admin.user_id),
+                    "msg": "Akun user berhasil dibuat.",
+                    "employee": serialize_user(new_user, manager.user_id),
+                    "requires_clinic_setup": role == MIDWIFE_ROLE
+                    and not new_user.clinic_id,
                 }
             ),
             201,
@@ -957,26 +1205,45 @@ def create_management_user():
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": f"Failed to create user account: {str(e)}"}), 500
+        return jsonify({"msg": f"Gagal membuat akun user: {str(e)}"}), 500
 
 
 @auth_bp.route("/management/employees", methods=["GET"])
 @jwt_required()
 def get_management_employees():
-    admin, error_response = require_admin(require_clinic=True)
+    manager, error_response = require_management_access(require_clinic=False)
 
     if error_response:
         return error_response
 
-    employees = User.query.filter(
-        User.clinic_id == admin.clinic_id
-    ).order_by(User.created_at.desc()).all()
+    manager_role = role_to_text(manager.user_role)
+
+    if manager_role == ADMIN_ROLE:
+        employees = User.query.filter(
+            User.user_role == MIDWIFE_ROLE
+        ).order_by(User.created_at.desc()).all()
+    else:
+        if not manager.clinic_id:
+            return (
+                jsonify(
+                    {
+                        "msg": "Akun bidan belum terhubung dengan klinik.",
+                        "requires_clinic_setup": True,
+                        "redirect_path": "/register-clinic",
+                    }
+                ),
+                400,
+            )
+
+        employees = User.query.filter(
+            User.clinic_id == manager.clinic_id
+        ).order_by(User.created_at.desc()).all()
 
     return (
         jsonify(
             {
                 "employees": [
-                    serialize_user(employee, admin.user_id) for employee in employees
+                    serialize_user(employee, manager.user_id) for employee in employees
                 ]
             }
         ),
@@ -987,18 +1254,39 @@ def get_management_employees():
 @auth_bp.route("/management/employees/<employee_id>", methods=["PATCH"])
 @jwt_required()
 def update_management_employee(employee_id):
-    admin, error_response = require_admin(require_clinic=True)
+    manager, error_response = require_management_access(require_clinic=False)
 
     if error_response:
         return error_response
 
-    employee = User.query.filter(
-        User.user_id == str(employee_id),
-        User.clinic_id == admin.clinic_id,
-    ).first()
+    manager_role = role_to_text(manager.user_role)
+
+    if manager_role == ADMIN_ROLE:
+        employee = User.query.filter(
+            User.user_id == str(employee_id),
+            User.user_role == MIDWIFE_ROLE,
+        ).first()
+    else:
+        if not manager.clinic_id:
+            return (
+                jsonify(
+                    {
+                        "msg": "Akun bidan belum terhubung dengan klinik.",
+                        "requires_clinic_setup": True,
+                        "redirect_path": "/register-clinic",
+                    }
+                ),
+                400,
+            )
+
+        employee = User.query.filter(
+            User.user_id == str(employee_id),
+            User.clinic_id == manager.clinic_id,
+            User.user_role == ASSISTANT_ROLE,
+        ).first()
 
     if not employee:
-        return jsonify({"msg": "Employee not found in this clinic"}), 404
+        return jsonify({"msg": "User tidak ditemukan atau tidak dapat dikelola."}), 404
 
     data = request.get_json() or {}
 
@@ -1014,27 +1302,21 @@ def update_management_employee(employee_id):
         except ValueError as e:
             return jsonify({"msg": str(e)}), 400
 
+    if manager_role == ADMIN_ROLE and new_role != MIDWIFE_ROLE:
+        return jsonify({"msg": "Admin hanya dapat mengelola akun bidan."}), 403
+
+    if manager_role == MIDWIFE_ROLE and new_role != ASSISTANT_ROLE:
+        return jsonify({"msg": "Bidan hanya dapat mengelola akun asisten."}), 403
+
     if active_was_changed:
         new_is_active = parse_bool(data.get("is_active"), default=employee.is_active)
 
-    if str(employee.user_id) == str(admin.user_id):
+    if str(employee.user_id) == str(manager.user_id):
         if role_was_changed and new_role != employee.user_role:
-            return jsonify({"msg": "You cannot change your own role"}), 400
+            return jsonify({"msg": "Anda tidak dapat mengubah role akun sendiri."}), 400
 
         if active_was_changed and new_is_active != employee.is_active:
-            return jsonify({"msg": "You cannot deactivate your own account"}), 400
-
-    would_remove_active_admin = (
-        employee.user_role == ADMIN_ROLE
-        and employee.is_active
-        and (new_role != ADMIN_ROLE or new_is_active is False)
-    )
-
-    if would_remove_active_admin and not has_other_active_admin(
-        admin.clinic_id,
-        employee.user_id,
-    ):
-        return jsonify({"msg": "At least one active admin is required"}), 400
+            return jsonify({"msg": "Anda tidak dapat menonaktifkan akun sendiri."}), 400
 
     try:
         old_values = user_old_values(employee, module="User Access")
@@ -1043,7 +1325,7 @@ def update_management_employee(employee_id):
         employee.is_active = new_is_active
 
         write_audit_log(
-            user_id=admin.user_id,
+            user_id=manager.user_id,
             action="UPDATE_USER_ACCESS",
             old_values=old_values,
             new_values=user_old_values(employee, module="User Access"),
@@ -1055,8 +1337,8 @@ def update_management_employee(employee_id):
         return (
             jsonify(
                 {
-                    "msg": "Employee updated successfully",
-                    "employee": serialize_user(employee, admin.user_id),
+                    "msg": "Data user berhasil diperbarui.",
+                    "employee": serialize_user(employee, manager.user_id),
                 }
             ),
             200,
@@ -1064,37 +1346,48 @@ def update_management_employee(employee_id):
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": f"Failed to update employee: {str(e)}"}), 500
+        return jsonify({"msg": f"Gagal memperbarui user: {str(e)}"}), 500
 
 
 @auth_bp.route("/management/employees/<employee_id>", methods=["DELETE"])
 @jwt_required()
 def unlink_management_employee(employee_id):
-    admin, error_response = require_admin(require_clinic=True)
+    manager, error_response = require_management_access(require_clinic=False)
 
     if error_response:
         return error_response
 
-    employee = User.query.filter(
-        User.user_id == str(employee_id),
-        User.clinic_id == admin.clinic_id,
-    ).first()
+    manager_role = role_to_text(manager.user_role)
+
+    if manager_role == ADMIN_ROLE:
+        employee = User.query.filter(
+            User.user_id == str(employee_id),
+            User.user_role == MIDWIFE_ROLE,
+        ).first()
+    else:
+        if not manager.clinic_id:
+            return (
+                jsonify(
+                    {
+                        "msg": "Akun bidan belum terhubung dengan klinik.",
+                        "requires_clinic_setup": True,
+                        "redirect_path": "/register-clinic",
+                    }
+                ),
+                400,
+            )
+
+        employee = User.query.filter(
+            User.user_id == str(employee_id),
+            User.clinic_id == manager.clinic_id,
+            User.user_role == ASSISTANT_ROLE,
+        ).first()
 
     if not employee:
-        return jsonify({"msg": "Employee not found in this clinic"}), 404
+        return jsonify({"msg": "User tidak ditemukan atau tidak dapat dikelola."}), 404
 
-    if str(employee.user_id) == str(admin.user_id):
-        return jsonify({"msg": "You cannot remove yourself from the clinic"}), 400
-
-    would_remove_active_admin = (
-        employee.user_role == ADMIN_ROLE and employee.is_active
-    )
-
-    if would_remove_active_admin and not has_other_active_admin(
-        admin.clinic_id,
-        employee.user_id,
-    ):
-        return jsonify({"msg": "At least one active admin is required"}), 400
+    if str(employee.user_id) == str(manager.user_id):
+        return jsonify({"msg": "Anda tidak dapat menghapus akun sendiri."}), 400
 
     try:
         old_values = user_old_values(employee, module="User Access")
@@ -1105,7 +1398,7 @@ def unlink_management_employee(employee_id):
         db.session.flush()
 
         write_audit_log(
-            user_id=admin.user_id,
+            user_id=manager.user_id,
             action="REMOVE_USER_FROM_CLINIC",
             old_values=old_values,
             new_values={
@@ -1119,7 +1412,7 @@ def unlink_management_employee(employee_id):
         return (
             jsonify(
                 {
-                    "msg": "Employee removed from clinic successfully",
+                    "msg": "User berhasil dihapus dari akses klinik.",
                     "removed_employee_id": str(employee_id),
                 }
             ),
@@ -1128,4 +1421,4 @@ def unlink_management_employee(employee_id):
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": f"Failed to remove employee: {str(e)}"}), 500
+        return jsonify({"msg": f"Gagal menghapus user: {str(e)}"}), 500

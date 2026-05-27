@@ -3,7 +3,7 @@ API dashboard — statistik ringkas untuk halaman utama.
 
 Endpoint:
   GET /api/dashboard/top-assessments
-    → Top N diagnosa bulan ini (normalisasi hibrida di assessment_service).
+    → Top N assessment/diagnosa bulan ini.
 """
 
 from flask import Blueprint, jsonify, request
@@ -12,45 +12,126 @@ from flask_jwt_extended import get_jwt_identity, jwt_required
 from app.assessment_service import get_top_diagnoses_payload
 from app.models import User, db
 
+
 dashboard_bp = Blueprint("dashboard", __name__)
+
+
+DASHBOARD_ALLOWED_ROLES = ["admin", "midwife", "asisten"]
+
+
+def role_to_text(value):
+    if value is None:
+        return ""
+
+    if hasattr(value, "value"):
+        return str(value.value)
+
+    return str(value)
+
+
+def normalize_role(role):
+    normalized = str(role or "").strip().lower()
+
+    role_aliases = {
+        "admin": "admin",
+        "developer": "admin",
+        "midwife": "midwife",
+        "bidan": "midwife",
+        "owner": "midwife",
+        "asisten": "asisten",
+        "assistant": "asisten",
+        "staff": "asisten",
+    }
+
+    return role_aliases.get(normalized, normalized)
+
+
+def get_current_user():
+    user_id = get_jwt_identity()
+
+    if not user_id:
+        return None
+
+    return db.session.get(User, user_id)
+
+
+def require_dashboard_access():
+    current_user = get_current_user()
+
+    if not current_user:
+        return None, "", (
+            jsonify({"msg": "User tidak ditemukan."}),
+            404,
+        )
+
+    if not current_user.is_active:
+        return None, "", (
+            jsonify({"msg": "Akun Anda sedang tidak aktif."}),
+            403,
+        )
+
+    current_role = normalize_role(role_to_text(current_user.user_role))
+
+    if current_role not in DASHBOARD_ALLOWED_ROLES:
+        return None, current_role, (
+            jsonify({"msg": "Akses ditolak."}),
+            403,
+        )
+
+    if current_role in ["midwife", "asisten"] and not current_user.clinic_id:
+        return None, current_role, (
+            jsonify(
+                {
+                    "msg": "Akun belum terhubung dengan klinik.",
+                    "requires_clinic_setup": current_role == "midwife",
+                    "redirect_path": "/register-clinic"
+                    if current_role == "midwife"
+                    else "/dashboard",
+                }
+            ),
+            400,
+        )
+
+    return current_user, current_role, None
+
+
+def get_limit_from_request():
+    try:
+        limit = int(request.args.get("limit", 5))
+        return max(1, min(limit, 20))
+    except (TypeError, ValueError):
+        return 5
 
 
 @dashboard_bp.route("/top-assessments", methods=["GET"])
 @jwt_required()
 def get_top_assessments():
-    """
-    Mengembalikan Top 5 (default) diagnosa terbanyak bulan berjalan.
+    current_user, current_role, error_response = require_dashboard_access()
 
-    Query params:
-      limit — jumlah ranking (1–20, default 5)
+    if error_response:
+        return error_response
 
-    Data difilter per clinic_id user yang login.
-    """
-    user_id = get_jwt_identity()
-    current_user = db.session.get(User, user_id)
-
-    if not current_user:
-        return jsonify({"msg": "User tidak ditemukan"}), 404
-
-    if not current_user.clinic_id:
-        return jsonify({"msg": "Akun belum terhubung ke klinik"}), 400
+    limit = get_limit_from_request()
 
     try:
-        limit = int(request.args.get("limit", 5))
-        limit = max(1, min(limit, 20))
-    except (TypeError, ValueError):
-        limit = 5
+        payload = get_top_diagnoses_payload(
+            current_user=current_user,
+            current_role=current_role,
+            top_n=limit,
+        )
 
-    try:
-        payload = get_top_diagnoses_payload(current_user.clinic_id, top_n=limit)
         return jsonify(payload), 200
+
     except Exception as exc:
         return (
             jsonify(
                 {
-                    "msg": "Gagal menghitung top assessment",
+                    "msg": "Gagal menghitung top assessment.",
                     "error": str(exc),
                     "top_assessments": [],
+                    "top_diagnoses": [],
+                    "total_visits_with_assessment": 0,
+                    "total_assessment_fragments": 0,
                 }
             ),
             500,

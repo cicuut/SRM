@@ -25,6 +25,7 @@ type Employee = {
     fullname: string;
     email: string;
     role: Role;
+    user_role?: Role;
     strnumber?: string | null;
     clinic_id?: string | null;
     is_active: boolean;
@@ -36,9 +37,14 @@ type Employee = {
 
 type ManagementOverviewResponse = {
     msg?: string;
-    user: Employee;
-    clinic: ClinicData | null;
-    employees: Employee[];
+    requires_clinic_setup?: boolean;
+    redirect_path?: string;
+    user?: Employee;
+    clinic?: ClinicData | null;
+    employees?: Employee[];
+    roles?: Role[];
+    can_create_midwife?: boolean;
+    can_create_assistant?: boolean;
 };
 
 type ClinicFormData = {
@@ -59,14 +65,14 @@ type AccountFormData = {
     isActive: boolean;
 };
 
-const roleOptions: Array<{ value: Role; label: string }> = [
+const allRoleOptions: Array<{ value: Role; label: string }> = [
     {
         value: 'admin',
         label: 'Admin',
     },
     {
         value: 'midwife',
-        label: 'Midwife',
+        label: 'Bidan',
     },
     {
         value: 'asisten',
@@ -106,11 +112,28 @@ const readJson = async (response: Response) => {
     }
 };
 
-const formatRole = (role: string) => {
-    if (role === 'asisten') return 'Asisten';
-    if (!role) return '-';
+const normalizeRole = (value?: string | null): Role | '' => {
+    const role = String(value || '').trim().toLowerCase();
 
-    return role.charAt(0).toUpperCase() + role.slice(1);
+    if (role === 'admin' || role === 'developer') return 'admin';
+    if (role === 'midwife' || role === 'bidan' || role === 'owner') {
+        return 'midwife';
+    }
+    if (role === 'asisten' || role === 'assistant' || role === 'staff') {
+        return 'asisten';
+    }
+
+    return '';
+};
+
+const formatRole = (role: string) => {
+    const normalizedRole = normalizeRole(role);
+
+    if (normalizedRole === 'admin') return 'Admin';
+    if (normalizedRole === 'midwife') return 'Bidan';
+    if (normalizedRole === 'asisten') return 'Asisten';
+
+    return '-';
 };
 
 const formatDateTime = (value?: string | null) => {
@@ -142,6 +165,50 @@ const getInitials = (name: string) => {
         .toUpperCase();
 
     return initials || 'U';
+};
+
+const translateMessage = (message?: string) => {
+    const rawMessage = String(message || '').trim();
+
+    if (!rawMessage) {
+        return 'Terjadi kesalahan. Silakan coba lagi.';
+    }
+
+    const normalizedMessage = rawMessage.toLowerCase();
+
+    if (normalizedMessage.includes('failed to fetch')) {
+        return 'Tidak dapat terhubung ke server. Pastikan backend sedang berjalan.';
+    }
+
+    if (normalizedMessage.includes('only admin')) {
+        return 'Hanya admin yang dapat mengakses fitur ini.';
+    }
+
+    if (normalizedMessage.includes('only admin or midwife')) {
+        return 'Hanya admin atau bidan yang dapat mengakses fitur ini.';
+    }
+
+    if (normalizedMessage.includes('only midwife')) {
+        return 'Hanya bidan yang dapat mengakses fitur ini.';
+    }
+
+    if (normalizedMessage.includes('email is taken')) {
+        return 'Email sudah digunakan.';
+    }
+
+    if (normalizedMessage.includes('str number is taken')) {
+        return 'Nomor STR sudah digunakan.';
+    }
+
+    if (normalizedMessage.includes('password must be at least')) {
+        return 'Password minimal 8 karakter.';
+    }
+
+    if (normalizedMessage.includes('account is inactive')) {
+        return 'Akun Anda sedang tidak aktif.';
+    }
+
+    return rawMessage;
 };
 
 const UserAvatar = ({
@@ -177,6 +244,31 @@ const UserAvatar = ({
     );
 };
 
+const ForbiddenView = () => {
+    return (
+        <div className="flex min-h-[calc(100dvh-48px)] w-full items-center justify-center px-4">
+            <div className="w-full max-w-[460px] rounded-[24px] border border-red-200 bg-white px-6 py-8 text-center shadow-sm">
+                <div className="mx-auto flex h-[58px] w-[58px] items-center justify-center rounded-full bg-red-50 text-[24px] font-extrabold text-red-600">
+                    403
+                </div>
+
+                <h1 className="mt-5 text-[24px] font-extrabold text-[#2F3A2F]">
+                    Forbidden Access
+                </h1>
+
+                <p className="mt-3 text-[13px] font-medium leading-relaxed text-[#6B6B6B]">
+                    Kamu tidak memiliki izin untuk mengakses halaman Management
+                    Setting.
+                </p>
+
+                <p className="mt-2 text-[12px] font-semibold text-red-600">
+                    Halaman ini hanya dapat diakses oleh admin dan bidan.
+                </p>
+            </div>
+        </div>
+    );
+};
+
 const mapClinicToForm = (clinic: ClinicData | null): ClinicFormData => {
     if (!clinic) {
         return emptyClinicForm;
@@ -192,11 +284,13 @@ const mapClinicToForm = (clinic: ClinicData | null): ClinicFormData => {
 };
 
 const getRoleBadgeClassName = (role: string) => {
-    if (role === 'admin') {
+    const normalizedRole = normalizeRole(role);
+
+    if (normalizedRole === 'admin') {
         return 'bg-[#D2E3C8] text-[#3F5E42]';
     }
 
-    if (role === 'midwife') {
+    if (normalizedRole === 'midwife') {
         return 'bg-[#E6EFD8] text-[#5F785F]';
     }
 
@@ -206,6 +300,7 @@ const getRoleBadgeClassName = (role: string) => {
 const ManagementSetting = () => {
     const router = useRouter();
 
+    const [currentUser, setCurrentUser] = useState<Employee | null>(null);
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [clinicForm, setClinicForm] =
         useState<ClinicFormData>(emptyClinicForm);
@@ -229,21 +324,70 @@ const ManagementSetting = () => {
     const [isCreatingAccount, setIsCreatingAccount] = useState(false);
     const [isSavingEmployee, setIsSavingEmployee] = useState(false);
 
+    const [isForbidden, setIsForbidden] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
 
+    const currentRole = normalizeRole(
+        currentUser?.role || currentUser?.user_role,
+    );
+
+    const canCreateMidwife = currentRole === 'admin';
+    const canCreateAssistant = currentRole === 'midwife';
+    const canUpdateClinic = currentRole === 'midwife';
+
     const showLoadingOverlay =
         isLoading || isSavingClinic || isCreatingAccount || isSavingEmployee;
+
+    const roleFilterOptions = useMemo(() => {
+        if (currentRole === 'admin') {
+            return allRoleOptions.filter((role) => role.value === 'midwife');
+        }
+
+        if (currentRole === 'midwife') {
+            return allRoleOptions.filter((role) =>
+                ['midwife', 'asisten'].includes(role.value),
+            );
+        }
+
+        return allRoleOptions;
+    }, [currentRole]);
+
+    const accountRoleOptions = useMemo(() => {
+        if (currentRole === 'midwife') {
+            return allRoleOptions.filter((role) => role.value === 'asisten');
+        }
+
+        if (currentRole === 'admin') {
+            return allRoleOptions.filter((role) => role.value === 'midwife');
+        }
+
+        return [];
+    }, [currentRole]);
+
+    const employeeDetailRoleOptions = useMemo(() => {
+        if (currentRole === 'admin') {
+            return allRoleOptions.filter((role) => role.value === 'midwife');
+        }
+
+        if (currentRole === 'midwife') {
+            return allRoleOptions.filter((role) => role.value === 'asisten');
+        }
+
+        return [];
+    }, [currentRole]);
 
     const filteredEmployees = useMemo(() => {
         const normalizedSearch = searchQuery.trim().toLowerCase();
 
         return employees.filter((employee) => {
+            const employeeRole = normalizeRole(employee.role || employee.user_role);
+
             const matchesSearch =
                 !normalizedSearch ||
                 employee.fullname.toLowerCase().includes(normalizedSearch) ||
                 employee.email.toLowerCase().includes(normalizedSearch) ||
-                formatRole(employee.role)
+                formatRole(employeeRole)
                     .toLowerCase()
                     .includes(normalizedSearch) ||
                 (employee.strnumber || '')
@@ -251,7 +395,7 @@ const ManagementSetting = () => {
                     .includes(normalizedSearch);
 
             const matchesRole =
-                roleFilter === 'all' || employee.role === roleFilter;
+                roleFilter === 'all' || employeeRole === roleFilter;
 
             const matchesStatus =
                 statusFilter === 'all' ||
@@ -267,14 +411,16 @@ const ManagementSetting = () => {
     };
 
     const handleUnauthorized = () => {
-        Cookies.remove('access_token');
+        Cookies.remove('access_token', { path: '/' });
 
         localStorage.removeItem('user_id');
+        localStorage.removeItem('temp_user_id');
         localStorage.removeItem('fullname');
         localStorage.removeItem('user_email');
         localStorage.removeItem('user_role');
         localStorage.removeItem('clinic_id');
         localStorage.removeItem('profile_photo');
+        localStorage.removeItem('requires_clinic_setup');
 
         router.push('/login');
     };
@@ -282,6 +428,7 @@ const ManagementSetting = () => {
     const fetchOverview = async () => {
         try {
             setIsLoading(true);
+            setIsForbidden(false);
             setErrorMessage('');
 
             const token = getToken();
@@ -310,22 +457,50 @@ const ManagementSetting = () => {
                 return;
             }
 
+            if (response.status === 400 && data.requires_clinic_setup) {
+                router.push(data.redirect_path || '/register-clinic');
+                return;
+            }
+
             if (response.status === 403) {
-                router.push('/dashboard');
+                setIsForbidden(true);
                 return;
             }
 
             if (!response.ok) {
-                throw new Error(data?.msg || 'Gagal mengambil data management');
+                throw new Error(
+                    data?.msg || 'Gagal mengambil data management.',
+                );
             }
 
+            const normalizedUserRole = normalizeRole(
+                data.user?.role || data.user?.user_role,
+            );
+
+            if (!data.user || !['admin', 'midwife'].includes(normalizedUserRole)) {
+                setIsForbidden(true);
+                return;
+            }
+
+            setCurrentUser(data.user);
             setEmployees(data.employees || []);
-            setClinicForm(mapClinicToForm(data.clinic));
+            setClinicForm(mapClinicToForm(data.clinic || null));
+
+            localStorage.setItem('user_id', data.user.id || '');
+            localStorage.setItem('temp_user_id', data.user.id || '');
+            localStorage.setItem('fullname', data.user.fullname || '');
+            localStorage.setItem('user_email', data.user.email || '');
+            localStorage.setItem('user_role', normalizedUserRole);
+            localStorage.setItem('clinic_id', data.user.clinic_id || '');
+            localStorage.setItem(
+                'requires_clinic_setup',
+                data.requires_clinic_setup ? 'true' : 'false',
+            );
         } catch (error) {
             const message =
                 error instanceof Error
-                    ? error.message
-                    : 'Terjadi kesalahan saat mengambil data management';
+                    ? translateMessage(error.message)
+                    : 'Terjadi kesalahan saat mengambil data management.';
 
             setErrorMessage(message);
         } finally {
@@ -382,23 +557,27 @@ const ManagementSetting = () => {
 
     const validateClinicForm = () => {
         if (!clinicForm.clinicName.trim()) {
-            return 'Clinic name wajib diisi';
+            return 'Nama klinik wajib diisi.';
         }
 
         if (!clinicForm.sipbNo.trim()) {
-            return 'SIPB No wajib diisi';
+            return 'Nomor SIPB wajib diisi.';
         }
 
         if (!clinicForm.clinicEmail.trim()) {
-            return 'Clinic email wajib diisi';
+            return 'Email klinik wajib diisi.';
+        }
+
+        if (!clinicForm.clinicEmail.includes('@')) {
+            return 'Format email klinik tidak valid.';
         }
 
         if (!clinicForm.clinicPhoneNumber.trim()) {
-            return 'Clinic phone number wajib diisi';
+            return 'Nomor telepon klinik wajib diisi.';
         }
 
         if (!clinicForm.clinicAddress.trim()) {
-            return 'Clinic address wajib diisi';
+            return 'Alamat klinik wajib diisi.';
         }
 
         return '';
@@ -406,30 +585,51 @@ const ManagementSetting = () => {
 
     const validateAccountForm = () => {
         if (!accountForm.fullname.trim()) {
-            return 'Full name wajib diisi';
+            return 'Nama lengkap wajib diisi.';
         }
 
         if (!accountForm.email.trim()) {
-            return 'Email wajib diisi';
+            return 'Email wajib diisi.';
         }
 
         if (!accountForm.email.includes('@')) {
-            return 'Format email tidak valid';
+            return 'Format email tidak valid.';
+        }
+
+        if (!accountForm.strnumber.trim()) {
+            return 'Nomor STR wajib diisi.';
         }
 
         if (!accountForm.password || accountForm.password.length < 8) {
-            return 'Password minimal 8 karakter';
+            return 'Password minimal 8 karakter.';
+        }
+
+        if (!accountForm.confirmPassword) {
+            return 'Konfirmasi password wajib diisi.';
         }
 
         if (accountForm.password !== accountForm.confirmPassword) {
-            return 'Confirm password tidak sama';
+            return 'Konfirmasi password tidak sama.';
+        }
+
+        if (currentRole === 'midwife' && accountForm.role !== 'asisten') {
+            return 'Bidan hanya dapat membuat akun asisten.';
+        }
+
+        if (currentRole === 'admin' && accountForm.role !== 'midwife') {
+            return 'Admin hanya dapat membuat akun bidan melalui halaman Add Midwife.';
         }
 
         return '';
     };
 
     const openAccountModal = () => {
-        setAccountForm(emptyAccountForm);
+        if (!canCreateAssistant) return;
+
+        setAccountForm({
+            ...emptyAccountForm,
+            role: 'asisten',
+        });
         setErrorMessage('');
         setSuccessMessage('');
         setIsAccountModalOpen(true);
@@ -442,8 +642,17 @@ const ManagementSetting = () => {
         setAccountForm(emptyAccountForm);
     };
 
+    const handleGoToAddMidwife = () => {
+        router.push('/regist');
+    };
+
     const handleUpdateClinic = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+
+        if (!canUpdateClinic) {
+            setErrorMessage('Hanya bidan yang dapat memperbarui data klinik.');
+            return;
+        }
 
         try {
             setIsSavingClinic(true);
@@ -489,19 +698,24 @@ const ManagementSetting = () => {
                 return;
             }
 
+            if (response.status === 403) {
+                throw new Error(
+                    data?.msg || 'Anda tidak memiliki izin memperbarui klinik.',
+                );
+            }
+
             if (!response.ok) {
-                throw new Error(data?.msg || 'Gagal memperbarui data klinik');
+                throw new Error(data?.msg || 'Gagal memperbarui data klinik.');
             }
 
             setClinicForm(mapClinicToForm(data.clinic));
-            setSuccessMessage('Clinic information berhasil diperbarui');
-
-            window.location.reload();
+            setSuccessMessage('Informasi klinik berhasil diperbarui.');
+            await fetchOverview();
         } catch (error) {
             const message =
                 error instanceof Error
-                    ? error.message
-                    : 'Terjadi kesalahan saat memperbarui data klinik';
+                    ? translateMessage(error.message)
+                    : 'Terjadi kesalahan saat memperbarui data klinik.';
 
             setErrorMessage(message);
         } finally {
@@ -516,6 +730,11 @@ const ManagementSetting = () => {
             setIsCreatingAccount(true);
             setErrorMessage('');
             setSuccessMessage('');
+
+            const nextAccountForm = {
+                ...accountForm,
+                role: currentRole === 'midwife' ? 'asisten' : accountForm.role,
+            };
 
             const validationMessage = validateAccountForm();
 
@@ -540,12 +759,12 @@ const ManagementSetting = () => {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        fullname: accountForm.fullname.trim(),
-                        email: accountForm.email.trim(),
-                        password: accountForm.password,
-                        strnumber: accountForm.strnumber.trim(),
-                        role: accountForm.role,
-                        is_active: accountForm.isActive,
+                        fullname: nextAccountForm.fullname.trim(),
+                        email: nextAccountForm.email.trim(),
+                        password: nextAccountForm.password,
+                        strnumber: nextAccountForm.strnumber.trim(),
+                        role: nextAccountForm.role,
+                        is_active: nextAccountForm.isActive,
                     }),
                 },
             );
@@ -557,19 +776,28 @@ const ManagementSetting = () => {
                 return;
             }
 
+            if (response.status === 400 && data.requires_clinic_setup) {
+                router.push(data.redirect_path || '/register-clinic');
+                return;
+            }
+
+            if (response.status === 403) {
+                throw new Error(data?.msg || 'Anda tidak memiliki izin.');
+            }
+
             if (!response.ok) {
-                throw new Error(data?.msg || 'Gagal membuat akun user');
+                throw new Error(data?.msg || 'Gagal membuat akun user.');
             }
 
             setAccountForm(emptyAccountForm);
             setIsAccountModalOpen(false);
-            setSuccessMessage('Akun user berhasil dibuat');
+            setSuccessMessage('Akun user berhasil dibuat.');
             await fetchOverview();
         } catch (error) {
             const message =
                 error instanceof Error
-                    ? error.message
-                    : 'Terjadi kesalahan saat membuat akun user';
+                    ? translateMessage(error.message)
+                    : 'Terjadi kesalahan saat membuat akun user.';
 
             setErrorMessage(message);
         } finally {
@@ -578,8 +806,10 @@ const ManagementSetting = () => {
     };
 
     const openEmployeeDetail = (employee: Employee) => {
+        const employeeRole = normalizeRole(employee.role || employee.user_role);
+
         setSelectedEmployee(employee);
-        setSelectedRole(employee.role || 'asisten');
+        setSelectedRole((employeeRole || 'asisten') as Role);
         setSelectedIsActive(Boolean(employee.is_active));
         setIsDeleteModalOpen(false);
         setErrorMessage('');
@@ -644,18 +874,27 @@ const ManagementSetting = () => {
                 return;
             }
 
+            if (response.status === 400 && data.requires_clinic_setup) {
+                router.push(data.redirect_path || '/register-clinic');
+                return;
+            }
+
+            if (response.status === 403) {
+                throw new Error(data?.msg || 'Anda tidak memiliki izin.');
+            }
+
             if (!response.ok) {
-                throw new Error(data?.msg || 'Gagal memperbarui user');
+                throw new Error(data?.msg || 'Gagal memperbarui user.');
             }
 
             setSelectedEmployee(data.employee);
-            setSuccessMessage('User berhasil diperbarui');
+            setSuccessMessage('User berhasil diperbarui.');
             await fetchOverview();
         } catch (error) {
             const message =
                 error instanceof Error
-                    ? error.message
-                    : 'Terjadi kesalahan saat memperbarui user';
+                    ? translateMessage(error.message)
+                    : 'Terjadi kesalahan saat memperbarui user.';
 
             setErrorMessage(message);
         } finally {
@@ -696,29 +935,38 @@ const ManagementSetting = () => {
                 return;
             }
 
+            if (response.status === 400 && data.requires_clinic_setup) {
+                router.push(data.redirect_path || '/register-clinic');
+                return;
+            }
+
             if (response.status === 400 || response.status === 403) {
-                throw new Error(data?.msg || 'User ini tidak bisa dihapus');
+                throw new Error(data?.msg || 'User ini tidak bisa dihapus.');
             }
 
             if (!response.ok) {
-                throw new Error(data?.msg || 'Gagal menghapus user');
+                throw new Error(data?.msg || 'Gagal menghapus user.');
             }
 
             setIsDeleteModalOpen(false);
             setSelectedEmployee(null);
-            setSuccessMessage('User berhasil dinonaktifkan dan dilepas dari klinik');
+            setSuccessMessage('User berhasil dinonaktifkan dan dilepas dari klinik.');
             await fetchOverview();
         } catch (error) {
             const message =
                 error instanceof Error
-                    ? error.message
-                    : 'Terjadi kesalahan saat menghapus user';
+                    ? translateMessage(error.message)
+                    : 'Terjadi kesalahan saat menghapus user.';
 
             setErrorMessage(message);
         } finally {
             setIsSavingEmployee(false);
         }
     };
+
+    if (isForbidden) {
+        return <ForbiddenView />;
+    }
 
     return (
         <>
@@ -739,7 +987,7 @@ const ManagementSetting = () => {
 
                 {isLoading ? (
                     <div className="rounded-[22px] border border-[#D2D8CF] bg-white px-6 py-8 text-[13px] font-semibold text-[#4F6F52] shadow-sm">
-                        Loading management setting...
+                        Memuat data management...
                     </div>
                 ) : (
                     <>
@@ -747,17 +995,37 @@ const ManagementSetting = () => {
                             <div className="flex flex-col gap-4 border-b border-[#E4E8E1] px-5 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
                                 <div>
                                     <h2 className="text-[20px] font-extrabold leading-none text-[#5F785F]">
-                                        User Access
+                                        Akses User
                                     </h2>
+
+                                    <p className="mt-2 text-[12px] font-medium text-[#6B6B6B]">
+                                        {currentRole === 'admin'
+                                            ? 'Admin dapat membuat dan mengelola akun bidan.'
+                                            : 'Bidan dapat membuat dan mengelola akun asisten di kliniknya.'}
+                                    </p>
                                 </div>
 
-                                <button
-                                    type="button"
-                                    onClick={openAccountModal}
-                                    className="flex min-h-[38px] items-center justify-center rounded-[50px] bg-[#86A789] px-[20px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-70"
-                                >
-                                    Add Account
-                                </button>
+                                <div className="flex flex-col gap-2 sm:flex-row">
+                                    {canCreateMidwife && (
+                                        <button
+                                            type="button"
+                                            onClick={handleGoToAddMidwife}
+                                            className="flex min-h-[38px] items-center justify-center rounded-[50px] bg-[#4F6F52] px-[20px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#3F5E42]"
+                                        >
+                                            Add Midwife
+                                        </button>
+                                    )}
+
+                                    {canCreateAssistant && (
+                                        <button
+                                            type="button"
+                                            onClick={openAccountModal}
+                                            className="flex min-h-[38px] items-center justify-center rounded-[50px] bg-[#86A789] px-[20px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-70"
+                                        >
+                                            Add Account
+                                        </button>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="px-5 py-5 sm:px-6">
@@ -773,7 +1041,7 @@ const ManagementSetting = () => {
                                             onChange={(event) =>
                                                 setSearchQuery(event.target.value)
                                             }
-                                            placeholder="Search user by name, email, role, or STR..."
+                                            placeholder="Cari user berdasarkan nama, email, role, atau STR..."
                                             className="w-full bg-transparent pl-8 text-[13px] text-gray-700 outline-none placeholder-gray-400"
                                         />
                                     </div>
@@ -789,8 +1057,8 @@ const ManagementSetting = () => {
                                         }
                                         className="h-[40px] rounded-[50px] border border-[#D2D8CF] bg-white px-4 text-[12px] font-bold text-[#4B4B4B] shadow-sm outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072]"
                                     >
-                                        <option value="all">All Roles</option>
-                                        {roleOptions.map((role) => (
+                                        <option value="all">Semua Role</option>
+                                        {roleFilterOptions.map((role) => (
                                             <option
                                                 key={role.value}
                                                 value={role.value}
@@ -807,9 +1075,9 @@ const ManagementSetting = () => {
                                         }
                                         className="h-[40px] rounded-[50px] border border-[#D2D8CF] bg-white px-4 text-[12px] font-bold text-[#4B4B4B] shadow-sm outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072]"
                                     >
-                                        <option value="all">All Status</option>
-                                        <option value="active">Active</option>
-                                        <option value="inactive">Inactive</option>
+                                        <option value="all">Semua Status</option>
+                                        <option value="active">Aktif</option>
+                                        <option value="inactive">Tidak Aktif</option>
                                     </select>
                                 </div>
 
@@ -827,10 +1095,10 @@ const ManagementSetting = () => {
                                                     Status
                                                 </th>
                                                 <th className="px-5 py-4">
-                                                    Last Login
+                                                    Login Terakhir
                                                 </th>
                                                 <th className="px-5 py-4">
-                                                    Action
+                                                    Aksi
                                                 </th>
                                             </tr>
                                         </thead>
@@ -842,7 +1110,7 @@ const ManagementSetting = () => {
                                                         colSpan={5}
                                                         className="px-5 py-10 text-center text-[13px] text-gray-500"
                                                     >
-                                                        No user found
+                                                        Tidak ada user ditemukan
                                                     </td>
                                                 </tr>
                                             ) : (
@@ -905,8 +1173,8 @@ const ManagementSetting = () => {
                                                                     }`}
                                                                 >
                                                                     {employee.is_active
-                                                                        ? 'Active'
-                                                                        : 'Inactive'}
+                                                                        ? 'Aktif'
+                                                                        : 'Tidak Aktif'}
                                                                 </span>
                                                             </td>
 
@@ -940,7 +1208,7 @@ const ManagementSetting = () => {
                                 <div className="mt-5 grid grid-cols-1 gap-3 lg:hidden">
                                     {filteredEmployees.length === 0 ? (
                                         <div className="rounded-[16px] border border-[#E4E8E1] bg-[#F8FAF6] px-4 py-8 text-center text-[13px] text-gray-500">
-                                            No user found
+                                            Tidak ada user ditemukan
                                         </div>
                                     ) : (
                                         filteredEmployees.map((employee) => (
@@ -990,8 +1258,8 @@ const ManagementSetting = () => {
                                                                 }`}
                                                             >
                                                                 {employee.is_active
-                                                                    ? 'Active'
-                                                                    : 'Inactive'}
+                                                                    ? 'Aktif'
+                                                                    : 'Tidak Aktif'}
                                                             </span>
                                                         </div>
                                                     </div>
@@ -1003,94 +1271,96 @@ const ManagementSetting = () => {
                             </div>
                         </section>
 
-                        <section className="rounded-[22px] border border-[#D2D8CF] bg-white px-5 py-5 shadow-sm sm:px-6">
-                            <div className="border-b border-[#E4E8E1] pb-4">
-                                <h2 className="text-[20px] font-extrabold leading-none text-[#5F785F]">
-                                    Clinic Information
-                                </h2>
-                            </div>
-
-                            <form
-                                onSubmit={handleUpdateClinic}
-                                className="mt-5 grid w-full min-w-0 grid-cols-1 gap-4 md:grid-cols-2"
-                            >
-                                <label className="block min-w-0">
-                                    <span className="text-[11px] font-bold text-black">
-                                        Clinic Name
-                                    </span>
-                                    <input
-                                        type="text"
-                                        name="clinicName"
-                                        value={clinicForm.clinicName}
-                                        onChange={handleClinicChange}
-                                        className={inputClassName}
-                                    />
-                                </label>
-
-                                <label className="block min-w-0">
-                                    <span className="text-[11px] font-bold text-black">
-                                        SIPB No
-                                    </span>
-                                    <input
-                                        type="text"
-                                        name="sipbNo"
-                                        value={clinicForm.sipbNo}
-                                        onChange={handleClinicChange}
-                                        className={inputClassName}
-                                    />
-                                </label>
-
-                                <label className="block min-w-0">
-                                    <span className="text-[11px] font-bold text-black">
-                                        Clinic Email
-                                    </span>
-                                    <input
-                                        type="email"
-                                        name="clinicEmail"
-                                        value={clinicForm.clinicEmail}
-                                        onChange={handleClinicChange}
-                                        className={inputClassName}
-                                    />
-                                </label>
-
-                                <label className="block min-w-0">
-                                    <span className="text-[11px] font-bold text-black">
-                                        Clinic Phone Number
-                                    </span>
-                                    <input
-                                        type="text"
-                                        name="clinicPhoneNumber"
-                                        value={clinicForm.clinicPhoneNumber}
-                                        onChange={handleClinicChange}
-                                        className={inputClassName}
-                                    />
-                                </label>
-
-                                <label className="block min-w-0 md:col-span-2">
-                                    <span className="text-[11px] font-bold text-black">
-                                        Clinic Address
-                                    </span>
-                                    <textarea
-                                        name="clinicAddress"
-                                        value={clinicForm.clinicAddress}
-                                        onChange={handleClinicChange}
-                                        className={textAreaClassName}
-                                    />
-                                </label>
-
-                                <div className="flex justify-end md:col-span-2">
-                                    <button
-                                        type="submit"
-                                        disabled={isSavingClinic}
-                                        className="h-[38px] rounded-[50px] bg-[#86A789] px-[22px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
-                                    >
-                                        {isSavingClinic
-                                            ? 'Saving...'
-                                            : 'Update Clinic'}
-                                    </button>
+                        {canUpdateClinic && (
+                            <section className="rounded-[22px] border border-[#D2D8CF] bg-white px-5 py-5 shadow-sm sm:px-6">
+                                <div className="border-b border-[#E4E8E1] pb-4">
+                                    <h2 className="text-[20px] font-extrabold leading-none text-[#5F785F]">
+                                        Informasi Klinik
+                                    </h2>
                                 </div>
-                            </form>
-                        </section>
+
+                                <form
+                                    onSubmit={handleUpdateClinic}
+                                    className="mt-5 grid w-full min-w-0 grid-cols-1 gap-4 md:grid-cols-2"
+                                >
+                                    <label className="block min-w-0">
+                                        <span className="text-[11px] font-bold text-black">
+                                            Nama Klinik
+                                        </span>
+                                        <input
+                                            type="text"
+                                            name="clinicName"
+                                            value={clinicForm.clinicName}
+                                            onChange={handleClinicChange}
+                                            className={inputClassName}
+                                        />
+                                    </label>
+
+                                    <label className="block min-w-0">
+                                        <span className="text-[11px] font-bold text-black">
+                                            Nomor SIPB
+                                        </span>
+                                        <input
+                                            type="text"
+                                            name="sipbNo"
+                                            value={clinicForm.sipbNo}
+                                            onChange={handleClinicChange}
+                                            className={inputClassName}
+                                        />
+                                    </label>
+
+                                    <label className="block min-w-0">
+                                        <span className="text-[11px] font-bold text-black">
+                                            Email Klinik
+                                        </span>
+                                        <input
+                                            type="email"
+                                            name="clinicEmail"
+                                            value={clinicForm.clinicEmail}
+                                            onChange={handleClinicChange}
+                                            className={inputClassName}
+                                        />
+                                    </label>
+
+                                    <label className="block min-w-0">
+                                        <span className="text-[11px] font-bold text-black">
+                                            Nomor Telepon Klinik
+                                        </span>
+                                        <input
+                                            type="text"
+                                            name="clinicPhoneNumber"
+                                            value={clinicForm.clinicPhoneNumber}
+                                            onChange={handleClinicChange}
+                                            className={inputClassName}
+                                        />
+                                    </label>
+
+                                    <label className="block min-w-0 md:col-span-2">
+                                        <span className="text-[11px] font-bold text-black">
+                                            Alamat Klinik
+                                        </span>
+                                        <textarea
+                                            name="clinicAddress"
+                                            value={clinicForm.clinicAddress}
+                                            onChange={handleClinicChange}
+                                            className={textAreaClassName}
+                                        />
+                                    </label>
+
+                                    <div className="flex justify-end md:col-span-2">
+                                        <button
+                                            type="submit"
+                                            disabled={isSavingClinic}
+                                            className="h-[38px] rounded-[50px] bg-[#86A789] px-[22px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                            {isSavingClinic
+                                                ? 'Menyimpan...'
+                                                : 'Update Klinik'}
+                                        </button>
+                                    </div>
+                                </form>
+                            </section>
+                        )}
                     </>
                 )}
             </div>
@@ -1103,17 +1373,17 @@ const ManagementSetting = () => {
                             onClick={closeAccountModal}
                             disabled={isCreatingAccount}
                             className="absolute right-[18px] top-[16px] z-10 flex h-[28px] w-[28px] items-center justify-center rounded-full text-[22px] leading-none text-[#2F2F2F] transition-all hover:bg-[#EEF3EA] disabled:cursor-not-allowed disabled:opacity-60"
-                            aria-label="Close add account modal"
+                            aria-label="Tutup modal tambah akun"
                         >
                             ×
                         </button>
 
                         <div className="border-b border-[#E4E8E1] px-[26px] py-[22px]">
                             <h2 className="text-[22px] font-bold leading-tight text-[#4F6F52]">
-                                Add Account
+                                Tambah Akun
                             </h2>
                             <p className="mt-1 text-[12px] text-[#6B6B6B]">
-                                Buat akun baru untuk akses user klinik.
+                                Buat akun asisten untuk akses user klinik.
                             </p>
                         </div>
 
@@ -1124,7 +1394,7 @@ const ManagementSetting = () => {
                             <div className="grid grid-cols-1 gap-[14px] sm:grid-cols-2">
                                 <label className="block min-w-0">
                                     <span className="text-[11px] font-bold text-black">
-                                        Full Name
+                                        Nama Lengkap
                                     </span>
                                     <input
                                         type="text"
@@ -1150,7 +1420,7 @@ const ManagementSetting = () => {
 
                                 <label className="block min-w-0">
                                     <span className="text-[11px] font-bold text-black">
-                                        STR Number
+                                        Nomor STR
                                     </span>
                                     <input
                                         type="text"
@@ -1171,7 +1441,7 @@ const ManagementSetting = () => {
                                         onChange={handleAccountChange}
                                         className={inputClassName}
                                     >
-                                        {roleOptions.map((role) => (
+                                        {accountRoleOptions.map((role) => (
                                             <option
                                                 key={role.value}
                                                 value={role.value}
@@ -1197,7 +1467,7 @@ const ManagementSetting = () => {
 
                                 <label className="block min-w-0">
                                     <span className="text-[11px] font-bold text-black">
-                                        Confirm Password
+                                        Konfirmasi Password
                                     </span>
                                     <input
                                         type="password"
@@ -1222,8 +1492,8 @@ const ManagementSetting = () => {
                                         onChange={handleAccountChange}
                                         className={inputClassName}
                                     >
-                                        <option value="active">Active</option>
-                                        <option value="inactive">Inactive</option>
+                                        <option value="active">Aktif</option>
+                                        <option value="inactive">Tidak Aktif</option>
                                     </select>
                                 </label>
                             </div>
@@ -1235,7 +1505,7 @@ const ManagementSetting = () => {
                                     disabled={isCreatingAccount}
                                     className="h-[36px] rounded-[50px] border border-[#BFC7BB] bg-white px-[18px] text-[12px] font-bold text-black transition-all hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-60"
                                 >
-                                    Cancel
+                                    Batal
                                 </button>
 
                                 <button
@@ -1244,8 +1514,8 @@ const ManagementSetting = () => {
                                     className="h-[36px] rounded-[50px] bg-[#86A789] px-[20px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
                                 >
                                     {isCreatingAccount
-                                        ? 'Creating...'
-                                        : 'Create Account'}
+                                        ? 'Membuat...'
+                                        : 'Buat Akun'}
                                 </button>
                             </div>
                         </form>
@@ -1261,7 +1531,7 @@ const ManagementSetting = () => {
                             onClick={closeEmployeeDetail}
                             disabled={isSavingEmployee}
                             className="absolute right-[18px] top-[16px] z-10 flex h-[28px] w-[28px] items-center justify-center rounded-full text-[22px] leading-none text-[#2F2F2F] transition-all hover:bg-[#EEF3EA] disabled:cursor-not-allowed disabled:opacity-60"
-                            aria-label="Close user detail"
+                            aria-label="Tutup detail user"
                         >
                             ×
                         </button>
@@ -1290,7 +1560,7 @@ const ManagementSetting = () => {
                             <div className="grid grid-cols-1 gap-[12px] rounded-[14px] border border-[#E4E8E1] bg-[#F8FAF6] p-[16px] sm:grid-cols-3">
                                 <div>
                                     <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#5F785F]">
-                                        STR Number
+                                        Nomor STR
                                     </p>
                                     <p className="mt-[5px] text-[13px] font-bold text-black">
                                         {selectedEmployee.strnumber || '-'}
@@ -1299,7 +1569,7 @@ const ManagementSetting = () => {
 
                                 <div>
                                     <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#5F785F]">
-                                        Joined
+                                        Bergabung
                                     </p>
                                     <p className="mt-[5px] text-[13px] font-bold text-black">
                                         {formatDateTime(
@@ -1310,7 +1580,7 @@ const ManagementSetting = () => {
 
                                 <div>
                                     <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#5F785F]">
-                                        Last Login
+                                        Login Terakhir
                                     </p>
                                     <p className="mt-[5px] text-[13px] font-bold text-black">
                                         {formatDateTime(
@@ -1335,7 +1605,7 @@ const ManagementSetting = () => {
                                         disabled={isSavingEmployee}
                                         className={inputClassName}
                                     >
-                                        {roleOptions.map((role) => (
+                                        {employeeDetailRoleOptions.map((role) => (
                                             <option
                                                 key={role.value}
                                                 value={role.value}
@@ -1364,8 +1634,8 @@ const ManagementSetting = () => {
                                         disabled={isSavingEmployee}
                                         className={inputClassName}
                                     >
-                                        <option value="active">Active</option>
-                                        <option value="inactive">Inactive</option>
+                                        <option value="active">Aktif</option>
+                                        <option value="inactive">Tidak Aktif</option>
                                     </select>
                                 </label>
                             </div>
@@ -1380,7 +1650,7 @@ const ManagementSetting = () => {
                                     }
                                     className="h-[36px] rounded-[50px] border border-red-200 bg-white px-[18px] text-[12px] font-bold text-red-600 transition-all hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
-                                    Remove User
+                                    Hapus User
                                 </button>
 
                                 <div className="flex flex-col-reverse gap-[10px] sm:flex-row sm:justify-end">
@@ -1390,7 +1660,7 @@ const ManagementSetting = () => {
                                         disabled={isSavingEmployee}
                                         className="h-[36px] rounded-[50px] border border-[#BFC7BB] bg-white px-[18px] text-[12px] font-bold text-black transition-all hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-60"
                                     >
-                                        Cancel
+                                        Batal
                                     </button>
 
                                     <button
@@ -1400,8 +1670,8 @@ const ManagementSetting = () => {
                                         className="h-[36px] rounded-[50px] bg-[#86A789] px-[20px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
                                     >
                                         {isSavingEmployee
-                                            ? 'Saving...'
-                                            : 'Save Changes'}
+                                            ? 'Menyimpan...'
+                                            : 'Simpan Perubahan'}
                                     </button>
                                 </div>
                             </div>
@@ -1414,7 +1684,7 @@ const ManagementSetting = () => {
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4">
                     <div className="w-full max-w-[420px] rounded-[18px] bg-white px-6 py-6 shadow-2xl">
                         <h2 className="text-[20px] font-bold text-[#2F3A2F]">
-                            Remove User?
+                            Hapus User?
                         </h2>
 
                         <p className="mt-3 text-[13px] leading-relaxed text-[#4B4B4B]">
@@ -1422,7 +1692,7 @@ const ManagementSetting = () => {
                             <span className="font-bold">
                                 {selectedEmployee.fullname}
                             </span>{' '}
-                            akan dinonaktifkan dan dilepas dari klinik.
+                            akan dinonaktifkan dan dilepas dari akses klinik.
                         </p>
 
                         <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
@@ -1432,7 +1702,7 @@ const ManagementSetting = () => {
                                 disabled={isSavingEmployee}
                                 className="h-[36px] rounded-[50px] border border-[#BFC7BB] bg-white px-[18px] text-[12px] font-bold text-black transition-all hover:bg-[#F4F4F4] disabled:cursor-not-allowed disabled:opacity-60"
                             >
-                                Cancel
+                                Batal
                             </button>
 
                             <button
@@ -1441,7 +1711,7 @@ const ManagementSetting = () => {
                                 disabled={isSavingEmployee}
                                 className="h-[36px] rounded-[50px] bg-red-600 px-[18px] text-[12px] font-bold text-white transition-all hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                             >
-                                {isSavingEmployee ? 'Removing...' : 'Remove'}
+                                {isSavingEmployee ? 'Menghapus...' : 'Hapus'}
                             </button>
                         </div>
                     </div>

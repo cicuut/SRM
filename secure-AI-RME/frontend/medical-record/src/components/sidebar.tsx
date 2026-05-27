@@ -4,8 +4,17 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import type { ElementType } from 'react';
 import Cookies from 'js-cookie';
-import { House, UsersRound, HeartPulse, Wallet, UserCog, Settings, History } from 'lucide-react';
+import {
+    HeartPulse,
+    History,
+    House,
+    Settings,
+    UserCog,
+    UsersRound,
+    Wallet,
+} from 'lucide-react';
 
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
@@ -15,18 +24,22 @@ type Role = 'admin' | 'midwife' | 'asisten' | '';
 type NavItem = {
     label: string;
     href: string;
-    icon: React.ElementType;
+    icon: ElementType;
     roles: Role[];
 };
 
 type MeResponse = {
     msg?: string;
+    requires_clinic_setup?: boolean;
+    redirect_path?: string;
     user?: {
         id: string;
         fullname: string;
         email: string;
-        role: Role;
+        role?: string;
+        user_role?: string;
         clinic_id?: string | null;
+        is_active?: boolean;
     };
     clinic?: {
         id: string;
@@ -63,7 +76,7 @@ const navItems: NavItem[] = [
         label: 'Kelola Manajemen',
         href: '/management-setting',
         icon: UserCog,
-        roles: ['admin'],
+        roles: ['admin', 'midwife'],
     },
     {
         label: 'Pengaturan Akun',
@@ -75,7 +88,7 @@ const navItems: NavItem[] = [
         label: 'Riwayat Aktivitas',
         href: '/activity-history',
         icon: History,
-        roles: ['admin'],
+        roles: ['admin', 'midwife'],
     },
 ];
 
@@ -87,25 +100,53 @@ const readJson = async (response: Response) => {
     }
 };
 
+const normalizeRole = (value?: string | null): Role => {
+    const normalized = String(value || '').trim().toLowerCase();
+
+    if (normalized === 'admin') return 'admin';
+    if (normalized === 'developer') return 'admin';
+
+    if (normalized === 'midwife') return 'midwife';
+    if (normalized === 'bidan') return 'midwife';
+    if (normalized === 'owner') return 'midwife';
+
+    if (normalized === 'asisten') return 'asisten';
+    if (normalized === 'assistant') return 'asisten';
+    if (normalized === 'staff') return 'asisten';
+
+    return '';
+};
+
+const clearSession = () => {
+    Cookies.remove('access_token', { path: '/' });
+
+    if (typeof window === 'undefined') return;
+
+    localStorage.removeItem('user_id');
+    localStorage.removeItem('temp_user_id');
+    localStorage.removeItem('fullname');
+    localStorage.removeItem('user_email');
+    localStorage.removeItem('user_role');
+    localStorage.removeItem('clinic_id');
+    localStorage.removeItem('profile_photo');
+    localStorage.removeItem('requires_clinic_setup');
+};
+
 const Sidebar = () => {
     const pathname = usePathname();
     const router = useRouter();
 
     const [role, setRole] = useState<Role>('');
-    const [fullname, setFullname] = useState('');
-    const [clinicName, setClinicName] = useState('');
+    const [isReady, setIsReady] = useState(false);
 
     useEffect(() => {
-        const savedRole = localStorage.getItem('user_role') as Role | null;
-        const savedFullname = localStorage.getItem('fullname') || '';
+        const savedRole = normalizeRole(localStorage.getItem('user_role'));
 
         if (savedRole) {
             setRole(savedRole);
         }
 
-        if (savedFullname) {
-            setFullname(savedFullname);
-        }
+        setIsReady(true);
 
         const fetchCurrentUser = async () => {
             try {
@@ -125,36 +166,59 @@ const Sidebar = () => {
 
                 const data = (await readJson(response)) as MeResponse;
 
+                if (response.status === 401 || response.status === 422) {
+                    clearSession();
+                    router.push('/login');
+                    return;
+                }
+
                 if (!response.ok || !data.user) {
                     return;
                 }
 
-                const nextRole = data.user.role || '';
+                const nextRole = normalizeRole(
+                    data.user.role || data.user.user_role,
+                );
 
                 setRole(nextRole);
-                setFullname(data.user.fullname || '');
-                setClinicName(data.clinic?.clinic_name || '');
 
                 localStorage.setItem('user_id', data.user.id || '');
+                localStorage.setItem('temp_user_id', data.user.id || '');
                 localStorage.setItem('fullname', data.user.fullname || '');
                 localStorage.setItem('user_email', data.user.email || '');
                 localStorage.setItem('user_role', nextRole || '');
                 localStorage.setItem('clinic_id', data.user.clinic_id || '');
+                localStorage.setItem(
+                    'requires_clinic_setup',
+                    data.requires_clinic_setup ? 'true' : 'false',
+                );
+
+                if (
+                    nextRole === 'midwife' &&
+                    data.requires_clinic_setup &&
+                    pathname !== '/register-clinic'
+                ) {
+                    router.push(data.redirect_path || '/register-clinic');
+                }
             } catch {
-                // fallback dari localStorage
+                // Tetap gunakan data dari localStorage jika server belum merespons.
             }
         };
 
         fetchCurrentUser();
-    }, []);
+    }, [pathname, router]);
 
     const visibleNavItems = useMemo(() => {
+        if (!isReady) {
+            return [];
+        }
+
         if (!role) {
             return navItems.filter((item) => item.roles.includes('asisten'));
         }
 
         return navItems.filter((item) => item.roles.includes(role));
-    }, [role]);
+    }, [isReady, role]);
 
     const isActive = (href: string) => {
         if (href === '/dashboard') {
@@ -165,52 +229,54 @@ const Sidebar = () => {
     };
 
     const handleLogout = () => {
-        Cookies.remove('access_token');
-
-        localStorage.removeItem('user_id');
-        localStorage.removeItem('fullname');
-        localStorage.removeItem('user_email');
-        localStorage.removeItem('user_role');
-        localStorage.removeItem('clinic_id');
-
+        clearSession();
         router.push('/login');
     };
 
     return (
         <aside>
             <div className="fixed left-0 top-0 flex h-screen w-64 flex-col border-r border-white/5 bg-[#FDFEF9] drop-shadow-lg">
-                <div className="ml-4 mt-4 flex items-center w-full">
+                <div className="ml-4 mt-4 flex w-full items-center">
                     <Image
                         src="/logo.png"
                         alt="Logo"
                         width={70}
                         height={70}
+                        priority
                     />
-                    <div className="flex flex-col leading-tight select-none">
+
+                    <div className="flex select-none flex-col leading-tight">
                         <span className="text-[20px] font-bold text-black">
-                           System  
+                            System
                         </span>
-                          <span className="text-[20px] font-bold text-black">
-                          Management
+
+                        <span className="text-[20px] font-bold text-black">
+                            Management
                         </span>
                     </div>
                 </div>
-                <nav className="flex-1 space-y-3 px-6 py-8">
+
+                <nav className="mt-8 flex-1 space-y-3 px-6 py-4">
                     {visibleNavItems.map((item) => {
                         const active = isActive(item.href);
+                        const Icon = item.icon;
 
                         return (
                             <Link
                                 key={item.label}
                                 href={item.href}
-                                className={`flex w-full items-center gap-4 rounded-4xl px-5 py-4 transition-all ${active
+                                className={`flex w-full items-center gap-4 rounded-4xl px-5 py-4 transition-all ${
+                                    active
                                         ? 'bg-[#739072] text-white'
                                         : 'text-black hover:bg-[#D2E3C8]'
-                                    }`}
+                                }`}
                             >
-                                <item.icon
+                                <Icon
                                     size={20}
-                                    className={`${active ? "text-white" : "text-black"} transition-colors`} />
+                                    className={`transition-colors ${
+                                        active ? 'text-white' : 'text-black'
+                                    }`}
+                                />
 
                                 <span className="relative z-10 text-[14px] font-medium">
                                     {item.label}
