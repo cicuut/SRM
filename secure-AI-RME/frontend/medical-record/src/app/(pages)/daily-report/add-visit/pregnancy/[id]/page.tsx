@@ -50,6 +50,18 @@ const AddVisitPregnancy = () => {
     fetchData();
   }, [uuid]);
 
+  const handleBloodPressureChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    let value = e.target.value.replace(/\D/g, "");
+
+    if (value.length > 3) {
+      value = `${value.slice(0, 3)}/${value.slice(3, 6)}`;
+    }
+
+    setBloodPressure(value);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -146,7 +158,8 @@ const AddVisitPregnancy = () => {
               name="blood_pressure"
               placeholder="tanpa satuan"
               value={bloodPressure}
-              onChange={(e) => setBloodPressure(e.target.value)}
+              onChange={handleBloodPressureChange}
+              maxLength={7} 
               id="blood_pressure"
               className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
             />
@@ -245,16 +258,16 @@ const AddVisitPregnancy = () => {
           />
         </div>
       </div>
-     
+
       <div className="flex-1 flex flex-col py-5 gap-6">
-       <BillingForm 
-        total={total}
-        setTotal={setTotal}
-        paymentMethod={paymentMethod}
-        setPaymentMethod={setPaymentMethod}
-        paymentStatus={paymentStatus}
-        setPaymentStatus={setPaymentStatus}
-      />
+        <BillingForm
+          total={total}
+          setTotal={setTotal}
+          paymentMethod={paymentMethod}
+          setPaymentMethod={setPaymentMethod}
+          paymentStatus={paymentStatus}
+          setPaymentStatus={setPaymentStatus}
+        />
       </div>
 
       <div className="flex justify-center gap-4 mt-10">

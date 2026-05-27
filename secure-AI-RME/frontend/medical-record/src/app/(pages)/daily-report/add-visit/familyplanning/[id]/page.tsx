@@ -1,10 +1,8 @@
 "use client";
 import React from "react";
 import { useState } from "react";
-import Cookies from "js-cookie";
-import axios from "axios";
 import { useEffect } from "react";
-import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 import api from "@/utils/app";
 import AddVisitInformation from "@/components/visit/add-visit-information";
@@ -130,7 +128,7 @@ const AddVisitFamilyPlanning = () => {
       <div className="border-b-2 text-[#D9D9D9] font-bold">
         {" "}
         <p className="text-sm border-b-2 w-fit border-[#739072] text-[#739072] font-bold">
-          SOAP
+        Catatan Kunjungan
         </p>
       </div>
       <div className="flex-1 flex flex-col py-5 gap-6">

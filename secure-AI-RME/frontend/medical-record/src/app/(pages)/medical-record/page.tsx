@@ -86,7 +86,6 @@ const MedicalRecord = () => {
     setIsModalOpen(false);
     setIsDropdownOpen(false);
     setSelectedType("Select a type");
-    setLoading(true);
     switch (selectedType) {
       case "Rekam Medis Kehamilan":
         router.push("/medical-record/pregnancy-record?type=Kehamilan");
@@ -99,7 +98,7 @@ const MedicalRecord = () => {
       case "Rekam Medis Poli Umum":
         router.push("/medical-record/general-record?type=Umum");
         break;
-      case "Rekam Medis Bayi dan Imunisasi":
+      case "Rekam Medis Imunisasi":
         router.push("/medical-record/immunization-record?type=Imunisasi");
         break;
       case "Rekam Medis Persalinan":
@@ -206,7 +205,6 @@ const MedicalRecord = () => {
   return (
     <div>
       <div className="flex-1 flex flex-col  w-full  gap-5">
-        {loading && <LoadingOverlay />}
 
         <section className="w-full rounded-[22px] border border-[#D2D8CF] bg-white px-5 py-5 shadow-sm sm:px-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -372,10 +370,10 @@ const MedicalRecord = () => {
           </div>
         </div>
       </div>
-      {/* Modal for selecting record type */}
+     
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
-          <div className="flex flex-col gap-y-6 bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-y-auto animate-in fade-in zoom-in duration-200 pb-8">
+          <div className="flex flex-col gap-y-6 bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 h-100 pb-8">
             <div className="bg-[#739072] p-4 text-white flex justify-between items-center">
               <h2 className="text-xl font-bold">Pilih Tipe Rekam Medis</h2>
               <button
@@ -407,18 +405,18 @@ const MedicalRecord = () => {
                 </button>
 
                 {isDropdownOpen && (
-                  <ul className="overflow-y-auto left-0 mt-2 w-full bg-white border border-gray-200 rounded-xl shadow-xl z-50 max-h-40 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <ul className="absolute left-0 mt-2 w-full bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-y-auto max-h-50 animate-in fade-in slide-in-from-top-2 duration-200">
                     {[
                       "Kehamilan",
                       "Keluarga Berencana",
                       "Poli Umum",
-                      "Bayi dan Imunisasi",
+                      "Imunisasi",
                       "Persalinan",
                     ].map((item) => (
                       <li
                         key={item}
                         onClick={() => {
-                          setSelectedType("Rekam Medis " + item);
+                          setSelectedType("Rekam Medis " + item); 
                           setIsDropdownOpen(false);
                         }}
                         className="px-4 py-3 hover:bg-[#D2E3C8] hover:text-[#4F6F52] cursor-pointer transition-colors text-sm border-b last:border-0 border-gray-50"
@@ -429,7 +427,6 @@ const MedicalRecord = () => {
                   </ul>
                 )}
               </div>
-
               <div className="flex justify-center gap-4 mt-4">
                 <button
                   type="button"
@@ -444,7 +441,12 @@ const MedicalRecord = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-8 py-2 bg-[#739072] text-white rounded-full hover:bg-[#4F6F52] shadow-lg transition font-bold"
+                  disabled={selectedType === "Select a type"}
+                  className={`px-8 py-2 text-white rounded-full shadow-lg transition font-bold ${
+                    selectedType === "Select a type"
+                      ? "bg-gray-300 cursor-not-allowed opacity-60 shadow-none"
+                      : "bg-[#739072] hover:bg-[#4F6F52]"
+                  }`}
                 >
                   Pilih Rekam Medis
                 </button>

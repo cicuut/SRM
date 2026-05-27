@@ -138,7 +138,7 @@ const PregnancyRecord = () => {
           text: "Rekam medis berhasil disimpan",
           icon: "success",
           showConfirmButton: false,
-          timer: 2000
+          timer: 9000
         });
         fetchRmNumber();
       } router.push('/medical-record');

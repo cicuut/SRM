@@ -898,28 +898,29 @@ def search_visit():
         return jsonify({"msg": "Server error", "error": str(e)}), 500
 
 @visit_report_bp.route('/filter-all', methods=['GET'])
+@jwt_required() # Pastikan diproteksi JWT
 def filter_all_visits():
     try:
-        search_query = request.args.get('search', '').strip()
+        claims = get_jwt()
+        clinic_id = claims.get("clinic_id")
+
+        search_query = request.args.get('search', '').strip().lower()
         rm_type = request.args.get('type', 'All')
         start_date = request.args.get('start_date', '')
         end_date = request.args.get('end_date', '')
 
+        # 1. Bangun query dasar tanpa memfilter nama/NIK dulu lewat SQL ilike
         query = db.session.query(VisitMaster, MedicalRecord, Patient, User).\
             join(MedicalRecord, VisitMaster.record_id == MedicalRecord.record_id).\
             join(Patient, MedicalRecord.patient_id == Patient.patient_id).\
-            join(User, VisitMaster.user_id == User.user_id)
-        if search_query:
-            query = query.filter(
-                or_(
-                    MedicalRecord.patient_name.ilike(f"%{search_query}%"),
-                    MedicalRecord.nik.ilike(f"%{search_query}%")
-                )
-            )
+            join(User, VisitMaster.user_id == User.user_id).\
+            filter(User.clinic_id == clinic_id) # Amankan multi-tenancy klinik
 
-        if rm_type != 'All':
+        # 2. Filter tipe RM (jika bukan 'All' atau 'Semua')
+        if rm_type != 'All' and rm_type != 'Semua':
             query = query.filter(MedicalRecord.record_type == rm_type)
 
+        # 3. Filter rentang tanggal kedatangan
         if start_date and end_date:
             query = query.filter(VisitMaster.visit_date.between(start_date, end_date))
 
@@ -929,17 +930,32 @@ def filter_all_visits():
         ).all()
 
         visit_list = []
+        
+        # 4. Iterasi hasil query, lakukan dekripsi, dan filter search_query menggunakan Python
         for visit, medical_record, patient, user in results:
-           
             decrypted_name = decrypt_data(patient.patient_name)
             decrypted_nik = decrypt_data(patient.national_id)
 
+            str_name = str(decrypted_name).lower() if decrypted_name else ""
+            str_nik = str(decrypted_nik).lower() if decrypted_nik else ""
+            record_number = str(medical_record.record_number).lower()
+            visit_number = str(visit.visit_number).lower()
+
+            # JIKA user mengisi search_query, lakukan pencocokan teks pasca-dekripsi
+            if search_query:
+                if not (search_query in str_name or 
+                        search_query in str_nik or 
+                        search_query in record_number or 
+                        search_query in visit_number):
+                    continue # Lewati data ini jika tidak ada yang cocok
+
+            # Masukkan data yang lolos filter ke dalam list hasil
             visit_list.append({
                 "visit_id": visit.visit_id,
                 "visit_date": f"{format_date(visit.visit_date)} {visit.visit_time.strftime('%H:%M')}",
                 "visit_number": visit.visit_number,
                 "record_number": medical_record.record_number,
-                "patient_name": str(decrypted_name).title() if decrypted_name else "Unknown",
+                "patient_name": str_name.title() if decrypted_name else "Unknown",
                 "nik": decrypted_nik if decrypted_nik else "-",
                 "record_type": medical_record.record_type,
                 "made_by": user.fullname
@@ -948,8 +964,148 @@ def filter_all_visits():
         return jsonify(visit_list), 200
 
     except Exception as e:
-        print(f"Error: {str(e)}")
+        print(f"Error Filter All: {str(e)}")
         return jsonify({
             "msg": "Gagal mengambil data kunjungan terfilter",
             "error": str(e)
         }), 500
+
+@visit_report_bp.route('/json-visit', methods=['GET'])
+@jwt_required()
+def get_json_visit_report():
+    try:
+        claims = get_jwt()
+        clinic_id = claims.get("clinic_id")
+
+        start_date_str = request.args.get('start_date')
+        end_date_str = request.args.get('end_date')
+        visit_type = request.args.get('visit_type', 'Semua')
+        search_query = request.args.get('search', '').strip().lower() 
+        query = db.session.query(
+            VisitMaster.visit_id,
+            VisitMaster.visit_number,
+            VisitMaster.visit_date,
+            MedicalRecord.record_number,
+            Patient.patient_name,
+            Patient.national_id,    
+            Patient.birth_date,    
+            User.fullname
+        ).join(MedicalRecord, VisitMaster.record_id == MedicalRecord.record_id)\
+         .join(Patient, MedicalRecord.patient_id == Patient.patient_id)\
+         .join(User, VisitMaster.user_id == User.user_id)\
+         .filter(User.clinic_id == clinic_id)
+
+        if start_date_str and end_date_str:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            query = query.filter(db.func.date(VisitMaster.visit_date) >= start_date)\
+                         .filter(db.func.date(VisitMaster.visit_date) <= end_date)
+
+        raw_visits = query.order_by(VisitMaster.visit_date.desc()).all()
+        results = []
+
+        for visit in raw_visits:
+            decrypted_name = decrypt_data(visit.patient_name)
+            decrypted_nik = decrypt_data(visit.national_id)
+            
+            str_name = str(decrypted_name).lower() if decrypted_name else ""
+            str_nik = str(decrypted_nik).lower() if decrypted_nik else ""
+            str_birth_date = visit.birth_date.strftime('%Y-%m-%d') if visit.birth_date else ""
+            record_number = str(visit.record_number).lower()
+            visit_number = str(visit.visit_number).lower()
+
+            if search_query:
+                if not (search_query in str_name or 
+                        search_query in str_nik or 
+                        search_query in str_birth_date or 
+                        search_query in record_number or 
+                        search_query in visit_number):
+                    continue
+
+            row_data = {
+                "visit_id": str(visit.visit_id),
+                "visit_number": visit.visit_number,
+                "visit_date": visit.visit_date.strftime('%Y-%m-%d %H:%M') if visit.visit_date else '-',
+                "record_number": visit.record_number,
+                "patient_name": str_name.title(), 
+                "created_by": visit.fullname,
+                "visit_type": "Umum" 
+            }
+
+            if visit_type in ['Umum', 'Semua']:
+                general_detail = VisitGeneral.query.filter_by(visit_id=visit.visit_id).first()
+                if general_detail:
+                    row_data["visit_type"] = "Umum"
+                    row_data["subjective"] = decrypt_data(general_detail.subjective)
+                    row_data["objective"] = decrypt_data(general_detail.objective)
+                    row_data["assessment"] = decrypt_data(general_detail.assessment)
+                    row_data["plan"] = decrypt_data(general_detail.plan)
+                    
+                    financial_detail = Financial.query.filter_by(visit_id=visit.visit_id).first()
+                    row_data["amount"] = financial_detail.amount if financial_detail else 0
+                    row_data["status"] = financial_detail.status if financial_detail else "unpaid"
+
+            pregnancy_detail = VisitPregnancy.query.filter_by(visit_id=visit.visit_id).first()
+            
+            if pregnancy_detail:
+                row_data["visit_type"] = "Kehamilan" 
+                
+                if visit_type in ['Kehamilan', 'Semua']:
+                    row_data["blood_pressure"] = decrypt_data(pregnancy_detail.blood_pressure)
+                    row_data["weight_kg"] = decrypt_data(pregnancy_detail.weight_kg)   
+                    row_data["height_cm"] = decrypt_data(pregnancy_detail.height_cm) 
+                    row_data["body_temperature"] = decrypt_data(pregnancy_detail.body_temperature)   
+                    row_data["respiratory_rate"] = decrypt_data(pregnancy_detail.respiratory_rate)   
+                    row_data["heart_rate"] = decrypt_data(pregnancy_detail.heart_rate)
+                    row_data["subjective"] = decrypt_data(pregnancy_detail.subjective)
+                    row_data["objective"] = decrypt_data(pregnancy_detail.objective)
+                    row_data["assessment"] = decrypt_data(pregnancy_detail.assessment)
+                    row_data["plan"] = decrypt_data(pregnancy_detail.plan)
+                    
+                    financial_detail = Financial.query.filter_by(visit_id=visit.visit_id).first()
+                    row_data["amount"] = financial_detail.amount if financial_detail else 0
+                    row_data["status"] = financial_detail.status if financial_detail else "unpaid"
+            
+            immunization_detail = VisitImunization.query.filter_by(visit_id=visit.visit_id).first()
+            
+            if immunization_detail:
+                row_data["visit_type"] = "Imunisasi" 
+                
+                if visit_type in ['Imunisasi', 'Semua']:
+                    row_data["baby_weight"] = immunization_detail.baby_weight
+                    row_data["baby_height"] = immunization_detail.baby_height
+                    row_data["body_temp"] = immunization_detail.body_temp
+                    row_data["head_circumference"] = immunization_detail.head_circumference
+                    row_data["abdominal_circumference"] = immunization_detail.abdominal_circumference
+                    row_data["dosage_given"] = immunization_detail.dosage_given
+                    row_data["vaccine_given"] = immunization_detail.vaccine_given
+
+                    financial_detail = Financial.query.filter_by(visit_id=visit.visit_id).first()
+                    row_data["amount"] = financial_detail.amount if financial_detail else 0
+                    row_data["status"] = financial_detail.status if financial_detail else "unpaid"
+
+            familyplanning_detail = VisitFamilyPlanning.query.filter_by(visit_id=visit.visit_id).first()
+            
+            if familyplanning_detail:
+                row_data["visit_type"] = "Keluarga Berencana" 
+                
+                if visit_type in ['Keluarga Berencana', 'Semua']:
+                    row_data["weight_kg"] = familyplanning_detail.weight_kg
+                    row_data["blood_pressure"] = familyplanning_detail.blood_pressure
+                    row_data["kb_method"] = familyplanning_detail.kb_method
+                    row_data["return_visit_date"] = familyplanning_detail.return_visit_date
+                    row_data["complaint"] = decrypt_data(familyplanning_detail.complaint)
+
+                    financial_detail = Financial.query.filter_by(visit_id=visit.visit_id).first()
+                    row_data["amount"] = financial_detail.amount if financial_detail else 0
+                    row_data["status"] = financial_detail.status if financial_detail else "unpaid"
+
+            if visit_type == 'Semua' or row_data["visit_type"] == visit_type:
+                results.append(row_data)
+
+        return jsonify({"status": "success", "results": results}), 200
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc()) 
+        return jsonify({"msg": "Internal server error", "error": str(e)}), 500

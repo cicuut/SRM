@@ -103,7 +103,7 @@ const FamilyPlanningRecord = () => {
                     onDataChange={handleFamilyUpdate}
                 />
                 <div className="flex flex-col gap-0">
-                    <h2 className="text-md text-[#4F6F52] mt-10 underline leading-none font-lexend!">History</h2>
+                    <h2 className="text-md text-[#4F6F52] mt-10 underline leading-none font-lexend!">Riwayat Kehamilan</h2>
                     <hr className="mt-0"></hr>
                 </div>
                 <div className="flex flex-col mt-4 gap-y-4">
@@ -119,7 +119,7 @@ const FamilyPlanningRecord = () => {
                     </div>
                     <div className="flex flex-row w-full gap-20 justify-between">
                         <div className="flex flex-col flex-1" >
-                            Genetic Disease History
+                           Penyakit Genetik Dalam Keluarga
                             <textarea name="geneticDiseaseHistory" value={geneticDiseaseHistory} onChange={(e) => setGeneticDiseaseHistory(e.target.value)} id="geneticDiseaseHistory" className="w-full h-8 p-2 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
                         </div>
                     </div>

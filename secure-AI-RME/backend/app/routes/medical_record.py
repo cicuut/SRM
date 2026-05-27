@@ -106,7 +106,7 @@ def add_pregnancy_record():
             record_id=new_record.record_id,
             contraceptive_history=data.get('contraceptive_history'),
             family_med_history=data.get('family_med_history'),
-            last_menstrual_period=data.get('last_menstrual_period'),
+            last_menstrual_period=parse_date(data.get('last_menstrual_period')),
             expected_due_date= parse_date(data.get('expected_due_date')),
             diagnosis=data.get('diagnosis'),
             registration_date = parse_date(data.get('registration_date')),
@@ -1018,14 +1018,22 @@ def search_patients():
             
             dob_searchable = ""
             dob_display = "-"
-            
+
             #logic to set dob format
             if decrypted_birthdate:
                 decrypted_str = str(decrypted_birthdate)
                 
                 try:
-                    dob_obj = datetime.strptime(decrypted_str, '%Y-%m-%d')   
-                    dob_searchable = f"{dob_obj.strftime('%d-%m-%Y')} {dob_obj.strftime('%d/%m/%Y')} {dob_obj.strftime('%Y-%m-%d')} {dob_obj.strftime('%d %B %Y')}".lower()
+                    dob_obj = datetime.strptime(decrypted_str, '%Y-%m-%d') 
+                    
+                    INDONESIAN_MONTHS = {
+                        1: "Januari", 2: "Februari", 3: "Maret", 4: "April",
+                        5: "Mei", 6: "Juni", 7: "Juli", 8: "Agustus",
+                        9: "September", 10: "Oktober", 11: "November", 12: "Desember"
+                    }
+
+                    bulan_indo = INDONESIAN_MONTHS[dob_obj.month]  
+                    dob_searchable = f"{dob_obj.strftime('%d-%m-%Y')} {dob_obj.strftime('%d/%m/%Y')} {dob_obj.strftime('%Y-%m-%d')} {dob_obj.day} {bulan_indo} {dob_obj.year}".lower()
                     #human readable day of birth
                     dob_display = dob_obj.strftime('%d %B %Y')
                 

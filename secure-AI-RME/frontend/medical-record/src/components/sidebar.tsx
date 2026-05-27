@@ -195,23 +195,6 @@ const Sidebar = () => {
                         </span>
                     </div>
                 </div>
-
-                <div className="mx-6 mt-5 rounded-[18px] bg-[#D2E3C8] px-4 py-3">
-                    <p className="truncate text-[13px] font-bold text-[#4F6F52]">
-                        {fullname || 'User'}
-                    </p>
-
-                    <p className="mt-1 truncate text-[10px] font-medium uppercase tracking-[0.12em] text-[#5F785F]">
-                        {role || 'loading'}
-                    </p>
-
-                    {clinicName && (
-                        <p className="mt-1 truncate text-[10px] text-[#4F6F52]">
-                            {clinicName}
-                        </p>
-                    )}
-                </div>
-
                 <nav className="flex-1 space-y-3 px-6 py-8">
                     {visibleNavItems.map((item) => {
                         const active = isActive(item.href);
