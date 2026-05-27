@@ -301,9 +301,9 @@ const SectionCard = ({
                     </h2>
 
                     {subtitle && (
-                        <p className="mt-2 text-[12px] font-medium leading-relaxed text-[#6B6B6B]">
+                        <div className="mt-2 text-[12px] font-medium leading-relaxed text-[#6B6B6B]">
                             {subtitle}
-                        </p>
+                        </div>
                     )}
                 </div>
 
@@ -826,21 +826,17 @@ const Dashboard = () => {
                 <SectionCard
                     title="Top 5 Assessment Bulanan"
                     subtitle={
-                        assessmentMonth ? (
-                            <p className="mt-2 text-[12px] font-medium leading-relaxed text-[#6B6B6B]">
-                                Periode: {assessmentMonthLabel}
-                                {(assessmentVisitCount > 0 ||
-                                    assessmentEntriesCount > 0) &&
-                                    ` · ${assessmentVisitCount} kunjungan · ${assessmentEntriesCount} entri`}
-                            </p>
-                        ) : (
-                            <p className="mt-2 text-[12px] font-medium leading-relaxed text-[#6B6B6B]">
-                                {assessmentSummary ||
-                                    (assessmentMonthLabel
-                                        ? `Assessment terbanyak bulan ${assessmentMonthLabel}.`
-                                        : 'Assessment terbanyak bulan ini.')}
-                            </p>
-                        )
+                        assessmentMonth
+                            ? `Periode: ${assessmentMonthLabel}${
+                                  assessmentVisitCount > 0 ||
+                                  assessmentEntriesCount > 0
+                                      ? ` · ${assessmentVisitCount} kunjungan · ${assessmentEntriesCount} entri`
+                                      : ''
+                              }`
+                            : assessmentSummary ||
+                              (assessmentMonthLabel
+                                  ? `Assessment terbanyak bulan ${assessmentMonthLabel}.`
+                                  : 'Assessment terbanyak bulan ini.')
                     }
                     icon={<ClipboardList className="h-5 w-5" />}
                     className="min-h-[390px]"
