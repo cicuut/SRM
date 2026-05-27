@@ -1,76 +1,77 @@
-'use client';
+"use client";
 
-import { FormEvent, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Image from 'next/image';
-import Swal from 'sweetalert2';
-import Cookies from 'js-cookie';
-import styles from './registerClinic.module.css';
+import { FormEvent, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
+import Swal from "sweetalert2";
+import Cookies from "js-cookie";
+import styles from "./registerClinic.module.css";
 
 const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
 type CurrentUserResponse = {
-    msg?: string;
-    user?: {
-        id: string;
-        fullname: string;
-        email: string;
-        role: string;
-        clinic_id?: string | null;
-        is_active?: boolean;
-    };
-    clinic?: {
-        id: string;
-        clinic_name: string;
-        clinic_address: string;
-        license_number: string;
-        clinic_email: string;
-        clinic_phone: string;
-    } | null;
+  msg?: string;
+  user?: {
+    id: string;
+    fullname: string;
+    email: string;
+    role: string;
+    clinic_id?: string | null;
+    is_active?: boolean;
+  };
+  clinic?: {
+    id: string;
+    clinic_name: string;
+    clinic_address: string;
+    license_number: string;
+    clinic_email: string;
+    clinic_phone: string;
+  } | null;
 };
 
 type RegisterClinicResponse = {
-    msg?: string;
-    access_token?: string;
-    redirect_path?: string;
-    user?: {
-        id: string;
-        fullname: string;
-        email: string;
-        role: string;
-        clinic_id?: string | null;
-    };
-    clinic?: {
-        id: string;
-        clinic_name: string;
-        clinic_address: string;
-        license_number: string;
-        clinic_email: string;
-        clinic_phone: string;
-    } | null;
+  msg?: string;
+  access_token?: string;
+  redirect_path?: string;
+  user?: {
+    id: string;
+    fullname: string;
+    email: string;
+    role: string;
+    clinic_id?: string | null;
+  };
+  clinic?: {
+    id: string;
+    clinic_name: string;
+    clinic_address: string;
+    license_number: string;
+    clinic_email: string;
+    clinic_phone: string;
+  } | null;
 };
 
 const readJson = async (response: Response) => {
-    try {
-        return await response.json();
-    } catch {
-        return {};
-    }
+  try {
+    return await response.json();
+  } catch {
+    return {};
+  }
 };
 
 const CreateClinic = () => {
-    const router = useRouter();
+  const router = useRouter();
 
-    const [email, setEmail] = useState('');
-    const [clinicName, setClinicName] = useState('');
-    const [sipbNumber, setSipbNumber] = useState('');
-    const [phone, setPhone] = useState('');
-    const [address, setAddress] = useState('');
+  const [email, setEmail] = useState("");
+  const [clinicName, setClinicName] = useState("");
+  const [sipbNumber, setSipbNumber] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
 
-    const [error, setError] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [checkingAccess, setCheckingAccess] = useState(true);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [checkingAccess, setCheckingAccess] = useState(true);
+
 
     const handleUnauthorized = () => {
         Cookies.remove('access_token');
@@ -304,120 +305,138 @@ const CreateClinic = () => {
                 </p>
             </div>
         );
-    }
+    } 
+  
 
-    return (
-        <div className="container bg-[#D2E3C8]">
-            <div className="flex w-1/2 flex-col items-center justify-center gap-4">
-                <Image
-                    src="/hospital-icon.png"
-                    alt="Hospital Icon"
-                    width={400}
-                    height={400}
-                />
-
-                <div className="w-1/2 text-center">
-                    <p className="text-4xl text-[#739072]">
-                        Masukan informasi klinik untuk mengaktifkan sistem.
-                    </p>
-                </div>
+  return (
+    <main className={styles.page}>
+      <section className={styles.leftPanel}>
+        <div className={styles.overlay} />
+        <div className={styles.logoArea}>
+          <div className={styles.logoBox}>
+            <Image
+              src="/logo.png"
+              alt="Logo Clinic"
+              width={42}
+              height={42}
+              className={styles.logoImage}
+              priority
+            />
+            <div className={styles.logoText}>
+              <h2>Praktek Bidan Mandiri</h2>
+              <p>Bidan Evi Susanti</p>
             </div>
-
-            <div className="flex w-1/2 flex-col items-center justify-center gap-4 rounded-bl-[10%] rounded-tl-[10%] bg-[#FFF]">
-                <form
-                    onSubmit={handleCreateClinic}
-                    className={styles['regist-input-wrapper']}
-                >
-                    <h1 className="text-center text-2xl font-bold text-[#4F6F52]">
-                        Clinic Information
-                    </h1>
-
-                    <p className="max-w-[360px] text-center text-[12px] leading-5 text-[#766E6E]">
-                        Halaman ini hanya untuk admin. Data klinik akan dipakai
-                        oleh semua user yang terhubung ke klinik ini.
-                    </p>
-
-                    <div className="w-full">
-                        <h3>Nama Klinik</h3>
-
-                        <input
-                            type="text"
-                            value={clinicName}
-                            onChange={(event) =>
-                                setClinicName(event.target.value)
-                            }
-                            disabled={loading}
-                            required
-                        />
-                    </div>
-
-                    <div className="w-full">
-                        <h3>Nomor Praktek / SIPB</h3>
-
-                        <input
-                            type="text"
-                            value={sipbNumber}
-                            onChange={(event) =>
-                                setSipbNumber(event.target.value)
-                            }
-                            disabled={loading}
-                            required
-                        />
-                    </div>
-
-                    <div className="w-full">
-                        <h3>No Telepon</h3>
-
-                        <input
-                            type="tel"
-                            value={phone}
-                            onChange={(event) => setPhone(event.target.value)}
-                            disabled={loading}
-                            required
-                        />
-                    </div>
-
-                    <div className="w-full">
-                        <h3>Email</h3>
-
-                        <input
-                            type="email"
-                            value={email}
-                            onChange={(event) => setEmail(event.target.value)}
-                            disabled={loading}
-                            required
-                        />
-                    </div>
-
-                    <div className="w-full">
-                        <h3>Alamat Lengkap</h3>
-
-                        <input
-                            type="text"
-                            value={address}
-                            onChange={(event) => setAddress(event.target.value)}
-                            disabled={loading}
-                            required
-                        />
-                    </div>
-
-                    {error && (
-                        <p className="w-full rounded-[6px] bg-red-50 px-3 py-2 text-center text-[12px] text-red-600">
-                            {error}
-                        </p>
-                    )}
-
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-42 cursor-pointer rounded-[30px] bg-[#739072] px-4 py-2 font-poppins font-bold text-[#FFF] transition-all hover:bg-[#5F785F] disabled:cursor-not-allowed disabled:opacity-70"
-                    >
-                        {loading ? 'Submitting...' : 'Save Clinic'}
-                    </button>
-                </form>
-            </div>
+          </div>
         </div>
-    );
+
+        <div className={styles.leftContent}>
+          <div className={styles.heroText}>
+            <p className={styles.badge}>Sistem Klinik Digital</p>
+
+            <h1>Sistem Manajemen</h1>
+
+            <p className={styles.description}>
+              Sistem yang membantu klinik mengelola data pasien, aktivitas
+              layanan, rekam medis, laporan, serta operasional harian agar lebih
+              rapi, aman, dan efisien.
+            </p>
+          </div>
+        </div>
+      </section>
+      <section className={styles.rightPanel}>
+        <div className={styles.formCard}>
+          <div className={styles.formHeader}>
+            <h2>Pendaftaran Klinik</h2>
+            <p>Masukan informasi Klinik</p>
+          </div>
+          <form onSubmit={handleCreateClinic} className={styles.form}>
+            <div className={styles.inputGroup}>
+              <label>
+                Nama Klinik<span className="text-red-500">*</span>
+              </label>
+
+              <input
+                type="text"
+                value={clinicName}
+                onChange={(event) => setClinicName(event.target.value)}
+                disabled={loading}
+                placeholder="Masukkan nama klinik"
+                required
+              />
+            </div>
+
+            <div className={styles.inputGroup}>
+              <label>
+                Nomor Praktek / SIPB<span className="text-red-500">*</span>
+              </label>
+
+              <input
+                type="text"
+                value={sipbNumber}
+                onChange={(event) => setSipbNumber(event.target.value)}
+                disabled={loading}
+                required
+                placeholder="masukan nomor SIPB"
+              />
+            </div>
+
+            <div className={styles.inputGroup}>
+              <h3>
+                No Telepon<span className="text-red-500">*</span>
+              </h3>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(event) => setPhone(event.target.value)}
+                disabled={loading}
+                required
+                placeholder="Masukan nomor telepon"
+              />
+            </div>
+
+            <div className={styles.inputGroup}>
+              <h3>
+                Email<span className="text-red-500">*</span>
+              </h3>
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                disabled={loading}
+                required
+                placeholder="Masukan email klinik"
+              />
+            </div>
+
+            <div className={styles.inputGroup}>
+              <h3>
+                Alamat Lengkap<span className="text-red-500">*</span>
+              </h3>
+
+              <input
+                type="text"
+                value={address}
+                onChange={(event) => setAddress(event.target.value)}
+                disabled={loading}
+                required
+                placeholder="Masukan alamat klinik"
+              />
+            </div>
+
+            {error && <div className={styles.errorBox}>{error}</div>}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className={styles.loginButton}
+            >
+              {loading ? "Sedang Mendaftarkan Klinik" : "Submit"}
+            </button>
+          </form>
+        </div>
+      </section>
+    </main>
+  );
 };
 
 export default CreateClinic;

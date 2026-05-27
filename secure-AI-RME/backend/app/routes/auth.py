@@ -370,7 +370,6 @@ def register():
 
 
 @auth_bp.route("/register-clinic", methods=["POST"])
-@jwt_required()
 def create_or_update_clinic():
     admin, error_response = require_admin(require_clinic=False)
 
