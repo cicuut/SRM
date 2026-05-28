@@ -91,13 +91,12 @@ def require_visit_access():
             jsonify({"msg": "Akses ditolak. Role ini tidak dapat mengakses laporan kunjungan."}),
             403,
         )
-
-    if current_role != "admin" and not current_user.clinic_id:
-        response = {
-            "msg": "Akun belum terhubung dengan klinik.",
-            "requires_clinic_setup": current_role == "midwife",
-            "redirect_path": "/register-clinic" if current_role == "midwife" else "/dashboard",
-        }
+        if not current_user.clinic_id:
+            response = {
+                "msg": "Akun belum terhubung dengan klinik.",
+                "requires_clinic_setup": current_role == "midwife",
+                "redirect_path": "/register-clinic" if current_role == "midwife" else "/dashboard",
+            }
         return None, current_role, (jsonify(response), 400)
 
     return current_user, current_role, None
@@ -109,8 +108,7 @@ def query_records_for_user(current_user, current_role):
         MedicalRecord.patient_id == Patient.patient_id,
     )
 
-    if current_role != "admin":
-        query = query.filter(Patient.clinic_id == current_user.clinic_id)
+    query = query.filter(Patient.clinic_id == current_user.clinic_id)
 
     return query
 
@@ -123,9 +121,7 @@ def query_visits_for_user(current_user, current_role):
         .join(User, VisitMaster.user_id == User.user_id)
     )
 
-    if current_role != "admin":
-        query = query.filter(Patient.clinic_id == current_user.clinic_id)
-
+    query = query.filter(Patient.clinic_id == current_user.clinic_id)
     return query
 
 
@@ -202,7 +198,7 @@ def create_financial_for_visit(
     payment_date,
 ):
     current_year = payment_date.year
-    sequence_number = reserve_next_sequence(current_year)
+    sequence_number = reserve_next_sequence(current_year, clinic_id)
     transaction_number = generate_financial_number(current_year, sequence_number)
 
     auto_desc = f"Pemasukan dari kunjungan {record_number} - {patient_name}"
@@ -274,7 +270,12 @@ def get_visit_number():
         return error_response
 
     try:
-        count = get_next_visit_sequence_and_increment()
+        clinic_id = current_user.clinic_id
+        
+        if not clinic_id:
+            return jsonify({'msg': 'Akun Anda belum terikat dengan klinik mana pun.'}), 400
+        
+        count = get_next_visit_sequence_and_increment(clinic_id)
         next_visit_number = generate_visit_number(count)
 
         return jsonify({"visit_number": next_visit_number}), 200
@@ -424,11 +425,15 @@ def add_visit_pregnancy():
         pregnancy_record = PregnancyRecord.query.filter_by(record_id=record_id).first()
         if not pregnancy_record:
             return jsonify({"msg": "Data rekam medis kehamilan tidak ditemukan."}), 404
-
+        
+        count = get_next_visit_sequence_and_increment(patient.clinic_id)
+        generated_visit_number = generate_visit_number(count)
+        
         new_visit = VisitMaster(
             record_id=record_id,
             user_id=current_user.user_id,
-            visit_number=data.get("visit_number"),
+            clinic_id=patient.clinic_id,
+            visit_number=generated_visit_number,
             visit_date=now_jakarta,
             visit_time=now_jakarta,
         )
@@ -585,9 +590,12 @@ def add_visit_familyplanning():
         if not kb_record:
             return jsonify({"msg": "Data rekam medis KB tidak ditemukan."}), 404
 
+        count = get_next_visit_sequence_and_increment(patient.clinic_id)
+        generated_visit_number = generate_visit_number(count)
         new_visit = VisitMaster(
             record_id=record_id,
             user_id=current_user.user_id,
+            clinic_id=patient.clinic_id,
             visit_number=data.get("visit_number"),
             visit_date=now_jakarta,
             visit_time=now_jakarta,
@@ -741,11 +749,14 @@ def add_visit_immunization():
                 setattr(imm_record, col_name, visit_date)
             else:
                 return jsonify({"msg": f"Jenis vaksin '{vaccine_given}' tidak dikenali sistem."}), 400
-
+            
+        count = get_next_visit_sequence_and_increment(patient.clinic_id)
+        generated_visit_number = generate_visit_number(count)
         new_visit = VisitMaster(
             record_id=record_id,
             user_id=current_user.user_id,
-            visit_number=data.get("visit_number"),
+            clinic_id=patient.clinic_id,
+            visit_number=generated_visit_number,
             visit_date=now_jakarta,
             visit_time=now_jakarta,
         )
@@ -919,10 +930,13 @@ def add_visit_general():
             gen_record = GeneralRecord(record_id=record_id)
             db.session.add(gen_record)
             db.session.flush()
-
+            
+        count = get_next_visit_sequence_and_increment(patient.clinic_id)
+        generated_visit_number = generate_visit_number(count)
         new_visit = VisitMaster(
             record_id=record_id,
             user_id=current_user.user_id,
+            clinic_id=patient.clinic_id,
             visit_number=data.get("visit_number"),
             visit_date=now_jakarta,
             visit_time=now_jakarta,

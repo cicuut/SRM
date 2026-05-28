@@ -26,6 +26,7 @@ from app.utils import (
 )
 from datetime import datetime
 from flask_jwt_extended import jwt_required, get_jwt_identity
+import uuid
 
 medical_record_bp = Blueprint('medical_record', __name__)
 
@@ -68,7 +69,7 @@ def get_current_user():
     return db.session.get(User, user_id)
 
 
-def require_medical_record_access(require_clinic=False):
+def require_medical_record_access(require_clinic=True):
     current_user = get_current_user()
 
     if not current_user:
@@ -85,12 +86,12 @@ def require_medical_record_access(require_clinic=False):
             403,
         )
 
-    if require_clinic and current_role != 'admin' and not current_user.clinic_id:
+    if require_clinic and not current_user.clinic_id:
         return None, current_role, (
             jsonify({
-                'msg': 'Akun belum terhubung dengan klinik.',
+                'msg': 'Akses ditolak. Akun Anda belum terhubung dengan klinik mana pun.',
                 'requires_clinic_setup': current_role == 'midwife',
-                'redirect_path': '/register-clinic' if current_role == 'midwife' else '/dashboard',
+                'redirect_path': '/register-clinic' if current_role == 'midwife' else '/login',
             }),
             400,
         )
@@ -116,8 +117,15 @@ def require_clinic_for_write():
 
 
 def apply_clinic_scope_to_record_query(query, current_user, current_role):
-    if current_role != 'admin':
-        query = query.filter(Patient.clinic_id == current_user.clinic_id)
+    if current_user.clinic_id:
+        clinic_uuid = uuid.UUID(str(current_user.clinic_id))
+        
+        query = query.filter(
+            MedicalRecord.clinic_id == clinic_uuid,
+            Patient.clinic_id == clinic_uuid
+        )
+    else:
+        query = query.filter(MedicalRecord.clinic_id == None)
 
     return query
 
@@ -237,7 +245,12 @@ def get_next_number():
         return jsonify({'msg': 'Tipe rekam medis wajib diisi.'}), 400
 
     try:
-        count = get_next_record_sequence_and_increment(record_type)
+        clinic_id = _current_user.clinic_id
+        
+        if not clinic_id:
+            return jsonify({'msg': 'Akun Anda belum terikat dengan klinik mana pun.'}), 400
+        
+        count = get_next_record_sequence_and_increment(record_type, clinic_id)
         next_rm_number = generate_record_number(record_type, count)
 
         return jsonify({
@@ -285,6 +298,9 @@ def create_family_patient_if_present(data, current_clinic_id):
 
 
 def create_patient_and_record(data, current_clinic_id, record_type):
+    import uuid
+    clinic_uuid = uuid.UUID(str(current_clinic_id)) if current_clinic_id else None
+
     family_id = create_family_patient_if_present(data, current_clinic_id)
 
     new_patient = Patient(
@@ -292,7 +308,7 @@ def create_patient_and_record(data, current_clinic_id, record_type):
         birth_date=data.get('birth_date'),
         national_id=data.get('national_id'),
         gender=data.get('gender'),
-        clinic_id=current_clinic_id,
+        clinic_id=clinic_uuid,
         role='self',
         relation='self',
         patient_number=data.get('patient_number'),
@@ -305,11 +321,15 @@ def create_patient_and_record(data, current_clinic_id, record_type):
     )
     db.session.add(new_patient)
     db.session.flush()
-
+    
+    count = get_next_record_sequence_and_increment(record_type, clinic_uuid)
+    auto_record_number = generate_record_number(record_type, count)
+    
     new_record = MedicalRecord(
         patient_id=new_patient.patient_id,
-        record_number=data.get('record_number'),
+        record_number=auto_record_number,
         record_type=record_type,
+        clinic_id=clinic_uuid,
         status='Active',
         created_at=datetime.utcnow(),
     )

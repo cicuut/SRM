@@ -2,7 +2,8 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from app.models import db, User, Clinic
 from app.utils import write_audit_log
-from datetime import datetime
+from datetime import date, datetime, timedelta, timezone
+from sqlalchemy import text
 
 
 auth_bp = Blueprint("auth", __name__)
@@ -17,6 +18,10 @@ CLINIC_SETUP_ROLES = [MIDWIFE_ROLE]
 
 PROFILE_PHOTO_MAX_LENGTH = 3_500_000
 
+JAKARTA_TZ = timezone(timedelta(hours=7))
+
+def get_jakarta_now():
+    return datetime.now(JAKARTA_TZ).replace(tzinfo=None)
 
 def to_str(value):
     if value is None:
@@ -542,11 +547,12 @@ def create_or_update_clinic():
     if error_response:
         return error_response
 
-    if role_to_text(user.user_role) != MIDWIFE_ROLE:
+    current_role = role_to_text(user.user_role)
+    if current_role not in [MIDWIFE_ROLE, ADMIN_ROLE]:
         return (
             jsonify(
                 {
-                    "msg": "Hanya bidan yang dapat membuat atau memperbarui profil klinik."
+                    "msg": "Hanya Bidan atau Admin yang dapat membuat atau memperbarui profil klinik."
                 }
             ),
             403,
@@ -612,7 +618,34 @@ def create_or_update_clinic():
 
             user.clinic_id = clinic.clinic_id
             user.is_active = True
-
+            db.session.execute(
+                    text(
+                        """
+                        UPDATE public.audit 
+                        SET clinic_id = CAST(:clinic_id AS uuid)
+                        WHERE user_id = CAST(:user_id AS uuid) AND clinic_id IS NULL
+                        """
+                    ),
+                    {
+                        "clinic_id": str(clinic.clinic_id),
+                        "user_id": str(user.user_id)
+                    }
+                )
+            current_year = get_jakarta_now().year
+            db.session.execute(
+                text(
+                    """
+                    INSERT INTO public.audit_sequence (year, clinic_id, last_number)
+                    VALUES (:year, CAST(:clinic_id AS uuid), 1)
+                    ON CONFLICT (year, clinic_id) DO NOTHING
+                    """
+                ),
+                {
+                    "year": current_year,
+                    "clinic_id": str(clinic.clinic_id)
+                }
+            )
+        
         write_audit_log(
             user_id=user.user_id,
             action=action_name,
@@ -900,11 +933,11 @@ def get_management_overview():
 
     manager_role = role_to_text(manager.user_role)
 
-    if manager_role == MIDWIFE_ROLE and not manager.clinic_id:
+    if manager_role in [MIDWIFE_ROLE, ADMIN_ROLE] and not manager.clinic_id:
         return (
             jsonify(
                 {
-                    "msg": "Akun bidan belum terhubung dengan klinik.",
+                    "msg": "Akun belum terhubung dengan klinik.",
                     "requires_clinic_setup": True,
                     "redirect_path": "/register-clinic",
                 }
@@ -916,6 +949,14 @@ def get_management_overview():
 
     if not payload:
         return jsonify({"msg": "Data management tidak ditemukan."}), 404
+    
+    if payload.get("clinic") is None and manager.clinic_id:
+        from app.models import Clinic # Sesuaikan path import model Clinic-mu
+        from app.routes.auth import serialize_clinic # Sesuaikan fungsi serializer milikmu
+        
+        clinic = db.session.get(Clinic, manager.clinic_id)
+        if clinic:
+            payload["clinic"] = serialize_clinic(clinic)
 
     return jsonify(payload), 200
 
@@ -928,8 +969,16 @@ def update_management_clinic():
     if error_response:
         return error_response
 
-    if role_to_text(manager.user_role) != MIDWIFE_ROLE:
-        return jsonify({"msg": "Hanya bidan yang dapat memperbarui data klinik."}), 403
+    current_role = role_to_text(manager.user_role)
+    if current_role not in [MIDWIFE_ROLE, ADMIN_ROLE]:
+        return (
+            jsonify(
+                {
+                    "msg": "Hanya Bidan atau Admin yang dapat memperbarui data klinik."
+                }
+            ),
+            403,
+        )
 
     clinic = db.session.get(Clinic, manager.clinic_id)
 

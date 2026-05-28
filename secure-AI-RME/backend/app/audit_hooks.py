@@ -400,15 +400,18 @@ def make_action(prefix, obj):
     return f"{prefix}_{normalized_module}"
 
 
-def reserve_next_audit_number(session):
+def reserve_next_audit_number(session, clinic_id=None):
     current_year = now_jakarta().year
-
+    
+    if not clinic_id:
+        return current_year, 0
+    
     next_number = session.execute(
         text(
             """
-            INSERT INTO public.audit_sequence (year, last_number)
-            VALUES (:year, 1)
-            ON CONFLICT (year)
+            INSERT INTO public.audit_sequence (year, clinic_id, last_number)
+            VALUES (:year, CAST(:clinic_id AS uuid), 1)
+            ON CONFLICT (year, clinic_id)
             DO UPDATE SET
                 last_number = public.audit_sequence.last_number + 1
             RETURNING last_number
@@ -416,14 +419,18 @@ def reserve_next_audit_number(session):
         ),
         {
             "year": current_year,
+            "clinic_id": str(clinic_id)
         },
     ).scalar_one()
 
     return current_year, int(next_number)
 
 
-def generate_audit_number(session):
-    current_year, next_number = reserve_next_audit_number(session)
+def generate_audit_number(session, clinic_id=None):
+    current_year, next_number = reserve_next_audit_number(session, clinic_id)
+
+    if next_number == 0:
+        return f"AUD-{current_year}-INITIAL"
 
     return f"AUD-{current_year}-{next_number:04d}"
 

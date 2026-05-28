@@ -20,18 +20,19 @@ def get_jakarta_now():
 from . import db
 from sqlalchemy import text
 
-def get_next_record_sequence_and_increment(record_type):
+def get_next_record_sequence_and_increment(record_type, clinic_id):
     from app.models import MedicalRecordSequence
     
     current_year = get_jakarta_now().year
     
     seq = MedicalRecordSequence.query.filter_by(
         year=current_year, 
-        record_type=record_type
+        record_type=record_type,
+        clinic_id=uuid.UUID(str(clinic_id))
     ).with_for_update().first()
 
     if not seq:
-        seq = MedicalRecordSequence(year=current_year, record_type=record_type, last_number=1)
+        seq = MedicalRecordSequence(year=current_year, record_type=record_type, clinic_id=uuid.UUID(str(clinic_id)), last_number=1)
         db.session.add(seq)
         next_number = 1
     else:
@@ -57,18 +58,17 @@ def generate_record_number(record_type, next_sequence):
     return f"{prefix}-{year}-{sequence}"
 
 
-def get_next_visit_sequence_and_increment():
+def get_next_visit_sequence_and_increment(clinic_id):
     from app.models import VisitSequence
     current_year = get_jakarta_now().year
-    prefix = "VIS"
     
     seq = VisitSequence.query.filter_by(
         year=current_year, 
-        prefix=prefix
+        clinic_id=uuid.UUID(str(clinic_id))
     ).with_for_update().first()
 
     if not seq:
-        seq = VisitSequence(year=current_year, prefix=prefix, last_number=1)
+        seq = VisitSequence(year=current_year, clinic_id=uuid.UUID(str(clinic_id)), last_number=1)
         db.session.add(seq)
         next_number = 1
     else:
@@ -177,26 +177,28 @@ def parse_date(date_str):
     return None
 
 
-def get_max_existing_sequence(year):
+def get_max_existing_sequence(year, clinic_id):
     result = db.session.execute(
         text(
-            """
+           """
             SELECT COALESCE(
                 MAX(CAST(split_part(transaction_number, '-', 3) AS INTEGER)),
                 0
             ) AS max_number
             FROM financial
             WHERE transaction_number ~ :pattern
+              AND clinic_id = CAST(:clinic_id AS uuid)
             """
         ),
-        {"pattern": f"^INV-{int(year)}-[0-9]+$"},
+        {"pattern": f"^INV-{int(year)}-[0-9]+$",
+         "clinic_id": str(clinic_id)},
     ).scalar()
 
     return int(result or 0)
 
 
-def get_next_sequence_preview(year):
-    existing_max = get_max_existing_sequence(year)
+def get_next_sequence_preview(year, clinic_id):
+    existing_max = get_max_existing_sequence(year, clinic_id)
 
     sequence_row = db.session.execute(
         text(
@@ -204,9 +206,11 @@ def get_next_sequence_preview(year):
             SELECT last_number
             FROM financial_sequence
             WHERE year = :year
+              AND clinic_id = CAST(:clinic_id AS uuid)
             """
         ),
-        {"year": int(year)},
+        {"year": int(year),
+         "clinic_id": str(clinic_id)},
     ).first()
 
     sequence_number = int(sequence_row[0]) if sequence_row else 0
@@ -215,15 +219,15 @@ def get_next_sequence_preview(year):
     return next_number
 
 
-def reserve_next_sequence(year):
-    existing_max = get_max_existing_sequence(year)
+def reserve_next_sequence(year, clinic_id):
+    existing_max = get_max_existing_sequence(year, clinic_id)
 
     result = db.session.execute(
         text(
             """
-            INSERT INTO financial_sequence (year, last_number)
-            VALUES (:year, :next_number)
-            ON CONFLICT (year)
+            INSERT INTO financial_sequence (year, clinic_id, last_number)
+            VALUES (:year, CAST(:clinic_id AS uuid), :next_number)
+            ON CONFLICT (year, clinic_id) 
             DO UPDATE SET last_number = GREATEST(
                 financial_sequence.last_number,
                 :existing_max
@@ -233,6 +237,7 @@ def reserve_next_sequence(year):
         ),
         {
             "year": int(year),
+            "clinic_id": str(clinic_id),
             "existing_max": int(existing_max),
             "next_number": int(existing_max) + 1,
         },
@@ -248,30 +253,35 @@ def get_column_name(vaccine, dosage):
     return f"{v_name}_{d_num}"
 
 
-def generate_next_audit_number():
+def generate_next_audit_number(clinic_id=None):
     current_year = get_jakarta_now().year
+    if not clinic_id:
+        return f"AUD-{current_year}-INITIAL"
+    try:
+        next_number = db.session.execute(
+            text(
+                """
+                INSERT INTO public.audit_sequence (year, clinic_id, last_number)
+                VALUES (:year, CAST(:clinic_id AS uuid), 1)
+                ON CONFLICT (year, clinic_id)
+                DO UPDATE SET
+                    last_number = public.audit_sequence.last_number + 1
+                RETURNING last_number
+                """
+            ),
+            {
+                "year": current_year,
+                "clinic_id": str(clinic_id)
+            },
+        ).scalar_one()
+        return f"AUD-{current_year}-{int(next_number):04d}"
+    except Exception as e:
+        print(f"[-] Gagal generate audit sequence database: {str(e)}")
+        return f"AUD-{current_year}-TEMP"
 
-    next_number = db.session.execute(
-        text(
-            """
-            INSERT INTO public.audit_sequence (year, last_number)
-            VALUES (:year, 1)
-            ON CONFLICT (year)
-            DO UPDATE SET
-                last_number = public.audit_sequence.last_number + 1
-            RETURNING last_number
-            """
-        ),
-        {
-            "year": current_year,
-        },
-    ).scalar_one()
 
-    return f"AUD-{current_year}-{int(next_number):04d}"
-
-
-def make_audit_number():
-    return generate_next_audit_number()
+def make_audit_number(clinic_id=None):
+    return generate_next_audit_number(clinic_id)
 
 
 def clean_audit_json(value):
@@ -298,11 +308,15 @@ def write_audit_log(user_id, action, old_values=None, new_values=None):
 
     if not user_id:
         return None
-
+    
+    from app.models import User
+    import uuid
+    
     db.session.info["manual_audit_written"] = True
-
+    user = db.session.get(User, uuid.UUID(str(user_id)))
+    clinic_id = user.clinic_id if user else None
     audit_log_id = str(uuid.uuid4())
-    audit_number = generate_next_audit_number()
+    audit_number = generate_next_audit_number(clinic_id)
 
     db.session.execute(
         text(
@@ -310,6 +324,7 @@ def write_audit_log(user_id, action, old_values=None, new_values=None):
             INSERT INTO audit (
                 log_id,
                 user_id,
+                clinic_id,
                 audit_number,
                 times,
                 action,
@@ -319,6 +334,7 @@ def write_audit_log(user_id, action, old_values=None, new_values=None):
             VALUES (
                 CAST(:log_id AS uuid),
                 CAST(:user_id AS uuid),
+                CAST(:clinic_id AS uuid),
                 :audit_number,
                 :times,
                 :action,
@@ -330,6 +346,7 @@ def write_audit_log(user_id, action, old_values=None, new_values=None):
         {
             "log_id": audit_log_id,
             "user_id": str(user_id),
+            "clinic_id": str(clinic_id) if clinic_id else None,
             "audit_number": audit_number,
             "times": get_jakarta_now(),
             "action": action,

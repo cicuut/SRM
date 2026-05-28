@@ -92,6 +92,7 @@ class Patient(db.Model):
     clinic_id = db.Column(
         UUID(as_uuid=True),
         db.ForeignKey('clinic.clinic_id', ondelete='CASCADE'),
+        nullable=False,
     )
     family_link_id = db.Column(
         UUID(as_uuid=True),
@@ -137,6 +138,11 @@ class MedicalRecord(db.Model):
         primary_key=True,
         default=uuid.uuid4,
     )
+    clinic_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('clinic.clinic_id', ondelete='CASCADE'),
+        nullable=False,
+    )
     patient_id = db.Column(
         UUID(as_uuid=True),
         db.ForeignKey('patient.patient_id', ondelete='CASCADE'),
@@ -155,7 +161,8 @@ class MedicalRecordSequence(db.Model):
     __tablename__ = 'medical_record_sequence'
 
     year = db.Column(db.Integer, primary_key=True)
-    record_type = db.Column(db.String(50), primary_key=True) # 'Kehamilan', 'Persalinan', dst.
+    record_type = db.Column(db.String(50), primary_key=True) 
+    clinic_id = db.Column(UUID(as_uuid=True), db.ForeignKey('clinic.clinic_id', ondelete='CASCADE'), primary_key=True)
     last_number = db.Column(db.Integer, nullable=False, default=0)
 
 class PregnancyRecord(db.Model):
@@ -312,6 +319,11 @@ class VisitMaster(db.Model):
         UUID(as_uuid=True),
         db.ForeignKey('medical_record.record_id', ondelete='CASCADE'),
     )
+    clinic_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('clinic.clinic_id', ondelete='CASCADE'),
+        nullable=False,
+    )
     user_id = db.Column(
         UUID(as_uuid=True),
         db.ForeignKey('users.user_id', ondelete='CASCADE'),
@@ -324,7 +336,7 @@ class VisitSequence(db.Model):
     __tablename__ = 'visit_sequence'
 
     year = db.Column(db.Integer, primary_key=True)
-    prefix = db.Column(db.String(10), primary_key=True, default='VIS')
+    clinic_id = db.Column(UUID(as_uuid=True), db.ForeignKey('clinic.clinic_id', ondelete='CASCADE'), primary_key=True)
     last_number = db.Column(db.Integer, nullable=False, default=0)
 
 class VisitPregnancy(db.Model):
@@ -437,6 +449,11 @@ class Audit(db.Model):
         UUID(as_uuid=True),
         db.ForeignKey('users.user_id'),
     )
+    clinic_id = db.Column(
+        UUID(as_uuid=True), 
+        db.ForeignKey('clinic.clinic_id', ondelete='CASCADE'), 
+        nullable=True,
+    )
     audit_number = db.Column(db.String(50), nullable=False)
     times = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     action = db.Column(db.String(100), nullable=False)
@@ -450,7 +467,17 @@ class Audit(db.Model):
 
     def __repr__(self):
         return f'<Audit {self.audit_number} - {self.action}>'
+    
+class AuditSequence(db.Model):
+    __tablename__ = 'audit_sequence'
 
+    year = db.Column(db.Integer, primary_key=True)
+    clinic_id = db.Column(
+        UUID(as_uuid=True), 
+        db.ForeignKey('clinic.clinic_id', ondelete='CASCADE'), 
+        primary_key=True
+    )
+    last_number = db.Column(db.Integer, nullable=False, default=0)
 
 class Financial(db.Model):
     __tablename__ = 'financial'
@@ -487,3 +514,14 @@ class Financial(db.Model):
     status = db.Column(db.String(20), nullable=False)
     payment_date = db.Column(db.Date, nullable=False)
     description = db.Column(EncryptedText, nullable=True)
+    
+class FinancialSequence(db.Model):
+    __tablename__ = 'financial_sequence'
+
+    year = db.Column(db.Integer, primary_key=True)
+    clinic_id = db.Column(
+        UUID(as_uuid=True), 
+        db.ForeignKey('clinic.clinic_id', ondelete='CASCADE'), 
+        primary_key=True
+    )
+    last_number = db.Column(db.Integer, nullable=False, default=0)

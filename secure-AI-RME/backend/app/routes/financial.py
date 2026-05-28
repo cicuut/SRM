@@ -705,6 +705,11 @@ def get_transaction_number():
         return error_response
 
     try:
+        clinic_id = current_user.clinic_id
+        
+        if not clinic_id:
+            return jsonify({'msg': 'Akun Anda belum terikat dengan klinik mana pun.'}), 400
+        
         date_param = request.args.get("date")
         year_param = request.args.get("year")
 
@@ -716,7 +721,7 @@ def get_transaction_number():
         else:
             year = datetime.utcnow().year
 
-        next_number = get_next_sequence_preview(year)
+        next_number = get_next_sequence_preview(year, clinic_id)
         transaction_number = generate_financial_number(year, next_number)
 
         return (
@@ -968,7 +973,7 @@ def add_financial_transaction():
             )
 
         year = normalized_data["payment_date"].year
-        sequence_number = reserve_next_sequence(year)
+        sequence_number = reserve_next_sequence(year, clinic_id)
         transaction_number = generate_financial_number(year, sequence_number)
         transaction_id = str(uuid.uuid4())
 
@@ -1018,8 +1023,8 @@ def add_financial_transaction():
                 "amount": normalized_data["amount"],
                 "payment_method": normalized_data["payment_method"],
                 "status": normalized_data["status"],
-                "payment_date": normalized_data["payment_date"],
-                "description": normalized_data["description"],
+                "payment_date": normalized_normalized_datadata["payment_date"],
+                "description": ["description"],
             },
         )
 

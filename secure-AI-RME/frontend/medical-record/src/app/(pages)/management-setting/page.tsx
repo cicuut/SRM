@@ -224,8 +224,8 @@ const UserAvatar = ({
         size === 'lg'
             ? 'h-[54px] w-[54px] text-[20px]'
             : size === 'sm'
-              ? 'h-[36px] w-[36px] text-[12px]'
-              : 'h-[38px] w-[38px] text-[12px]';
+                ? 'h-[36px] w-[36px] text-[12px]'
+                : 'h-[38px] w-[38px] text-[12px]';
 
     return (
         <div
@@ -334,7 +334,7 @@ const ManagementSetting = () => {
 
     const canCreateMidwife = currentRole === 'admin';
     const canCreateAssistant = currentRole === 'midwife';
-    const canUpdateClinic = currentRole === 'midwife';
+    const canUpdateClinic = currentRole === 'midwife' || currentRole === 'admin';
 
     const showLoadingOverlay =
         isLoading || isSavingClinic || isCreatingAccount || isSavingEmployee;
@@ -473,11 +473,13 @@ const ManagementSetting = () => {
                 );
             }
 
-            const normalizedUserRole = normalizeRole(
-                data.user?.role || data.user?.user_role,
-            );
+            const rawRole = data.user?.role || data.user?.user_role || '';
+            const normalizedUserRole = normalizeRole(rawRole);
 
-            if (!data.user || !['admin', 'midwife'].includes(normalizedUserRole)) {
+    
+
+            if (!data.user || (normalizedUserRole !== 'admin' && normalizedUserRole !== 'midwife')) {
+                console.log("Akses ditolak karena role tidak memenuhi syarat:", normalizedUserRole);
                 setIsForbidden(true);
                 return;
             }
@@ -648,6 +650,15 @@ const ManagementSetting = () => {
 
     const handleUpdateClinic = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+        console.log("1. Fungsi handleUpdateClinic terpicu!");
+        console.log("Role user saat ini:", currentRole);
+        console.log("Status izin canUpdateClinic:", canUpdateClinic);
+
+        if (!canUpdateClinic) {
+            console.log("🛑 Berhenti di validasi ROLE");
+            setErrorMessage('Hanya Bidan atau Admin yang dapat memperbarui data klinik.');
+            return;
+        }
 
         if (!canUpdateClinic) {
             setErrorMessage('Hanya bidan yang dapat memperbarui data klinik.');
@@ -1166,11 +1177,10 @@ const ManagementSetting = () => {
 
                                                             <td className="px-5 py-4">
                                                                 <span
-                                                                    className={`inline-flex min-w-[76px] justify-center rounded-full px-3 py-1 text-[10px] font-bold ${
-                                                                        employee.is_active
-                                                                            ? 'bg-[#D2E3C8] text-[#4F6F52]'
-                                                                            : 'bg-[#F3E8C8] text-[#7A5A00]'
-                                                                    }`}
+                                                                    className={`inline-flex min-w-[76px] justify-center rounded-full px-3 py-1 text-[10px] font-bold ${employee.is_active
+                                                                        ? 'bg-[#D2E3C8] text-[#4F6F52]'
+                                                                        : 'bg-[#F3E8C8] text-[#7A5A00]'
+                                                                        }`}
                                                                 >
                                                                     {employee.is_active
                                                                         ? 'Aktif'
@@ -1251,11 +1261,10 @@ const ManagementSetting = () => {
                                                             </span>
 
                                                             <span
-                                                                className={`rounded-full px-3 py-1 text-[10px] font-bold ${
-                                                                    employee.is_active
-                                                                        ? 'bg-[#D2E3C8] text-[#4F6F52]'
-                                                                        : 'bg-[#F3E8C8] text-[#7A5A00]'
-                                                                }`}
+                                                                className={`rounded-full px-3 py-1 text-[10px] font-bold ${employee.is_active
+                                                                    ? 'bg-[#D2E3C8] text-[#4F6F52]'
+                                                                    : 'bg-[#F3E8C8] text-[#7A5A00]'
+                                                                    }`}
                                                             >
                                                                 {employee.is_active
                                                                     ? 'Aktif'

@@ -811,8 +811,7 @@ def build_activity_query(current_user, current_role):
         .outerjoin(User, Audit.user_id == User.user_id)
     )
 
-    if current_role == "midwife":
-        query = query.filter(User.clinic_id == current_user.clinic_id)
+    query = query.filter(User.clinic_id == current_user.clinic_id)
 
     return query
 
