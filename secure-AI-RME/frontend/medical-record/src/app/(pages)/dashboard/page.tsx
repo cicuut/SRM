@@ -934,11 +934,9 @@ const Dashboard = () => {
                         <ErrorNotice message={assessmentError} />
                     ) : (
                         <TopAssessmentList
-                            month={assessmentMonth}
-                            totalVisits={assessmentVisitCount}
                             items={topAssessments}
                             isLoading={assessmentLoading}
-                            emptyMessage="Belum ada assessment atau keluhan KB bulan ini."
+                            emptyMessage="Belum ada assessment atau keluhan bulan ini."
                         />
                     )}
                 </SectionCard>
