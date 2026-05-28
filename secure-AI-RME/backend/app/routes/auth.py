@@ -20,8 +20,10 @@ PROFILE_PHOTO_MAX_LENGTH = 3_500_000
 
 JAKARTA_TZ = timezone(timedelta(hours=7))
 
+
 def get_jakarta_now():
     return datetime.now(JAKARTA_TZ).replace(tzinfo=None)
+
 
 def to_str(value):
     if value is None:
@@ -111,6 +113,24 @@ def normalize_profile_photo(value):
         return photo
 
     raise ValueError("Foto profil harus berupa data URL gambar atau URL gambar.")
+
+
+def normalize_optional_strnumber(value):
+    if value is None:
+        return None
+
+    strnumber = str(value).strip()
+
+    if not strnumber:
+        return None
+
+    return strnumber
+
+
+def is_strnumber_required_for_role(role):
+    normalized_role = role_to_text(role)
+
+    return normalized_role in [ADMIN_ROLE, MIDWIFE_ROLE]
 
 
 def user_has_profile_photo_column(user):
@@ -387,7 +407,7 @@ def register():
     fullname = (data.get("fullname") or "").strip()
     email = (data.get("email") or "").strip().lower()
     password = data.get("password")
-    strnumber = (data.get("strnumber") or "").strip()
+    strnumber = normalize_optional_strnumber(data.get("strnumber"))
 
     if not fullname or not email or not password or not strnumber:
         return (
@@ -472,7 +492,7 @@ def create_initial_midwife_by_admin():
     fullname = (data.get("fullname") or "").strip()
     email = (data.get("email") or "").strip().lower()
     password = data.get("password")
-    strnumber = (data.get("strnumber") or "").strip()
+    strnumber = normalize_optional_strnumber(data.get("strnumber"))
     is_active = parse_bool(data.get("is_active", True), default=True)
 
     if not fullname or not email or not password or not strnumber:
@@ -618,19 +638,21 @@ def create_or_update_clinic():
 
             user.clinic_id = clinic.clinic_id
             user.is_active = True
+
             db.session.execute(
-                    text(
-                        """
-                        UPDATE public.audit 
-                        SET clinic_id = CAST(:clinic_id AS uuid)
-                        WHERE user_id = CAST(:user_id AS uuid) AND clinic_id IS NULL
-                        """
-                    ),
-                    {
-                        "clinic_id": str(clinic.clinic_id),
-                        "user_id": str(user.user_id)
-                    }
-                )
+                text(
+                    """
+                    UPDATE public.audit 
+                    SET clinic_id = CAST(:clinic_id AS uuid)
+                    WHERE user_id = CAST(:user_id AS uuid) AND clinic_id IS NULL
+                    """
+                ),
+                {
+                    "clinic_id": str(clinic.clinic_id),
+                    "user_id": str(user.user_id),
+                },
+            )
+
             current_year = get_jakarta_now().year
             db.session.execute(
                 text(
@@ -642,10 +664,10 @@ def create_or_update_clinic():
                 ),
                 {
                     "year": current_year,
-                    "clinic_id": str(clinic.clinic_id)
-                }
+                    "clinic_id": str(clinic.clinic_id),
+                },
             )
-        
+
         write_audit_log(
             user_id=user.user_id,
             action=action_name,
@@ -792,20 +814,21 @@ def update_current_user():
             user.email = email
 
         if strnumber is not None:
-            strnumber = strnumber.strip()
+            normalized_strnumber = normalize_optional_strnumber(strnumber)
 
-            if not strnumber:
+            if is_strnumber_required_for_role(user.user_role) and not normalized_strnumber:
                 return jsonify({"msg": "Nomor STR wajib diisi."}), 400
 
-            existing_str = User.query.filter(
-                User.strnumber == strnumber,
-                User.user_id != user.user_id,
-            ).first()
+            if normalized_strnumber:
+                existing_str = User.query.filter(
+                    User.strnumber == normalized_strnumber,
+                    User.user_id != user.user_id,
+                ).first()
 
-            if existing_str:
-                return jsonify({"msg": "Nomor STR sudah digunakan."}), 409
+                if existing_str:
+                    return jsonify({"msg": "Nomor STR sudah digunakan."}), 409
 
-            user.strnumber = strnumber
+            user.strnumber = normalized_strnumber
 
         if profile_photo_was_provided:
             if not user_has_profile_photo_column(user):
@@ -933,7 +956,7 @@ def get_management_overview():
 
     manager_role = role_to_text(manager.user_role)
 
-    if manager_role in [MIDWIFE_ROLE, ADMIN_ROLE] and not manager.clinic_id:
+    if manager_role == MIDWIFE_ROLE and not manager.clinic_id:
         return (
             jsonify(
                 {
@@ -949,12 +972,10 @@ def get_management_overview():
 
     if not payload:
         return jsonify({"msg": "Data management tidak ditemukan."}), 404
-    
+
     if payload.get("clinic") is None and manager.clinic_id:
-        from app.models import Clinic # Sesuaikan path import model Clinic-mu
-        from app.routes.auth import serialize_clinic # Sesuaikan fungsi serializer milikmu
-        
         clinic = db.session.get(Clinic, manager.clinic_id)
+
         if clinic:
             payload["clinic"] = serialize_clinic(clinic)
 
@@ -1101,7 +1122,7 @@ def create_management_user():
     fullname = (data.get("fullname") or "").strip()
     email = (data.get("email") or "").strip().lower()
     password = data.get("password")
-    strnumber = (data.get("strnumber") or "").strip()
+    strnumber = normalize_optional_strnumber(data.get("strnumber"))
     is_active = parse_bool(data.get("is_active", True), default=True)
 
     try:
@@ -1130,21 +1151,28 @@ def create_management_user():
         if role != ASSISTANT_ROLE:
             return jsonify({"msg": "Bidan hanya dapat membuat akun asisten."}), 403
 
-    if not fullname or not email or not password or not strnumber:
+    if not fullname or not email or not password:
         return (
             jsonify(
                 {
-                    "msg": "Nama lengkap, email, password, dan nomor STR wajib diisi."
+                    "msg": "Nama lengkap, email, dan password wajib diisi."
                 }
             ),
             400,
         )
 
+    if is_strnumber_required_for_role(role) and not strnumber:
+        return jsonify({"msg": "Nomor STR wajib diisi untuk akun bidan."}), 400
+
     if len(password) < 8:
         return jsonify({"msg": "Password minimal 8 karakter."}), 400
 
     existing_user_by_email = User.query.filter_by(email=email).first()
-    existing_user_by_strnumber = User.query.filter_by(strnumber=strnumber).first()
+    existing_user_by_strnumber = (
+        User.query.filter_by(strnumber=strnumber).first()
+        if strnumber
+        else None
+    )
 
     if existing_user_by_strnumber and (
         not existing_user_by_email

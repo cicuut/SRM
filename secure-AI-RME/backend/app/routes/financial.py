@@ -70,9 +70,25 @@ def safe_decrypt(value):
         return ""
 
     try:
-        return decrypt_data(value)
+        decrypted = decrypt_data(value)
+        return decrypted if decrypted is not None else ""
     except Exception:
         return str(value)
+
+
+def normalize_optional_uuid(value):
+    if value is None:
+        return None
+
+    normalized = str(value).strip()
+
+    if not normalized:
+        return None
+
+    if normalized.lower() in ["null", "none", "undefined", "-"]:
+        return None
+
+    return normalized
 
 
 def get_current_user():
@@ -193,9 +209,6 @@ def is_expense_type(trans_type):
 
 # -----------------------------------------------------------------------------
 # PostgreSQL enum helpers
-# Supabase exports USER-DEFINED for enum columns. The actual enum type name can
-# differ between local DB and Supabase, so this file reads the DB type directly
-# from the financial column before CAST-ing values.
 # -----------------------------------------------------------------------------
 def quote_identifier(identifier):
     return '"' + str(identifier).replace('"', '""') + '"'
@@ -565,6 +578,7 @@ def serialize_financial_row(row):
     )
 
     payment_method = row.get("payment_method")
+    description = row.get("description")
 
     return {
         "transaction_id": row.get("transaction_id"),
@@ -581,7 +595,7 @@ def serialize_financial_row(row):
         "amount": float(row.get("amount") or 0),
         "payment_method": payment_method or "",
         "status": row.get("status"),
-        "description": row.get("description") or "",
+        "description": safe_decrypt(description) if description else "",
         "visit_display": visit_display,
         "visit_number": row.get("visit_number") or "-",
         "visit_date": format_date(row.get("visit_date")),
@@ -705,11 +719,19 @@ def get_transaction_number():
         return error_response
 
     try:
-        clinic_id = current_user.clinic_id
-        
+        requested_clinic_id = normalize_optional_uuid(request.args.get("clinic_id"))
+        clinic_id = requested_clinic_id if is_admin_user(current_user) else current_user.clinic_id
+
         if not clinic_id:
-            return jsonify({'msg': 'Akun Anda belum terikat dengan klinik mana pun.'}), 400
-        
+            return (
+                jsonify(
+                    {
+                        "msg": "Klinik untuk nomor transaksi belum tersedia. Jika admin membuat invoice manual, pilih laporan kunjungan terlebih dahulu atau kirim clinic_id."
+                    }
+                ),
+                400,
+            )
+
         date_param = request.args.get("date")
         year_param = request.args.get("year")
 
@@ -921,7 +943,6 @@ def add_financial_transaction():
 
     required_fields = [
         "payment_date",
-        "visit_id",
         "trans_type",
         "status",
     ]
@@ -944,36 +965,52 @@ def add_financial_transaction():
         )
 
     try:
-        reference_id = str(data.get("visit_id")).strip()
         normalized_data = normalize_financial_input(data)
 
-        resolved_reference = resolve_visit_or_record_reference(
-            reference_id,
-            scope_clinic_id,
+        reference_id = normalize_optional_uuid(
+            data.get("visit_id")
+            or data.get("record_id")
+            or data.get("reference_id")
         )
 
-        if not resolved_reference:
-            return jsonify({"msg": "Visit atau rekam medis tidak ditemukan."}), 404
+        resolved_reference = None
+        visit_id = None
+        patient_id = None
+        transaction_clinic_id = None
 
-        visit_id = resolved_reference.get("visit_id")
-        patient_id = resolved_reference.get("patient_id")
-        transaction_clinic_id = resolved_reference.get("clinic_id") or scope_clinic_id
+        if reference_id:
+            resolved_reference = resolve_visit_or_record_reference(
+                reference_id,
+                scope_clinic_id,
+            )
+
+            if not resolved_reference:
+                return jsonify({"msg": "Laporan kunjungan atau rekam medis tidak ditemukan."}), 404
+
+            visit_id = normalize_optional_uuid(resolved_reference.get("visit_id"))
+            patient_id = normalize_optional_uuid(resolved_reference.get("patient_id"))
+            transaction_clinic_id = (
+                normalize_optional_uuid(resolved_reference.get("clinic_id"))
+                or normalize_optional_uuid(scope_clinic_id)
+            )
+        else:
+            transaction_clinic_id = normalize_optional_uuid(current_user.clinic_id)
+
+            if not transaction_clinic_id:
+                return (
+                    jsonify(
+                        {
+                            "msg": "Invoice manual membutuhkan klinik. Silakan login sebagai bidan yang sudah memiliki klinik atau pilih laporan kunjungan terlebih dahulu."
+                        }
+                    ),
+                    400,
+                )
 
         if not transaction_clinic_id:
             return jsonify({"msg": "Klinik untuk transaksi tidak ditemukan."}), 400
 
-        if not visit_id:
-            return (
-                jsonify(
-                    {
-                        "msg": "Rekam medis yang dipilih belum memiliki laporan kunjungan."
-                    }
-                ),
-                400,
-            )
-
         year = normalized_data["payment_date"].year
-        sequence_number = reserve_next_sequence(year, clinic_id)
+        sequence_number = reserve_next_sequence(year, transaction_clinic_id)
         transaction_number = generate_financial_number(year, sequence_number)
         transaction_id = str(uuid.uuid4())
 
@@ -1023,8 +1060,8 @@ def add_financial_transaction():
                 "amount": normalized_data["amount"],
                 "payment_method": normalized_data["payment_method"],
                 "status": normalized_data["status"],
-                "payment_date": normalized_normalized_datadata["payment_date"],
-                "description": ["description"],
+                "payment_date": normalized_data["payment_date"],
+                "description": normalized_data["description"],
             },
         )
 
@@ -1035,6 +1072,14 @@ def add_financial_transaction():
         )
         saved_data = serialize_financial_row(saved_row)
 
+        if not reference_id:
+            saved_data["visit_display"] = "Transaksi Manual"
+            saved_data["visit_number"] = "-"
+            saved_data["record_number"] = "-"
+            saved_data["record_type"] = "-"
+            saved_data["patient_name"] = "-"
+            saved_data["patient_number"] = "-"
+
         write_audit_log(
             user_id=current_user_id,
             action="ADD_INVOICE",
@@ -1042,6 +1087,7 @@ def add_financial_transaction():
             new_values={
                 "module": "Financial",
                 **saved_data,
+                "manual_transaction": not bool(reference_id),
             },
         )
 

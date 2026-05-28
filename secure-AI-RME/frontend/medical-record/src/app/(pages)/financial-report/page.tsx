@@ -248,10 +248,6 @@ const formatEnumLabel = (value: string) => {
         .join(' ');
 };
 
-const escapeCsvValue = (value: string | number | null | undefined) => {
-    return `"${String(value ?? '').replace(/"/g, '""')}"`;
-};
-
 const getUniqueOptions = (values: Array<string | null | undefined>) => {
     return Array.from(
         new Set(
@@ -394,6 +390,26 @@ const translateMessage = (message?: string) => {
     return rawMessage;
 };
 
+const getVisitDisplayText = (transaction: FinancialTransaction) => {
+    return (
+        transaction.visit_display ||
+        transaction.visit_number ||
+        transaction.record_number ||
+        '-'
+    );
+};
+
+const getDownloadFileName = (startDate: string, endDate: string) => {
+    const datePart =
+        startDate && endDate
+            ? `${startDate}_sd_${endDate}`
+            : startDate
+                ? startDate
+                : 'semua-tanggal';
+
+    return `laporan-keuangan-${datePart}.xlsx`;
+};
+
 const ForbiddenView = () => {
     return (
         <div className="flex min-h-[calc(100dvh-48px)] w-full items-center justify-center px-4">
@@ -447,6 +463,7 @@ const FinancialReport = () => {
     const [isForbidden, setIsForbidden] = useState(false);
     const [isCheckingAccess, setIsCheckingAccess] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
 
     const [currentPage, setCurrentPage] = useState(1);
@@ -460,7 +477,7 @@ const FinancialReport = () => {
         return getCalendarDays(calendarMonth);
     }, [calendarMonth]);
 
-    const showLoadingOverlay = isCheckingAccess || isLoading;
+    const showLoadingOverlay = isCheckingAccess || isLoading || isDownloading;
 
     const getToken = () => {
         return Cookies.get('access_token');
@@ -891,76 +908,135 @@ const FinancialReport = () => {
         setIsCalendarOpen(false);
     };
 
-    const handleDownload = () => {
-        const headerRow = tableHeaders
-            .map((header) => escapeCsvValue(header.label))
-            .join(',');
+    const handleDownload = async () => {
+        if (filteredTransactions.length === 0 || isDownloading) {
+            return;
+        }
 
-        const dataRows = filteredTransactions.map((transaction) =>
-            tableHeaders
-                .map((header) => {
-                    if (header.key === 'amount') {
-                        return escapeCsvValue(formatRupiah(transaction.amount));
-                    }
+        try {
+            setIsDownloading(true);
+            setErrorMessage('');
 
-                    if (header.key === 'payment_date') {
-                        return escapeCsvValue(
-                            formatShortDate(transaction.payment_date),
-                        );
-                    }
+            const XLSX = await import('xlsx');
 
-                    if (
-                        header.key === 'trans_type' ||
-                        header.key === 'payment_method' ||
-                        header.key === 'status'
-                    ) {
-                        return escapeCsvValue(
-                            formatEnumLabel(String(transaction[header.key])),
-                        );
-                    }
+            const reportRows = filteredTransactions.map(
+                (transaction, index) => ({
+                    No: index + 1,
+                    'Nomor Invoice': transaction.transaction_number || '-',
+                    Tanggal: formatShortDate(transaction.payment_date),
+                    'Tanggal Raw': normalizeDateInput(transaction.payment_date),
+                    'Tipe Transaksi': formatEnumLabel(transaction.trans_type),
+                    'Visit / Rekam Medis': getVisitDisplayText(transaction),
+                    'Nomor Kunjungan': transaction.visit_number || '-',
+                    'Nomor Rekam Medis': transaction.record_number || '-',
+                    'Jenis Rekam Medis': transaction.record_type || '-',
+                    'Nama Pasien': transaction.patient_name || '-',
+                    'Metode Pembayaran': transaction.payment_method
+                        ? formatEnumLabel(transaction.payment_method)
+                        : '-',
+                    Nominal: Number(transaction.amount || 0),
+                    'Nominal Format': formatRupiah(transaction.amount),
+                    Status: formatEnumLabel(transaction.status),
+                    Deskripsi: transaction.description || '-',
+                    'Dibuat Oleh': transaction.user_name || '-',
+                }),
+            );
 
-                    if (header.key === 'visit_display') {
-                        return escapeCsvValue(
-                            transaction.visit_display ||
-                                transaction.visit_number ||
-                                transaction.record_number ||
-                                '-',
-                        );
-                    }
+            const summaryRows = [
+                {
+                    Informasi: 'Tanggal Terpilih',
+                    Nilai: formattedSelectedDateRange,
+                },
+                {
+                    Informasi: 'Total Data',
+                    Nilai: filteredTransactions.length,
+                },
+                {
+                    Informasi: 'Total Pemasukan',
+                    Nilai: filteredTransactions
+                        .filter((transaction) =>
+                            isIncomeType(transaction.trans_type),
+                        )
+                        .reduce(
+                            (total, transaction) =>
+                                total + Number(transaction.amount || 0),
+                            0,
+                        ),
+                },
+                {
+                    Informasi: 'Total Pengeluaran',
+                    Nilai: filteredTransactions
+                        .filter((transaction) =>
+                            isExpenseType(transaction.trans_type),
+                        )
+                        .reduce(
+                            (total, transaction) =>
+                                total + Number(transaction.amount || 0),
+                            0,
+                        ),
+                },
+            ];
 
-                    return escapeCsvValue(transaction[header.key]);
-                })
-                .join(','),
-        );
+            const workbook = XLSX.utils.book_new();
 
-        const summaryRows = [
-            '',
-            [
-                escapeCsvValue('Tanggal Terpilih'),
-                escapeCsvValue(formattedSelectedDateRange),
-            ].join(','),
-            [
-                escapeCsvValue('Total Data'),
-                escapeCsvValue(filteredTransactions.length),
-            ].join(','),
-        ];
+            const reportSheet = XLSX.utils.json_to_sheet(reportRows);
+            const summarySheet = XLSX.utils.json_to_sheet(summaryRows);
 
-        const csvContent = [headerRow, ...dataRows, ...summaryRows].join('\n');
+            reportSheet['!cols'] = [
+                { wch: 6 },
+                { wch: 22 },
+                { wch: 16 },
+                { wch: 14 },
+                { wch: 18 },
+                { wch: 24 },
+                { wch: 18 },
+                { wch: 18 },
+                { wch: 18 },
+                { wch: 24 },
+                { wch: 18 },
+                { wch: 16 },
+                { wch: 18 },
+                { wch: 16 },
+                { wch: 30 },
+                { wch: 22 },
+            ];
 
-        const blob = new Blob([`\uFEFF${csvContent}`], {
-            type: 'text/csv;charset=utf-8;',
-        });
+            summarySheet['!cols'] = [{ wch: 22 }, { wch: 28 }];
 
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
+            XLSX.utils.book_append_sheet(
+                workbook,
+                reportSheet,
+                'Laporan Keuangan',
+            );
+            XLSX.utils.book_append_sheet(workbook, summarySheet, 'Ringkasan');
 
-        link.href = url;
-        link.download = `laporan-keuangan-${
-            selectedStartDate || 'semua'
-        }-${selectedEndDate || 'tanggal'}.csv`;
-        link.click();
+            XLSX.writeFile(
+                workbook,
+                getDownloadFileName(selectedStartDate, selectedEndDate),
+            );
+        } catch (error) {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : 'Gagal mengunduh laporan keuangan.';
 
-        URL.revokeObjectURL(url);
+            setErrorMessage(
+                message.includes('Cannot find module') ||
+                    message.includes('xlsx')
+                    ? 'Package xlsx belum terpasang. Jalankan npm install xlsx lalu coba lagi.'
+                    : translateMessage(message),
+            );
+        } finally {
+            setIsDownloading(false);
+        }
+    };
+
+    const isIncomeType = (transType?: string | null) => {
+        return String(transType || '').trim().toLowerCase() === 'pemasukan';
+    };
+
+    const isExpenseType = (transType?: string | null) => {
+        return String(transType || '').trim().toLowerCase() === 'pengeluaran';
     };
 
     const renderTableValue = (
@@ -980,12 +1056,7 @@ const FinancialReport = () => {
         }
 
         if (key === 'visit_display') {
-            return (
-                transaction.visit_display ||
-                transaction.visit_number ||
-                transaction.record_number ||
-                '-'
-            );
+            return getVisitDisplayText(transaction);
         }
 
         if (key === 'status') {
@@ -1336,12 +1407,16 @@ const FinancialReport = () => {
                             type="button"
                             onClick={handleDownload}
                             disabled={
-                                isLoading || filteredTransactions.length === 0
+                                isLoading ||
+                                isDownloading ||
+                                filteredTransactions.length === 0
                             }
                             className="flex min-h-[38px] items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             <FileDown className="w-4" />
-                            <span>Unduh</span>
+                            <span>
+                                {isDownloading ? 'Mengunduh...' : 'Download'}
+                            </span>
                         </button>
                     </div>
                 </div>
@@ -1427,10 +1502,9 @@ const FinancialReport = () => {
                                             </p>
 
                                             <p className="mt-[4px] truncate text-[11px] font-semibold text-black">
-                                                {transaction.visit_display ||
-                                                    transaction.visit_number ||
-                                                    transaction.record_number ||
-                                                    '-'}
+                                                {getVisitDisplayText(
+                                                    transaction,
+                                                )}
                                             </p>
                                         </div>
 

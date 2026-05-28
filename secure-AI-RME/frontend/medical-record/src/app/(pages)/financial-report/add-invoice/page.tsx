@@ -102,7 +102,10 @@ const translateErrorMessage = (message?: string) => {
 
     const normalized = rawMessage.toLowerCase();
 
-    if (normalized.includes('failed to fetch') || normalized.includes('network error')) {
+    if (
+        normalized.includes('failed to fetch') ||
+        normalized.includes('network error')
+    ) {
         return 'Tidak dapat terhubung ke server. Pastikan backend sedang berjalan.';
     }
 
@@ -509,13 +512,18 @@ const AddInvoice = () => {
         setSearchKeyword('');
     };
 
+    const handleClearVisit = () => {
+        setFormData((prevData) => ({
+            ...prevData,
+            visit_id: '',
+        }));
+
+        setSearchKeyword('');
+    };
+
     const validateForm = () => {
         if (!formData.payment_date) {
             return 'Tanggal wajib diisi.';
-        }
-
-        if (!formData.visit_id) {
-            return 'Laporan kunjungan wajib dipilih.';
         }
 
         if (!formData.trans_type) {
@@ -580,7 +588,7 @@ const AddInvoice = () => {
                 },
                 body: JSON.stringify({
                     payment_date: formData.payment_date,
-                    visit_id: formData.visit_id,
+                    visit_id: formData.visit_id || null,
                     trans_type: formData.trans_type,
                     amount: isUnpaid ? 0 : Number(formData.amount),
                     payment_method: isUnpaid ? null : formData.payment_method,
@@ -684,26 +692,47 @@ const AddInvoice = () => {
                     <div className="block">
                         <span className={labelClassName}>
                             Laporan Kunjungan
+                            <span className="ml-1 font-medium text-[#8A8A8A]">
+                                (opsional)
+                            </span>
                         </span>
 
-                        <button
-                            type="button"
-                            onClick={handleOpenVisitModal}
-                            disabled={isSubmitting || isLoadingVisits}
-                            className="mt-2 flex min-h-[42px] w-full items-center justify-between gap-3 rounded-[10px] border border-[#D2D8CF] bg-white px-3 py-2 text-left text-[13px] text-black outline-none transition-all hover:border-[#739072] focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 disabled:cursor-not-allowed disabled:opacity-70"
-                        >
-                            <span className="min-w-0 flex-1 truncate">
-                                {selectedVisit
-                                    ? `${selectedVisit.patient_name} - ${selectedVisit.visit_number}`
-                                    : isLoadingVisits
-                                      ? 'Memuat data...'
-                                      : 'Pilih laporan kunjungan'}
-                            </span>
+                        <div className="mt-2 flex gap-2">
+                            <button
+                                type="button"
+                                onClick={handleOpenVisitModal}
+                                disabled={isSubmitting || isLoadingVisits}
+                                className="flex min-h-[42px] min-w-0 flex-1 items-center justify-between gap-3 rounded-[10px] border border-[#D2D8CF] bg-white px-3 py-2 text-left text-[13px] text-black outline-none transition-all hover:border-[#739072] focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 disabled:cursor-not-allowed disabled:opacity-70"
+                            >
+                                <span className="min-w-0 flex-1 truncate">
+                                    {selectedVisit
+                                        ? `${selectedVisit.patient_name} - ${selectedVisit.visit_number}`
+                                        : isLoadingVisits
+                                          ? 'Memuat data...'
+                                          : 'Pilih laporan kunjungan bila ada'}
+                                </span>
 
-                            <span className="shrink-0 rounded-full bg-[#F8FAF6] px-3 py-1 text-[11px] font-bold text-[#4F6F52]">
-                                Cari
-                            </span>
-                        </button>
+                                <span className="shrink-0 rounded-full bg-[#F8FAF6] px-3 py-1 text-[11px] font-bold text-[#4F6F52]">
+                                    Cari
+                                </span>
+                            </button>
+
+                            {selectedVisit && (
+                                <button
+                                    type="button"
+                                    onClick={handleClearVisit}
+                                    disabled={isSubmitting}
+                                    className="min-h-[42px] shrink-0 rounded-[10px] border border-red-200 bg-white px-3 text-[11px] font-bold text-red-600 transition-all hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    Hapus
+                                </button>
+                            )}
+                        </div>
+
+                        <p className="mt-1 text-[11px] text-[#8A8A8A]">
+                            Invoice dapat dibuat tanpa terhubung ke laporan
+                            kunjungan.
+                        </p>
                     </div>
 
                     <label className="block">
@@ -820,14 +849,19 @@ const AddInvoice = () => {
                                 <p className="mt-1 text-[13px] font-bold text-[#2F3A2F]">
                                     {selectedVisit
                                         ? `${selectedVisit.patient_name} - ${selectedVisit.visit_number}`
-                                        : 'Belum dipilih'}
+                                        : 'Tidak terhubung ke laporan kunjungan'}
                                 </p>
 
-                                {selectedVisit && (
+                                {selectedVisit ? (
                                     <p className="mt-1 text-[11px] text-[#6B6B6B]">
                                         {selectedVisit.record_number} -{' '}
                                         {selectedVisit.record_type} -{' '}
                                         {selectedVisit.visit_date}
+                                    </p>
+                                ) : (
+                                    <p className="mt-1 text-[11px] text-[#6B6B6B]">
+                                        Invoice ini akan disimpan sebagai
+                                        transaksi manual.
                                     </p>
                                 )}
                             </div>
@@ -883,7 +917,8 @@ const AddInvoice = () => {
                                 </h2>
 
                                 <p className="mt-1 text-[12px] text-[#6B6B6B]">
-                                    Cari berdasarkan nama pasien, NIK, nomor RM,
+                                    Laporan kunjungan bersifat opsional. Cari
+                                    berdasarkan nama pasien, NIK, nomor RM,
                                     nomor kunjungan, tipe rekam medis, tanggal,
                                     atau pembuat laporan.
                                 </p>
@@ -918,6 +953,16 @@ const AddInvoice = () => {
                                         className="h-[42px] rounded-[30px] border border-[#D2D8CF] bg-white px-4 text-[12px] font-bold text-[#4B4B4B] hover:bg-[#F4F4F4]"
                                     >
                                         Reset
+                                    </button>
+                                )}
+
+                                {selectedVisit && (
+                                    <button
+                                        type="button"
+                                        onClick={handleClearVisit}
+                                        className="h-[42px] rounded-[30px] border border-red-200 bg-white px-4 text-[12px] font-bold text-red-600 hover:bg-red-50"
+                                    >
+                                        Hapus Pilihan
                                     </button>
                                 )}
                             </div>

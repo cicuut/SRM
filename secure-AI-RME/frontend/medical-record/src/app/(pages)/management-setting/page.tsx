@@ -476,10 +476,11 @@ const ManagementSetting = () => {
             const rawRole = data.user?.role || data.user?.user_role || '';
             const normalizedUserRole = normalizeRole(rawRole);
 
-    
-
-            if (!data.user || (normalizedUserRole !== 'admin' && normalizedUserRole !== 'midwife')) {
-                console.log("Akses ditolak karena role tidak memenuhi syarat:", normalizedUserRole);
+            if (
+                !data.user ||
+                (normalizedUserRole !== 'admin' &&
+                    normalizedUserRole !== 'midwife')
+            ) {
                 setIsForbidden(true);
                 return;
             }
@@ -585,40 +586,40 @@ const ManagementSetting = () => {
         return '';
     };
 
-    const validateAccountForm = () => {
-        if (!accountForm.fullname.trim()) {
+    const validateAccountForm = (formData: AccountFormData) => {
+        if (!formData.fullname.trim()) {
             return 'Nama lengkap wajib diisi.';
         }
 
-        if (!accountForm.email.trim()) {
+        if (!formData.email.trim()) {
             return 'Email wajib diisi.';
         }
 
-        if (!accountForm.email.includes('@')) {
+        if (!formData.email.includes('@')) {
             return 'Format email tidak valid.';
         }
 
-        if (!accountForm.strnumber.trim()) {
-            return 'Nomor STR wajib diisi.';
+        if (formData.role === 'midwife' && !formData.strnumber.trim()) {
+            return 'Nomor STR wajib diisi untuk akun bidan.';
         }
 
-        if (!accountForm.password || accountForm.password.length < 8) {
+        if (!formData.password || formData.password.length < 8) {
             return 'Password minimal 8 karakter.';
         }
 
-        if (!accountForm.confirmPassword) {
+        if (!formData.confirmPassword) {
             return 'Konfirmasi password wajib diisi.';
         }
 
-        if (accountForm.password !== accountForm.confirmPassword) {
+        if (formData.password !== formData.confirmPassword) {
             return 'Konfirmasi password tidak sama.';
         }
 
-        if (currentRole === 'midwife' && accountForm.role !== 'asisten') {
+        if (currentRole === 'midwife' && formData.role !== 'asisten') {
             return 'Bidan hanya dapat membuat akun asisten.';
         }
 
-        if (currentRole === 'admin' && accountForm.role !== 'midwife') {
+        if (currentRole === 'admin' && formData.role !== 'midwife') {
             return 'Admin hanya dapat membuat akun bidan melalui halaman Add Midwife.';
         }
 
@@ -650,18 +651,11 @@ const ManagementSetting = () => {
 
     const handleUpdateClinic = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        console.log("1. Fungsi handleUpdateClinic terpicu!");
-        console.log("Role user saat ini:", currentRole);
-        console.log("Status izin canUpdateClinic:", canUpdateClinic);
 
         if (!canUpdateClinic) {
-            console.log("🛑 Berhenti di validasi ROLE");
-            setErrorMessage('Hanya Bidan atau Admin yang dapat memperbarui data klinik.');
-            return;
-        }
-
-        if (!canUpdateClinic) {
-            setErrorMessage('Hanya bidan yang dapat memperbarui data klinik.');
+            setErrorMessage(
+                'Hanya bidan atau admin yang dapat memperbarui data klinik.',
+            );
             return;
         }
 
@@ -747,7 +741,7 @@ const ManagementSetting = () => {
                 role: currentRole === 'midwife' ? 'asisten' : accountForm.role,
             };
 
-            const validationMessage = validateAccountForm();
+            const validationMessage = validateAccountForm(nextAccountForm);
 
             if (validationMessage) {
                 setErrorMessage(validationMessage);
@@ -773,7 +767,7 @@ const ManagementSetting = () => {
                         fullname: nextAccountForm.fullname.trim(),
                         email: nextAccountForm.email.trim(),
                         password: nextAccountForm.password,
-                        strnumber: nextAccountForm.strnumber.trim(),
+                        strnumber: nextAccountForm.strnumber.trim() || null,
                         role: nextAccountForm.role,
                         is_active: nextAccountForm.isActive,
                     }),
@@ -1430,12 +1424,16 @@ const ManagementSetting = () => {
                                 <label className="block min-w-0">
                                     <span className="text-[11px] font-bold text-black">
                                         Nomor STR
+                                        <span className="ml-1 font-medium text-gray-500">
+                                            (opsional untuk asisten)
+                                        </span>
                                     </span>
                                     <input
                                         type="text"
                                         name="strnumber"
                                         value={accountForm.strnumber}
                                         onChange={handleAccountChange}
+                                        placeholder="Boleh dikosongkan untuk akun asisten"
                                         className={inputClassName}
                                     />
                                 </label>
