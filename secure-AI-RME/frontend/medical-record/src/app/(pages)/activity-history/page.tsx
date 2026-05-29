@@ -1203,7 +1203,7 @@ const ActivityHistory = () => {
                         className="flex min-h-[38px] items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
                     >
                         <FileDown className="w-4" />
-                        <span>Unduh</span>
+                        <span>Download</span>
                     </button>
                 </div>
 
