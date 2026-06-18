@@ -26,74 +26,65 @@ const BillingForm = ({
           Billing
         </p>
       </div>
+      <div className="grid grid-cols-1 gap-4 px-5  md:grid-cols-3">
+        <label className="block">           
+           <p className="text-md font-medium text-gray-700 md:text-sm">Total</p>
+          <input
+            type="text"
+            name="total"
+            value={total}
+            onChange={(e) => setTotal(e.target.value)}
+            required={!isUnpaid}
+            disabled={isUnpaid}
+            placeholder={
+              isUnpaid ? "Nonaktif untuk status unpaid" : "Masukkan nominal"
+            }
+            className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2 px-3 text-black"
+          />
 
-      <div className="flex-1 flex flex-col gap-6">
-        <div className="flex flex-row gap-10 w-full ">
-          <div className="flex flex-col flex-1 text-sm gap-2">
-            <label className="block mb-1 font-bold text-black">Total</label>
-            <input
-              type="text"
-              name="total"
-              value={total}
-              onChange={(e) => setTotal(e.target.value)}
-              required={!isUnpaid}
-              disabled={isUnpaid}
-              placeholder={
-                isUnpaid ? "Nonaktif untuk status unpaid" : "Masukkan nominal"
-              }
-              className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2 px-3 text-black"
-            />
-
-            {isUnpaid && (
-              <p className="mt-1 text-[11px] text-[#8A8A8A]">
-                Nominal dikosongkan karena status pembayaran belum dibayar.
-              </p>
-            )}
-          </div>
-
-          {/* Select Payment Method */}
-          <div className="flex flex-col flex-1 text-sm gap-2">
-            <label className="block mb-1 font-bold text-black">
-              Payment Method
-            </label>
-            <select
-              name="payment_method"
-              value={paymentMethod}
-              required={!isUnpaid}
-              disabled={isUnpaid}
-              onChange={(e) => setPaymentMethod(e.target.value)}
-              className="h-8.5 w-full rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2 px-3 text-[13px] text-black"
-            >
-              <option value="" disabled>
-                {isUnpaid
-                  ? "Nonaktif untuk status unpaid"
-                  : "Pilih metode pembayaran"}
-              </option>
-              <option value="Transfer">Transfer</option>
-              <option value="QRIS">QRIS</option>
-              <option value="Cash">Cash</option>
-            </select>
-          </div>
-
-          {/* Select Status */}
-          <div className="flex flex-col flex-1 text-sm gap-2">
-            <label className="block mb-1 font-bold text-black">Status</label>
-            <select
-              name="payment_status"
-              value={paymentStatus}
-              onChange={(e) => setPaymentStatus(e.target.value)}
-              required
-              className="h-8.5 w-full rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2 px-3 text-[13px] text-black"
-            >
-              <option value="" disabled>
-                Pilih
-              </option>
-              <option value="paid">Terbayar</option>
-              <option value="unpaid">Belum Bayar</option>
-            </select>
-          </div>
-        </div>
-      </div>
+          {isUnpaid && (
+            <p className="mt-1 text-[11px] text-[#8A8A8A]">
+              Nominal dikosongkan karena status pembayaran belum dibayar.
+            </p>
+          )}
+        </label>
+        <label className="block">
+          <p className="text-md font-medium text-gray-700 md:text-sm">Payment Method</p>
+          <select
+            name="payment_method"
+            value={paymentMethod}
+            required={!isUnpaid}
+            disabled={isUnpaid}
+            onChange={(e) => setPaymentMethod(e.target.value)}
+            className="h-8.5 w-full rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2 px-3 text-[13px] text-black"
+          >
+            <option value="" disabled>
+              {isUnpaid
+                ? "Nonaktif untuk status unpaid"
+                : "Pilih metode pembayaran"}
+            </option>
+            <option value="Transfer">Transfer</option>
+            <option value="QRIS">QRIS</option>
+            <option value="Cash">Cash</option>
+          </select>
+        </label>
+        <label className="block">
+          <p className="text-md font-medium text-gray-700 md:text-sm">Status</p>
+          <select
+            name="payment_status"
+            value={paymentStatus}
+            onChange={(e) => setPaymentStatus(e.target.value)}
+            required
+            className="h-8.5 w-full rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2 px-3 text-[13px] text-black"
+          >
+            <option value="" disabled>
+              Pilih
+            </option>
+            <option value="paid">Terbayar</option>
+            <option value="unpaid">Belum Bayar</option>
+          </select>
+        </label>    
+        </div >
     </>
   );
 };

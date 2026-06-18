@@ -4,7 +4,7 @@ from app.models import db, User, Clinic
 from app.utils import write_audit_log
 from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import text
-
+from .. import limiter
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -697,23 +697,47 @@ def create_or_update_clinic():
 
 
 @auth_bp.route("/login", methods=["POST"])
+@limiter.limit("5 per minute", error_message="Terlalu banyak percobaan login dari perangkat ini. Silakan tunggu 1 menit.")
 def login():
     data = request.get_json() or {}
 
     email = (data.get("email") or "").strip().lower()
     password = data.get("password")
-
+    
+    current_time = datetime.now()
+    
     if not email or not password:
         return jsonify({"msg": "Email dan password wajib diisi."}), 400
 
     user = User.query.filter_by(email=email).first()
 
-    if not user or not user.check_password(password):
+    if not user:
         return jsonify({"msg": "Email atau password salah."}), 401
 
+    if user.locked_until and user.locked_until > current_time:
+        time_left = user.locked_until - current_time
+        minutes_left = int(time_left.total_seconds() / 60) + 1
+        
+        return jsonify({
+                "msg": f"Akun dikunci sementara. Silakan coba lagi dalam {minutes_left} menit."
+            }), 403
+        
     if not user.is_active:
         return jsonify({"msg": "Akun Anda sedang tidak aktif."}), 403
 
+    if not user.check_password(password):
+        user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+        
+        if user.failed_login_attempts >= 5:
+            user.locked_until = current_time + timedelta(minutes=15)
+            db.session.commit()
+            return jsonify({
+                "msg": "Akun Anda diblokir sementara selama 15 menit."
+            }), 403
+            
+        db.session.commit()
+        sisa_mencoba = 5 - user.failed_login_attempts
+        return jsonify({"msg": f"Email atau password salah. Sisa kesempatan: {sisa_mencoba} kali."}), 401
     try:
         old_values = {
             "module": "Authentication",
@@ -721,8 +745,10 @@ def login():
             "last_login": user.last_login.isoformat() if user.last_login else None,
         }
 
-        user.last_login = datetime.utcnow()
-
+        user.failed_login_attempts = 0
+        user.locked_until = None
+        user.last_login =  datetime.now()
+        
         write_audit_log(
             user_id=user.user_id,
             action="LOGIN",

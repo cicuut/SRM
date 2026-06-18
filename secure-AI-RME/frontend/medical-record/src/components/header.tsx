@@ -12,7 +12,7 @@ const Header = () => {
     "daily-report": "Kunjungan Harian",
     "medical-record": "Rekam Medis",
     "financial-report": "Laporan Keuangan",
-    "management-setting": "Pengaturan Manajemen",
+    "management-setting": "Kelola Manajemen",
     "account-setting": "Pengaturan Akun",
     "activity-history": "Riwayat Aktivitas",
     "pregnancy-record": "Tambah Rekam Kehamilan",
@@ -36,7 +36,7 @@ const Header = () => {
 
   return (
     <header className="py-4">
-      <nav className="flex items-center gap-2 text-2xl font-bold text-[#4F6F52]">
+      <nav className="flex items-center gap-2 text-xl md:text-2xl font-bold text-[#4F6F52]">
         <Link href="/" className="hover:opacity-80 transition-opacity underline">
           {breadcrumbNameMap[""]}
         </Link>

@@ -89,17 +89,16 @@ const AddVisitGeneral = () => {
     }
   };
   return (
-    <div className="w-full flex flex-col px-10 mt-7 ">
+    <div className="relative flex w-full min-w-0 flex-col gap-4">
       <AddVisitInformation visitNumber={visitNumber} data={data} />
       <div className="border-b-2 text-[#D9D9D9] font-bold">
-        {" "}
         <p className="text-sm border-b-2 w-fit border-[#739072] text-[#739072] font-bold">
           SOAP
         </p>
       </div>
-      <div className="flex-1 flex flex-col py-5 gap-6">
-        <div className="flex flex-col text-sm gap-2">
-          <label className="block mb-1 font-bold text-black">Subjective</label>
+      <div className="grid grid-cols-1 gap-4 px-5">
+        <label className="block">
+          <p className="text-md font-medium text-gray-700 md:text-sm">Subjective</p>
           <textarea
             name="subjective"
             value={subjective}
@@ -107,9 +106,9 @@ const AddVisitGeneral = () => {
             id="subjective"
              className="w-full p-2 h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
           />
-        </div>
-        <div className="flex flex-col text-sm gap-2">
-          <label className="block mb-1 font-bold text-black">Objective</label>
+        </label>
+        <label className="block">
+          <p className="text-md font-medium text-gray-700 md:text-sm">Objective</p>
           <textarea
             name="objective"
             value={objective}
@@ -117,9 +116,9 @@ const AddVisitGeneral = () => {
             id="objective"
             className="w-full p-2 h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
           />
-        </div>
-        <div className="flex flex-col text-sm gap-2">
-          <label className="block mb-1 font-bold text-black">Assessment</label>
+        </label>
+        <label className="block">
+          <p className="text-md font-medium text-gray-700 md:text-sm">Assessment</p>
           <textarea
             name="assessment"
             value={assessment}
@@ -127,9 +126,9 @@ const AddVisitGeneral = () => {
             id="assessment"
              className="w-full p-2 h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
           />
-        </div>
-        <div className="flex flex-col text-sm gap-2">
-          <label className="block mb-1 font-bold text-black">Plan</label>
+        </label>
+        <label className="block">
+          <p className="text-md font-medium text-gray-700 md:text-sm">Plan</p>
           <textarea
             name="plan"
             value={plan}
@@ -137,7 +136,7 @@ const AddVisitGeneral = () => {
             id="plan"
              className="w-full p-2 h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
           />
-        </div>
+        </label>
       </div>
       <div className="flex-1 flex flex-col pt-5 gap-6">
         <BillingForm

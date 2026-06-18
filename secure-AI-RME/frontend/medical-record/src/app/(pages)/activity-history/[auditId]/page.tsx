@@ -4,9 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
 import LoadingOverlay from '@/components/loading';
-
-const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+import api from '@/utils/app';
 
 type Role = 'admin' | 'midwife' | 'asisten' | '';
 
@@ -380,15 +378,14 @@ const ActivityHistoryDetail = () => {
             return null;
         }
 
-        const response = await fetch(`${API_BASE_URL}/auth/me`, {
-            method: 'GET',
+        const response = await api.get('/auth/me', {
             headers: {
                 Authorization: `Bearer ${token}`,
                 'Content-Type': 'application/json',
             },
         });
 
-        const data = (await readJson(response)) as MeResponse;
+        const data = response.data as MeResponse;
 
         if (response.status === 401 || response.status === 422) {
             handleUnauthorized();
@@ -400,7 +397,7 @@ const ActivityHistoryDetail = () => {
             return null;
         }
 
-        if (!response.ok || !data.user) {
+        if (response.status !== 200 || !data.user) {
             throw new Error(data?.msg || 'Gagal memeriksa akses user.');
         }
 
@@ -433,18 +430,15 @@ const ActivityHistoryDetail = () => {
                 return;
             }
 
-            const response = await fetch(
-                `${API_BASE_URL}/activity-history/detail/${auditId}`,
-                {
-                    method: 'GET',
-                    headers: {
-                        Authorization: `Bearer ${token}`,
+            const response = await api.get(`/activity-history/detail/${auditId}`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',
                     },
                 },
             );
 
-            const data = (await readJson(response)) as DetailResponse;
+            const data = response.data ;
 
             if (response.status === 401 || response.status === 422) {
                 handleUnauthorized();
@@ -456,7 +450,7 @@ const ActivityHistoryDetail = () => {
                 return;
             }
 
-            if (!response.ok || !data.data) {
+            if (response.status !== 200 || !data.data) {
                 throw new Error(
                     data?.msg || 'Gagal mengambil detail riwayat aktivitas.',
                 );

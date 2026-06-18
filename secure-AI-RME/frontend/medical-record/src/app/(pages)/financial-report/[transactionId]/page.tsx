@@ -4,9 +4,8 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
 import LoadingOverlay from '@/components/loading';
+import api from '@/utils/app';
 
-const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 const FINANCIAL_ALLOWED_ROLES = ['admin', 'midwife'] as const;
 
@@ -326,22 +325,21 @@ const DetailInvoicePage = () => {
                 return;
             }
 
-            const response = await fetch(`${API_BASE_URL}/auth/me`, {
-                method: 'GET',
+            const response = await api.get('/auth/me', {
                 headers: {
                     Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
             });
 
-            const data = (await readJson(response)) as MeResponse;
+            const data = response.data as MeResponse;
 
             if (response.status === 401 || response.status === 422) {
                 handleUnauthorized();
                 return;
             }
 
-            if (!response.ok || !data.user) {
+            if (response.status !== 200 || !data.user) {
                 throw new Error(data?.msg || 'Gagal mengecek akses pengguna.');
             }
 
@@ -404,18 +402,14 @@ const DetailInvoicePage = () => {
                 return;
             }
 
-            const response = await fetch(
-                `${API_BASE_URL}/financial/detail/${transactionId}`,
-                {
-                    method: 'GET',
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
+            const response = await api.get(`/financial/detail/${transactionId}`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
                 },
-            );
+            });
 
-            const data = await readJson(response);
+            const data = response.data;
 
             if (response.status === 401 || response.status === 422) {
                 handleUnauthorized();
@@ -429,7 +423,7 @@ const DetailInvoicePage = () => {
 
             const invoice = (data?.data || data) as FinancialDetail;
 
-            if (!response.ok || !invoice?.transaction_id) {
+            if (response.status !== 200 || !invoice?.transaction_id) {
                 throw new Error(data?.msg || 'Gagal mengambil detail invoice.');
             }
 
@@ -529,26 +523,22 @@ const DetailInvoicePage = () => {
                 return;
             }
 
-            const response = await fetch(
-                `${API_BASE_URL}/financial/detail/${transactionId}`,
-                {
-                    method: 'PATCH',
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        payment_date: formData.payment_date,
-                        trans_type: formData.trans_type,
-                        amount: Number(formData.amount),
-                        payment_method: formData.payment_method,
-                        status: formData.status,
-                        description: formData.description.trim(),
-                    }),
+            const response = await api.patch(`/financial/detail/${transactionId}`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
                 },
-            );
+                body: JSON.stringify({
+                    payment_date: formData.payment_date,
+                    trans_type: formData.trans_type,
+                    amount: Number(formData.amount),
+                    payment_method: formData.payment_method,
+                    status: formData.status,
+                    description: formData.description.trim(),
+                }),
+            });
 
-            const data = await readJson(response);
+            const data = response.data;
 
             if (response.status === 401 || response.status === 422) {
                 handleUnauthorized();
@@ -562,7 +552,7 @@ const DetailInvoicePage = () => {
 
             const updatedInvoice = (data?.data || data) as FinancialDetail;
 
-            if (!response.ok || !updatedInvoice?.transaction_id) {
+            if (response.status !== 200 || !updatedInvoice?.transaction_id) {
                 throw new Error(data?.msg || 'Gagal menyimpan perubahan.');
             }
 
@@ -597,18 +587,15 @@ const DetailInvoicePage = () => {
                 return;
             }
 
-            const response = await fetch(
-                `${API_BASE_URL}/financial/detail/${transactionId}`,
-                {
-                    method: 'DELETE',
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json',
+            const response = await api.delete(`/financial/detail/${transactionId}`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
                     },
                 },
             );
 
-            const data = await readJson(response);
+            const data = response.data;
 
             if (response.status === 401 || response.status === 422) {
                 handleUnauthorized();
@@ -620,7 +607,7 @@ const DetailInvoicePage = () => {
                 return;
             }
 
-            if (!response.ok) {
+            if (response.status !== 200) {
                 throw new Error(data?.msg || 'Gagal menghapus invoice.');
             }
 

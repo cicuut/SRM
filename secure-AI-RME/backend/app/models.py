@@ -73,6 +73,9 @@ class User(db.Model):
         nullable=False,
         server_default=text("timezone('Asia/Jakarta', now())"),
     )
+    
+    failed_login_attempts = db.Column(db.Integer, default=0)
+    locked_until = db.Column(db.DateTime, nullable=True, server_default=text("timezone('Asia/Jakarta', now())"),)
 
     def set_password(self, password):
         self.password_hash = bcrypt.hash(password[:72])

@@ -208,8 +208,8 @@ const MedicalRecord = () => {
 
         <section className="w-full rounded-[22px] border border-[#D2D8CF] bg-white px-5 py-5 shadow-sm sm:px-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="relative min-w-0 flex-1 rounded-[50px] border border-[#D2D8CF] bg-[#FDFEF9] px-5 py-[12px] shadow-sm transition-all focus-within:border-[#739072] xl:max-w-[680px]">
-              <Search className="absolute left-5 top-1/2 w-4 -translate-y-1/2 text-gray-400" />
+            <div className="relative min-w-0 flex-1 rounded-[50px] border border-[#D2D8CF] bg-[#FDFEF9] px-5 py-[10px] md:py-[12px] shadow-sm transition-all focus-within:border-[#739072] xl:max-w-[680px]">
+              <Search className="absolute left-5 top-1/2 w-3.5 md:w-4 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 value={medicalSearch}
@@ -224,7 +224,7 @@ const MedicalRecord = () => {
                     setFilteredResults([]);
                   }
                 }}
-                className="w-full bg-transparent pl-8 text-[13px] text-gray-700 outline-none placeholder-gray-400"
+                className="w-full bg-transparent pl-8 text-[10px] md:text-[13px] text-gray-700 outline-none placeholder-gray-400"
               />
             </div>
 
@@ -237,7 +237,7 @@ const MedicalRecord = () => {
           </div>
         </section>
         {/* Medical records table */}
-        <section className="w-full overflow-hidden min-h-[600px] rounded-[22px] border border-[#D2D8CF] bg-white shadow-sm">
+        <section className="min-h-[600px] w-full overflow-hidden rounded-[22px] border border-[#D2D8CF] bg-white shadow-sm">
           <div className="flex flex-col gap-[16px] border-b border-[#E4E8E1] px-5 py-[20px] lg:flex-row lg:items-center lg:justify-between sm:px-[26px]">
             <div className="min-w-0">
               <h2 className="text-[20px] font-extrabold leading-none text-[#5F785F]">
@@ -245,17 +245,68 @@ const MedicalRecord = () => {
               </h2>
             </div>
 
-            <div className="flex w-full flex-col gap-[10px] sm:flex-row sm:items-center sm:justify-between lg:w-auto lg:justify-end">
+            <div className="flex w-40 md:w-full flex-col gap-[10px] sm:flex-row sm:items-center sm:justify-between lg:w-auto lg:justify-end">
               <button
                 type="button"
                 onClick={() => setIsModalOpen(true)}
-                className="flex min-h-[38px] items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[9px] md:px-[18px] py-2 md:py-3 text-[9px] md:text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <Plus className="w-4" />
+                <Plus className="w-3.5 h-3.5 md:w-4 md:h-4" />
                 <span>Tambah Rekam Medis</span>
               </button>
             </div>
           </div>
+          <div className="block lg:hidden">
+          <div className="grid grid-cols-1 gap-[12px] px-4 py-4 sm:grid-cols-2">
+            {currentItems.length === 0 ? (
+              <div className="col-span-full rounded-[14px] border border-[#E4E8E1] bg-[#F8FAF6] px-4 py-8 text-center text-[12px] text-gray-500">
+                Pasien tidak ditemukan atau data kosong.
+              </div>
+            ) : (
+              currentItems.map((item) => (
+                <button
+                  key={item.rm_id}
+                  type="button"
+                  onClick={() => handleViewRecordDetail(item.rm_id)}
+                  className="w-full rounded-[16px] border border-[#E4E8E1] bg-white px-4 py-4 text-left shadow-sm transition-all hover:border-[#86A789] hover:bg-[#F8FAF6]"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-[13px] font-bold text-black">
+                        {item.patient_name}
+                      </p>
+                      <p className="mt-[3px] text-[11px] font-medium text-[#6B6B6B]">
+                        No. RM: {item.record_number}
+                      </p>
+                    </div>
+                    <span className={`inline-flex shrink-0 justify-center rounded-full px-3 py-1 text-[10px] font-bold ${item.status === "Active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}>
+                      {item.status}
+                    </span>
+                  </div>
+
+                  <div className="mt-[14px] grid grid-cols-2 gap-x-4 gap-y-3 text-[11px]">
+                    <div>
+                      <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">Tipe RM</p>
+                      <p className="mt-[4px] font-semibold text-black truncate">{item.record_type}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">NIK</p>
+                      <p className="mt-[4px] font-semibold text-black truncate">{item.nik}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">Tgl Lahir</p>
+                      <p className="mt-[4px] font-semibold text-black truncate">{item.birth_date}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">Diperbarui</p>
+                      <p className="mt-[4px] font-semibold text-gray-500 truncate">{item.updated_at.split(' ')[0]}</p>
+                    </div>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
           <div className="hidden w-full overflow-x-auto lg:block">
             <table className="w-full border-separate border-spacing-0 text-[12px]">
               <thead className="bg-[#FDFEF9] text-[#5F785F] uppercase text-[10px] font-bold">
@@ -276,7 +327,7 @@ const MedicalRecord = () => {
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className="divide-y divide-gray-100">
                 {currentItems.map((item, index) => (
                   <tr
                     key={item.rm_id}
@@ -328,7 +379,7 @@ const MedicalRecord = () => {
               className="flex items-center gap-x-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-[12px] font-bold text-gray-600 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <ChevronLeft className="w-4 h-4" />
-              <span>Previous</span>
+              <span>Sebelumnya</span>
             </button>
             {getPageNumbers().map((page, index) => {
               // Jika item adalah titik-titik "...", render sebagai span biasa (tidak bisa diklik)
@@ -364,13 +415,13 @@ const MedicalRecord = () => {
               disabled={currentPage === totalPages}
               className="flex items-center gap-x-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-[12px] font-bold text-gray-600 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <span>Next</span>
+              <span>Berikutnya</span>
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </div>
       </div>
-     
+
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
           <div className="flex flex-col gap-y-6 bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 h-100 pb-8">
@@ -416,7 +467,7 @@ const MedicalRecord = () => {
                       <li
                         key={item}
                         onClick={() => {
-                          setSelectedType("Rekam Medis " + item); 
+                          setSelectedType("Rekam Medis " + item);
                           setIsDropdownOpen(false);
                         }}
                         className="px-4 py-3 hover:bg-[#D2E3C8] hover:text-[#4F6F52] cursor-pointer transition-colors text-sm border-b last:border-0 border-gray-50"
@@ -442,11 +493,10 @@ const MedicalRecord = () => {
                 <button
                   type="submit"
                   disabled={selectedType === "Select a type"}
-                  className={`px-8 py-2 text-white rounded-full shadow-lg transition font-bold ${
-                    selectedType === "Select a type"
+                  className={`px-8 py-2 text-white rounded-full shadow-lg transition font-bold ${selectedType === "Select a type"
                       ? "bg-gray-300 cursor-not-allowed opacity-60 shadow-none"
                       : "bg-[#739072] hover:bg-[#4F6F52]"
-                  }`}
+                    }`}
                 >
                   Pilih Rekam Medis
                 </button>

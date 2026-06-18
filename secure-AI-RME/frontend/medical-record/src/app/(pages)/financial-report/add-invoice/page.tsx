@@ -4,9 +4,7 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
 import LoadingOverlay from '@/components/loading';
-
-const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+import api from '@/utils/app';
 
 type Role = 'admin' | 'midwife' | 'asisten' | '';
 
@@ -276,22 +274,21 @@ const AddInvoice = () => {
                 return;
             }
 
-            const response = await fetch(`${API_BASE_URL}/auth/me`, {
-                method: 'GET',
+            const response = await api.get('/auth/me', {
                 headers: {
                     Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
             });
 
-            const data = (await readJson(response)) as MeResponse;
+            const data = response.data as MeResponse;
 
             if (response.status === 401 || response.status === 422) {
                 handleUnauthorized();
                 return;
             }
 
-            if (!response.ok || !data.user) {
+            if (response.status !== 200 || !data.user) {
                 throw new Error(data?.msg || 'Gagal mengecek akses pengguna.');
             }
 
@@ -345,20 +342,15 @@ const AddInvoice = () => {
                 return;
             }
 
-            const response = await fetch(
-                `${API_BASE_URL}/financial/transaction-number?date=${encodeURIComponent(
-                    date,
-                )}`,
-                {
-                    method: 'GET',
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
+            const response = await api.get(`/financial/transaction-number?date=${encodeURIComponent(date)}`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
                 },
-            );
+            });
+                    
 
-            const data = await readJson(response);
+            const data = response.data;
 
             if (response.status === 401 || response.status === 422) {
                 handleUnauthorized();
@@ -370,7 +362,7 @@ const AddInvoice = () => {
                 return;
             }
 
-            if (!response.ok) {
+            if (response.status !== 200) {
                 throw new Error(
                     data?.msg || 'Gagal membuat nomor invoice.',
                 );
@@ -398,18 +390,14 @@ const AddInvoice = () => {
                 return;
             }
 
-            const response = await fetch(
-                `${API_BASE_URL}/visit-report/get-all-visit`,
-                {
-                    method: 'GET',
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
+            const response = await api.get('/visit-report/get-all-visit', {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
                 },
-            );
+            });
 
-            const data = await readJson(response);
+            const data = response.data;
 
             if (response.status === 401 || response.status === 422) {
                 handleUnauthorized();
@@ -421,7 +409,7 @@ const AddInvoice = () => {
                 return;
             }
 
-            if (!response.ok) {
+            if (response.status !== 200) {
                 throw new Error(
                     data?.msg || 'Gagal mengambil data laporan kunjungan.',
                 );
@@ -580,8 +568,7 @@ const AddInvoice = () => {
                 return;
             }
 
-            const response = await fetch(`${API_BASE_URL}/financial/add`, {
-                method: 'POST',
+            const response = await api.post('/financial/add', {
                 headers: {
                     Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json',
@@ -597,7 +584,7 @@ const AddInvoice = () => {
                 }),
             });
 
-            const data = await readJson(response);
+            const data = response.data;
 
             if (response.status === 401 || response.status === 422) {
                 handleUnauthorized();
@@ -609,7 +596,7 @@ const AddInvoice = () => {
                 return;
             }
 
-            if (!response.ok) {
+            if (response.status !== 200) {
                 throw new Error(data?.msg || 'Gagal menambahkan invoice.');
             }
 

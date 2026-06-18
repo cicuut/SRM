@@ -41,7 +41,9 @@ export function TopAssessmentList({
   }
 
   if (items.length === 0) {
-    return <p className="mt-4 text-sm text-gray-500">{emptyMessage}</p>;
+    return <div className="rounded-[18px] border border-[#E4E8E1] bg-[#F8FAF6] px-4 py-10 text-center text-sm text-gray-500">
+      {emptyMessage}
+    </div>;
   }
 
   // Bar terpanjang = diagnosa dengan count tertinggi (100% lebar)

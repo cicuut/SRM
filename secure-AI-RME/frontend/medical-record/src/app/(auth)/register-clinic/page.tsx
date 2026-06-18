@@ -6,9 +6,8 @@ import Image from 'next/image';
 import Swal from 'sweetalert2';
 import Cookies from 'js-cookie';
 import styles from './registerClinic.module.css';
+import api from '@/utils/app';
 
-const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 type Role = 'admin' | 'midwife' | 'asisten' | '';
 
@@ -338,15 +337,14 @@ const CreateClinic = () => {
                 return;
             }
 
-            const response = await fetch(`${API_BASE_URL}/auth/me`, {
-                method: 'GET',
+            const response = await api.get(`/auth/me`, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
             });
 
-            const data = (await readJson(response)) as CurrentUserResponse;
+            const data = response.data as CurrentUserResponse;
 
             if (response.status === 401 || response.status === 422) {
                 handleUnauthorized();
@@ -358,7 +356,7 @@ const CreateClinic = () => {
                 return;
             }
 
-            if (!response.ok || !data.user) {
+            if (response.status !== 200 || !data.user) {
                 throw new Error(data?.msg || 'Gagal mengambil data user.');
             }
 
@@ -407,7 +405,6 @@ const CreateClinic = () => {
 
     useEffect(() => {
         fetchCurrentUser();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const validateForm = () => {
@@ -481,22 +478,20 @@ const CreateClinic = () => {
                 return;
             }
 
-            const response = await fetch(`${API_BASE_URL}/auth/register-clinic`, {
-                method: 'POST',
+            const response = await api.post(`/auth/register-clinic`, {
+                clinic_name: clinicName.trim(),
+                clinic_email: email.trim().toLowerCase(),
+                license_number: sipbNumber.trim(),
+                clinic_address: address.trim(),
+                clinic_phone: phone.trim(),
+            }, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    clinic_name: clinicName.trim(),
-                    clinic_email: email.trim().toLowerCase(),
-                    license_number: sipbNumber.trim(),
-                    clinic_address: address.trim(),
-                    clinic_phone: phone.trim(),
-                }),
+                }
             });
 
-            const data = (await readJson(response)) as RegisterClinicResponse;
+            const data = response.data  as RegisterClinicResponse;
 
             if (response.status === 401 || response.status === 422) {
                 handleUnauthorized();
@@ -510,7 +505,7 @@ const CreateClinic = () => {
                 );
             }
 
-            if (!response.ok) {
+            if (response.status !== 200) {
                 throw new Error(data?.msg || 'Gagal menyimpan informasi klinik.');
             }
 

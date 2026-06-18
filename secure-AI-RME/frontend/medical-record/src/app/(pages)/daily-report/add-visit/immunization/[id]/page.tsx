@@ -109,7 +109,7 @@ const AddVisitImmunization = () => {
     }
   };
   return (
-    <div className="w-full flex flex-col px-10 mt-7 ">
+    <div className="relative flex w-full min-w-0 flex-col gap-4">
       <AddVisitInformation visitNumber={visitNumber} data={data} />
 
       <div className="border-b-2 text-[#D9D9D9] font-bold">
@@ -118,9 +118,9 @@ const AddVisitImmunization = () => {
           Tanda Vital
         </p>
       </div>
-      <div className="flex-1 flex flex-row pt-5 gap-6">
-        <div className="flex flex-col flex-1 text-sm gap-2">
-          <label className="block mb-1 font-bold text-black">Berat</label>
+      <div className="grid grid-cols-1 gap-4 px-5 md:grid-cols-3">
+        <label className="block">
+          <p className="text-md font-medium text-gray-700 md:text-sm">Berat</p>
           <input
             type="number"
             placeholder="Tanpa satuan"
@@ -130,9 +130,9 @@ const AddVisitImmunization = () => {
             id="weight"
             className="w-full p-2 h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
           />
-        </div>
-        <div className="flex flex-col flex-1 text-sm gap-2 ">
-          <label className="block mb-1 font-bold text-black">Tinggi</label>
+        </label>
+        <label className="block">
+          <p className="text-md font-medium text-gray-700 md:text-sm">Tinggi</p>
           <input
             type="number"
             placeholder="Tanpa satuan"
@@ -142,9 +142,8 @@ const AddVisitImmunization = () => {
             id="height"
             className="w-full p-2 h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
           />
-        </div>
-        <div className="flex flex-col flex-1 text-sm gap-2">
-          <label className="block mb-1 font-bold text-black">Suhu Tubuh</label>
+        </label>
+        <label className="block">          <p className="text-md font-medium text-gray-700 md:text-sm">Suhu Tubuh</p>
           <input
             type="number"
             placeholder="Tanpa satuan"
@@ -154,13 +153,12 @@ const AddVisitImmunization = () => {
             id="temperature"
             className="w-full p-2 h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
           />
-        </div>
+        </label>
       </div>
-      <div className="flex-1 flex flex-row py-5 gap-6">
-        <div className="flex flex-col flex-1 text-sm gap-2">
-          <label className="block mb-1 font-bold text-black">
-            Lingkar Kepala
-          </label>
+      <div className="grid grid-cols-1 gap-4 px-5 md:grid-cols-2">
+        <label className="block">          <p className="text-md font-medium text-gray-700 md:text-sm">
+          Lingkar Kepala
+        </p>
           <input
             type="number"
             placeholder="Tanpa satuan"
@@ -170,11 +168,10 @@ const AddVisitImmunization = () => {
             id="head_circumference"
             className="w-full p-2 h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
           />
-        </div>
-        <div className="flex flex-col flex-1 text-sm gap-2 ">
-          <label className="block mb-1 font-bold text-black">
-            Lingkar Perut
-          </label>
+        </label>
+        <label className="block">          <p className="text-md font-medium text-gray-700 md:text-sm">
+          Lingkar Perut
+        </p>
           <input
             type="number"
             placeholder="Tanpa satuan"
@@ -184,65 +181,60 @@ const AddVisitImmunization = () => {
             id="abdominal_circumference"
             className="w-full p-2 h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
           />
-        </div>
+        </label>
       </div>
       <div className="border-b-2 text-[#D9D9D9] font-bold">
-        {" "}
         <p className="text-sm border-b-2 w-fit border-[#739072] text-[#739072] font-bold">
           Pemberian Imunisasi
         </p>
       </div>
-      <div className="flex-1 flex flex-col pt-5 gap-6">
-        <div className="flex flex-row gap-x-10  w-full ">
-          <div className="flex flex-col text-sm gap-2 min-w-[200px] ">
-            <label className="block mb-1 font-bold text-black">
-              Pemberian Imunisasi
-            </label>
+      <div className="grid grid-cols-2 gap-4 px-5">
+        <label className="block">            <p className="text-md font-medium text-gray-700 md:text-sm">
+          Pemberian Imunisasi
+        </p>
 
-            <select
-              value={vaccine_given}
-              onChange={(e) => {
-                setVaccineGiven(e.target.value);
-                setDosageGiven("");
-              }}
-              className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
-            >
-              <option value="" disabled>
-                Pilih
-              </option>
-              <option value="HBO">HBO</option>
-              <option value="BCG">BCG</option>
-              <option value="POLIO">POLIO</option>
-              <option value="DPT">DPT</option>
-              <option value="PCV">PCV</option>
-              <option value="CAMPAK">CAMPAK</option>
-              <option value="IPV">IPV</option>
-              <option value="ROTAVIRUS">ROTAVIRUS</option>
-            </select>
-          </div>
+          <select
+            value={vaccine_given}
+            onChange={(e) => {
+              setVaccineGiven(e.target.value);
+              setDosageGiven("");
+            }}
+            className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
+          >
+            <option value="" disabled>
+              Pilih
+            </option>
+            <option value="HBO">HBO</option>
+            <option value="BCG">BCG</option>
+            <option value="POLIO">POLIO</option>
+            <option value="DPT">DPT</option>
+            <option value="PCV">PCV</option>
+            <option value="CAMPAK">CAMPAK</option>
+            <option value="IPV">IPV</option>
+            <option value="ROTAVIRUS">ROTAVIRUS</option>
+          </select>
+        </label>
 
-          <div className="flex flex-col text-sm gap-2 min-w-[200px] ">
-            <label className="block mb-1 font-bold text-black">Dosis</label>
-            <select
-              value={dosage_given}
-              onChange={(e) => setDosageGiven(e.target.value)}
-              disabled={!vaccine_given}
-              className={`w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2 ${!vaccine_given ? "bg-gray-100 cursor-not-allowed" : ""}`}
-            >
-              <option value="">Pilih Dosis</option>
-              {vaccine_given &&
-                doseOptions[vaccine_given as keyof typeof doseOptions]?.map(
-                  (dose) => (
-                    <option key={dose} value={dose}>
-                      {dose}
-                    </option>
-                  ),
-                )}
-            </select>
-          </div>
-        </div>
+        <label className="block">            <p className="text-md font-medium text-gray-700 md:text-sm">Dosis</p>
+          <select
+            value={dosage_given}
+            onChange={(e) => setDosageGiven(e.target.value)}
+            disabled={!vaccine_given}
+            className={`w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2 ${!vaccine_given ? "bg-gray-100 cursor-not-allowed" : ""}`}
+          >
+            <option value="">Pilih Dosis</option>
+            {vaccine_given &&
+              doseOptions[vaccine_given as keyof typeof doseOptions]?.map(
+                (dose) => (
+                  <option key={dose} value={dose}>
+                    {dose}
+                  </option>
+                ),
+              )}
+          </select>
+        </label>
       </div>
-      <div className="flex-1 flex flex-col pt-5 gap-6">
+      <div className="flex-1 flex flex-col  gap-6">
         <BillingForm
           total={total}
           setTotal={setTotal}
@@ -262,6 +254,6 @@ const AddVisitImmunization = () => {
         </button>
       </div>
     </div>
-  );
+    );
 };
 export default AddVisitImmunization;

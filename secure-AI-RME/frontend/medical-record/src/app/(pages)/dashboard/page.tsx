@@ -215,28 +215,28 @@ function formatMonthLabel(value?: string | null) {
 function getApiErrorMessage(error: unknown, fallbackMessage: string) {
     const responseData =
         typeof error === 'object' &&
-        error !== null &&
-        'response' in error &&
-        typeof (
-            error as {
-                response?: {
-                    data?: {
-                        msg?: string;
-                        error?: string;
+            error !== null &&
+            'response' in error &&
+            typeof (
+                error as {
+                    response?: {
+                        data?: {
+                            msg?: string;
+                            error?: string;
+                        };
                     };
-                };
-            }
-        ).response?.data === 'object'
+                }
+            ).response?.data === 'object'
             ? (
-                  error as {
-                      response?: {
-                          data?: {
-                              msg?: string;
-                              error?: string;
-                          };
-                      };
-                  }
-              ).response?.data
+                error as {
+                    response?: {
+                        data?: {
+                            msg?: string;
+                            error?: string;
+                        };
+                    };
+                }
+            ).response?.data
             : null;
 
     const message = responseData?.msg;
@@ -387,8 +387,8 @@ const Dashboard = () => {
     const displayRole = currentRole
         ? formatDisplayRole(currentRole)
         : currentUser?.role
-          ? formatDisplayRole(currentUser.role)
-          : '';
+            ? formatDisplayRole(currentUser.role)
+            : '';
     const initials = getInitials(displayName);
 
     const netIncome = Number(monthlyIncome || 0) - Number(monthlyExpense || 0);
@@ -402,13 +402,13 @@ const Dashboard = () => {
 
     const visitorChartSeries: ServiceSeries[] = forecastData
         ? Object.entries(forecastData.by_service)
-              .filter(([, data]) => data.has_model !== false)
-              .map(([name, data]) => ({
-                  name,
-                  history: data.history,
-                  forecast: data.forecast,
-                  color: '',
-              }))
+            .filter(([, data]) => data.has_model !== false)
+            .map(([name, data]) => ({
+                name,
+                history: data.history,
+                forecast: data.forecast,
+                color: '',
+            }))
         : [];
 
     const loadLocalProfilePhoto = () => {
@@ -657,41 +657,43 @@ const Dashboard = () => {
         <div className="relative flex w-full min-w-0 flex-col gap-5">
             {loading && <LoadingOverlay />}
 
-            <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_300px]">
-                <div className="relative overflow-hidden rounded-[32px] border border-[#6F8D70] bg-gradient-to-br from-[#4F6F52] via-[#739072] to-[#86A789] px-6 py-6 text-white shadow-sm sm:px-8 lg:px-9">
-                    <div className="absolute right-[-80px] top-[-80px] h-[230px] w-[230px] rounded-full bg-white/10" />
-                    <div className="absolute bottom-[-95px] left-[35%] h-[210px] w-[210px] rounded-full bg-white/10" />
+            <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_300px] w-full">
+                <div className="relative overflow-hidden rounded-[24px] sm:rounded-[32px] border border-[#6F8D70] bg-gradient-to-br from-[#4F6F52] via-[#739072] to-[#86A789] px-4 py-5 sm:px-8 lg:px-9 text-white shadow-sm">
+                    <div className="absolute right-[-40px] top-[-40px] sm:right-[-80px] sm:top-[-80px] h-32 w-32 sm:h-[230px] sm:w-[230px] rounded-full bg-white/10" />
+                    <div className="absolute bottom-[-50px] left-[10%] sm:bottom-[-95px] sm:left-[35%] h-36 w-36 sm:h-[210px] sm:w-[210px] rounded-full bg-white/10" />
                     <div className="absolute bottom-[28px] right-[220px] hidden h-[72px] w-[72px] rounded-full bg-white/10 lg:block" />
 
-                    <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                         <div className="max-w-[760px]">
-                            <h1 className="text-[30px] font-extrabold leading-tight sm:text-[38px]">
+                            <h1 className="text-[14px] sm:text-[22px] lg:text-[30px] font-extrabold leading-tight">
                                 {displayName
                                     ? `Hi, ${displayName}!`
                                     : 'Hi, Selamat Datang!'}
                             </h1>
 
-                            <p className="mt-3 max-w-[660px] text-[15px] font-medium leading-relaxed text-white/90 sm:text-[16px]">
+                            <p className="mt-2 sm:mt-3 max-w-[660px] text-[12px] sm:text-[15px] lg:text-[20px] font-medium leading-relaxed text-white/90">
                                 {canViewFinancial
-                                    ? 'Pantau aktivitas klinik, prediksi kunjungan, performa keuangan, dan assessment pasien dalam satu dashboard yang rapi.'
-                                    : 'Pantau aktivitas klinik, prediksi kunjungan, dan assessment pasien dalam satu dashboard yang rapi.'}
+                                    ? 'Pantau aktivitas klinik, prediksi kunjungan, performa keuangan, dan assessment pasien dalam satu dashboard.'
+                                    : 'Pantau aktivitas klinik, prediksi kunjungan, dan assessment pasien dalam satu dashboard.'}
                             </p>
 
-                            <div className="mt-6 flex flex-wrap items-center gap-3">
-                                <div className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-[12px] font-extrabold text-[#4F6F52] shadow-sm">
-                                    <CalendarDays className="h-4 w-4" />
+                            <div className="mt-4 sm:mt-6 flex flex-wrap items-center gap-3">
+                                <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 sm:px-4 sm:py-2 text-[11px] sm:text-[12px] font-extrabold text-[#4F6F52] shadow-sm">
+                                    <CalendarDays className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                                     <DateLabel />
                                 </div>
                             </div>
                         </div>
 
-                        <div className="hidden shrink-0 lg:block">
-                            <div className="rounded-[28px] bg-white/12 px-5 pt-5 backdrop-blur">
+                        {/* Ilustrasi Dokter ikut mengecil */}
+                        <div className="hidden shrink-0 lg:block max-w-[140px] xl:max-w-[200px]">
+                            <div className="rounded-[24px] bg-white/12 p-4 backdrop-blur">
                                 <Image
                                     src="/doctor-icon.png"
                                     alt="Doctor illustration"
                                     width={200}
                                     height={200}
+                                    className="w-full h-auto object-contain"
                                     priority
                                 />
                             </div>
@@ -699,53 +701,47 @@ const Dashboard = () => {
                     </div>
                 </div>
 
-                <div className="relative overflow-hidden rounded-[32px] border border-[#D2D8CF] bg-white px-6 py-6 shadow-sm">
-                    <div className="absolute right-[-45px] top-[-45px] h-[130px] w-[130px] rounded-full bg-[#EEF3E9]" />
-
-                    <div className="relative z-10 flex h-full flex-col items-center justify-center text-center">
-                        <div className="relative flex h-[106px] w-[106px] items-center justify-center overflow-hidden rounded-full border-4 border-[#D2E3C8] bg-[#F1F6EC] text-[30px] font-extrabold text-[#4F6F52] shadow-sm">
+                <div className="relative overflow-hidden rounded-[24px] sm:rounded-[32px] border border-[#D2D8CF] bg-white px-4 py-6 sm:px-6 shadow-sm">
+                    <div className="absolute right-[-30px] top-[-30px] h-[90px] w-[90px] rounded-full bg-[#EEF3E9]" />
+                    <div className="relative z-10 flex h-full flex-row gap-4 sm:flex-col items-center justify-center text-center">
+                        <div className="relative flex h-20 w-20 sm:h-[106px] sm:w-[106px] items-center justify-center overflow-hidden rounded-full border-4 border-[#D2E3C8] bg-[#F1F6EC] text-[22px] sm:text-[30px] font-extrabold text-[#4F6F52] shadow-sm">
                             {profilePhoto ? (
                                 <img
                                     src={profilePhoto}
-                                    alt={
-                                        displayName
-                                            ? `Foto profil ${displayName}`
-                                            : 'Foto profil'
-                                    }
+                                    alt={displayName ? `Foto profil ${displayName}` : 'Foto profil'}
                                     className="h-full w-full object-cover"
                                 />
                             ) : (
                                 initials
                             )}
                         </div>
-
-                        <p className="mt-4 max-w-full truncate text-[19px] font-extrabold text-black">
+                        <div className="flex flex-col items-center justify-center gap-1 sm:gap-2">
+                        <p className="mt-3 sm:mt-4 max-w-full truncate text-[16px] sm:text-[19px] font-extrabold text-black">
                             {displayName || '\u00A0'}
                         </p>
-
-                        <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-[#D2E3C8] px-4 py-2 text-[11px] font-bold text-[#4F6F52]">
-                            <UserRound className="h-4 w-4" />
+                        <div className="mt-1.5 sm:mt-2 inline-flex items-center gap-1.5 rounded-full bg-[#D2E3C8] px-3 py-1.5 sm:px-4 sm:py-2 text-[10px] sm:text-[11px] font-bold text-[#4F6F52]">
+                            <UserRound className="h-3.5 w-3.5" />
                             {displayRole || '\u00A0'}
+                        </div>
                         </div>
                     </div>
                 </div>
             </section>
 
             <section
-                className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${
-                    canViewFinancial ? 'xl:grid-cols-4' : 'xl:grid-cols-2'
-                }`}
+                className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${canViewFinancial ? 'xl:grid-cols-4' : 'xl:grid-cols-2'
+                    }`}
             >
                 <StatCard
                     title="Pengunjung Bulanan"
                     value={
                         forecastData
                             ? `${formatNumber(
-                                  forecastData.monthly_actual,
-                              )} Kunjungan`
+                                forecastData.monthly_actual,
+                            )} Kunjungan`
                             : forecastError
-                              ? '—'
-                              : 'Memuat...'
+                                ? '—'
+                                : 'Memuat...'
                     }
                     subtitle={
                         forecastMonthLabel
@@ -761,11 +757,11 @@ const Dashboard = () => {
                     value={
                         forecastData
                             ? `${formatNumber(
-                                  forecastData.monthly_forecast,
-                              )} Kunjungan`
+                                forecastData.monthly_forecast,
+                            )} Kunjungan`
                             : forecastError
-                              ? '—'
-                              : 'Memuat...'
+                                ? '—'
+                                : 'Memuat...'
                     }
                     subtitle="Estimasi total kunjungan bulan ini"
                     icon={<TrendingUp className="h-5 w-5" />}
@@ -780,8 +776,8 @@ const Dashboard = () => {
                                 monthlyIncome !== null
                                     ? formatRupiah(monthlyIncome)
                                     : financialError
-                                      ? '—'
-                                      : 'Memuat...'
+                                        ? '—'
+                                        : 'Memuat...'
                             }
                             subtitle="Total pemasukan bulan ini"
                             icon={<ArrowUpCircle className="h-5 w-5" />}
@@ -792,19 +788,18 @@ const Dashboard = () => {
                             title="Saldo Bulanan"
                             value={
                                 monthlyIncome !== null ||
-                                monthlyExpense !== null
+                                    monthlyExpense !== null
                                     ? formatRupiah(netIncome)
                                     : financialError
-                                      ? '—'
-                                      : 'Memuat...'
+                                        ? '—'
+                                        : 'Memuat...'
                             }
-                            subtitle={`Pengeluaran: ${
-                                monthlyExpense !== null
-                                    ? formatRupiah(monthlyExpense)
-                                    : financialError
-                                      ? '—'
-                                      : 'Memuat...'
-                            }`}
+                            subtitle={`Pengeluaran: ${monthlyExpense !== null
+                                ? formatRupiah(monthlyExpense)
+                                : financialError
+                                    ? '—'
+                                    : 'Memuat...'
+                                }`}
                             icon={<Wallet className="h-5 w-5" />}
                             tone={netIncome < 0 ? 'red' : 'gold'}
                         />
@@ -850,7 +845,7 @@ const Dashboard = () => {
                             const accentColor =
                                 SERVICE_COLORS[service] ??
                                 FALLBACK_SERVICE_COLORS[
-                                    index % FALLBACK_SERVICE_COLORS.length
+                                index % FALLBACK_SERVICE_COLORS.length
                                 ];
 
                             return (
@@ -913,11 +908,10 @@ const Dashboard = () => {
             </section>
 
             <section
-                className={`grid grid-cols-1 gap-5 ${
-                    canViewFinancial
-                        ? 'xl:grid-cols-[0.95fr_1.35fr]'
-                        : 'xl:grid-cols-1'
-                }`}
+                className={`grid grid-cols-1 gap-5 ${canViewFinancial
+                    ? 'xl:grid-cols-[0.95fr_1.35fr]'
+                    : 'xl:grid-cols-1'
+                    }`}
             >
                 <SectionCard
                     title="Top 5 Assessment Bulanan"

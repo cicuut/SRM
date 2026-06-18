@@ -16,7 +16,7 @@ const DateRangeFilter = ({
   selectedEndDate,
 }: SelectDateProps) => {
   return (
-    <div className="relative">
+    <div className="w-full">
       <DatePicker
         selectsRange={true}
         startDate={selectedStartDate}
@@ -34,6 +34,7 @@ const DateRangeFilter = ({
           />
         }
         dateFormat="dd/MM/yyyy"
+        wrapperClassName="w-full"
       />
     </div>
   );
@@ -55,23 +56,19 @@ const CustomRangeInput = forwardRef<HTMLButtonElement, CustomInputProps>(
         month: "2-digit",
         year: "numeric",
       });
-    };
+    };  
 
-    // PERBAIKAN LOGIKA TEKS DISPLAY
     const renderContent = () => {
       if (!startDate) return "Filter Tanggal";
       
-      // Jika baru klik sekali ATAU klik tanggal yang sama dua kali, tampilkan 1 tanggal saja
       if (!endDate || formatDate(startDate) === formatDate(endDate)) {
         return `${formatDate(startDate)}`;
       }
       
-      // Jika rentang tanggal berbeda
       return `${formatDate(startDate)} - ${formatDate(endDate)}`;
     };
 
-    // PERBAIKAN STYLE AKTIF
-    // Cukup cek apakah startDate ada, supaya saat klik pertama kali tombol langsung berubah hijau
+   
     const activeStyle = startDate
       ? "border-[#739072] bg-[#F0F4EF] text-[#4F6F52]"
       : "border-gray-400 bg-white text-gray-700";
@@ -81,12 +78,12 @@ const CustomRangeInput = forwardRef<HTMLButtonElement, CustomInputProps>(
         type="button"
         onClick={onClick}
         ref={ref}
-        className={`flex flex-row items-center justify-center min-w-[220px] text-center border p-2 rounded-[50px] cursor-pointer gap-2 transition-all shadow-sm font-medium ${activeStyle}`}
+        className={`flex flex-row items-center w-full justify-center text-center border py-1 md:py-2 px-2  rounded-[50px] cursor-pointer gap-1 transition-all shadow-sm font-medium ${activeStyle}`}
       >
-        <span className="text-xs uppercase tracking-wide">
+        <span className="text-[8px] md:text-xs uppercase tracking-wide">
           {renderContent()}
         </span>
-        {!startDate && <Calendar className="size-4" />}
+        {!startDate && <Calendar className="size-2 md:size-4" />}
       </button>
     );
   },

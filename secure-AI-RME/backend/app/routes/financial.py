@@ -101,14 +101,7 @@ def get_current_user():
 
 
 def get_financial_scope_clinic_id(user):
-    """
-    Admin adalah developer, jadi admin boleh mengakses semua data financial.
-    Jika admin tidak punya clinic_id, scope clinic dikosongkan agar query tidak
-    dipersempit ke satu klinik.
-
-    Bidan tetap hanya mengakses data kliniknya sendiri.
-    """
-    if is_admin_user(user):
+    if not user or not hasattr(user, 'clinic_id') or not user.clinic_id:
         return None
 
     return user.clinic_id
@@ -547,14 +540,10 @@ FINANCIAL_SELECT_QUERY = """
         u.fullname AS user_name,
         u.clinic_id::text AS user_clinic_id
     FROM financial f
-    LEFT JOIN visit_master vm
-        ON vm.visit_id::text = f.visit_id::text
-    LEFT JOIN medical_record mr
-        ON mr.record_id::text = vm.record_id::text
-    LEFT JOIN patient p
-        ON p.patient_id::text = COALESCE(f.patient_id::text, mr.patient_id::text)
-    LEFT JOIN users u
-        ON u.user_id::text = f.user_id::text
+    LEFT JOIN visit_master vm ON vm.visit_id = f.visit_id
+    LEFT JOIN medical_record mr ON mr.record_id = vm.record_id
+    LEFT JOIN patient p ON p.patient_id = COALESCE(f.patient_id, mr.patient_id)
+    LEFT JOIN users u ON u.user_id = f.user_id
 """
 
 
@@ -865,7 +854,7 @@ def get_all_financial_transactions():
 
     try:
         current_clinic_id = get_financial_scope_clinic_id(current_user)
-
+        
         date_filter = request.args.get("date")
         search_query = request.args.get("search", "").strip()
 
@@ -873,8 +862,8 @@ def get_all_financial_transactions():
         params = {}
 
         if current_clinic_id:
-            conditions.append("f.clinic_id::text = :clinic_id")
-            params["clinic_id"] = str(current_clinic_id)
+            conditions.append("f.clinic_id = :clinic_id")
+            params["clinic_id"] = current_clinic_id
 
         if date_filter:
             conditions.append("CAST(f.payment_date AS date) = :payment_date")

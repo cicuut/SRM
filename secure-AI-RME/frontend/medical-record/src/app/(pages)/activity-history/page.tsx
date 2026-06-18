@@ -13,9 +13,7 @@ import {
     Search,
 } from 'lucide-react';
 import LoadingOverlay from '@/components/loading';
-
-const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+import api from '@/utils/app';
 
 type MeResponse = {
     msg?: string;
@@ -466,15 +464,14 @@ const ActivityHistory = () => {
                 return;
             }
 
-            const response = await fetch(`${API_BASE_URL}/auth/me`, {
-                method: 'GET',
+            const response = await api.get(`/auth/me`, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
             });
 
-            const data = (await readJson(response)) as MeResponse;
+            const data = response.data as MeResponse;
 
             if (response.status === 401 || response.status === 422) {
                 handleUnauthorized();
@@ -486,7 +483,7 @@ const ActivityHistory = () => {
                 return;
             }
 
-            if (!response.ok || !data.user) {
+            if (response.status !== 200 || !data.user) {
                 throw new Error(data?.msg || 'Gagal memeriksa akses user.');
             }
 
@@ -540,18 +537,14 @@ const ActivityHistory = () => {
                 return;
             }
 
-            const response = await fetch(
-                `${API_BASE_URL}/activity-history/actions`,
-                {
-                    method: 'GET',
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
+            const response = await api.get(`/activity-history/actions`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
                 },
-            );
+            });
 
-            const data = await readJson(response);
+            const data = response.data;
 
             if (response.status === 401 || response.status === 422) {
                 handleUnauthorized();
@@ -568,7 +561,7 @@ const ActivityHistory = () => {
                 return;
             }
 
-            if (response.ok && Array.isArray(data)) {
+            if (response.status === 200 && Array.isArray(data)) {
                 setActionOptions(data);
             }
         } catch {
@@ -604,20 +597,15 @@ const ActivityHistory = () => {
 
             const queryString = params.toString();
 
-            const response = await fetch(
-                `${API_BASE_URL}/activity-history/get-all${
-                    queryString ? `?${queryString}` : ''
-                }`,
-                {
-                    method: 'GET',
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
+            const response = await api.get(`/activity-history/get-all${queryString ? `?${queryString}` : ''}`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
                 },
+            },
             );
 
-            const data = await readJson(response);
+            const data = response.data;
 
             if (response.status === 401 || response.status === 422) {
                 handleUnauthorized();
@@ -634,7 +622,7 @@ const ActivityHistory = () => {
                 return;
             }
 
-            if (!response.ok) {
+            if (response.status !== 200) {
                 throw new Error(data?.msg || 'Gagal mengambil Activity History.');
             }
 
@@ -958,28 +946,28 @@ const ActivityHistory = () => {
     }
 
     return (
-        <div className="relative flex w-full min-w-0 flex-col gap-5">
+        <div className="flex-1 flex flex-col w-full gap-5">
             {showLoadingOverlay && <LoadingOverlay />}
 
             <section className="w-full rounded-[22px] border border-[#D2D8CF] bg-white px-5 py-5 shadow-sm sm:px-6">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                     <form
                         onSubmit={handleSearchSubmit}
-                        className="relative min-w-0 flex-1 rounded-[50px] border border-[#D2D8CF] bg-[#FDFEF9] px-5 py-[12px] shadow-sm transition-all focus-within:border-[#739072] xl:max-w-[680px]"
+                        className="relative min-w-0 flex-1 rounded-[50px] border border-[#D2D8CF] bg-[#FDFEF9] px-5 py-[10px] md:py-[12px] shadow-sm transition-all focus-within:border-[#739072] xl:max-w-[680px]"
                     >
-                        <Search className="absolute left-5 top-1/2 w-4 -translate-y-1/2 text-gray-400" />
+                        <Search className="absolute left-5 top-1/2 w-3.5 md:w-4 -translate-y-1/2 text-gray-400" />
 
                         <input
                             type="text"
                             value={searchQuery}
                             onChange={handleSearchChange}
                             placeholder="Cari ID audit, pengguna, aksi, modul, atau record ID..."
-                            className="w-full bg-transparent pl-8 text-[13px] text-gray-700 outline-none placeholder-gray-400"
+                            className="w-full bg-transparent pl-8 text-[10px] md:text-[13px] text-gray-700 outline-none placeholder-gray-400"
                         />
                     </form>
 
-                    <div className="flex flex-wrap items-center gap-[10px]">
-                        <div className="rounded-[50px] bg-[#D2E3C8] px-[20px] py-[11px] text-center text-[12px] font-bold text-black shadow-sm">
+                    <div className="grid grid-cols-2 gap-2 md:grid-cols-4 sm:items-center sm:justify-between">
+                        <div className="flex justify-center items-center rounded-[50px] bg-[#D2E3C8] py-1 md:py-2 px-8  text-center text-[9px] md:text-[12px] font-bold text-black shadow-sm">
                             {formattedSelectedDate}
                         </div>
 
@@ -989,11 +977,11 @@ const ActivityHistory = () => {
                                 onClick={() =>
                                     setIsCalendarOpen((current) => !current)
                                 }
-                                className="rounded-[50px] border border-[#BFC7BB] bg-white px-[18px] py-[11px] text-[12px] font-bold text-[#4B4B4B] shadow-sm transition-all hover:border-[#739072] hover:bg-[#F9FBF7]"
+                                className="rounded-[50px] border border-[#BFC7BB] bg-white py-1 md:py-2 w-full  text-[9px] md:text-[12px] font-bold text-[#4B4B4B] shadow-sm transition-all hover:border-[#739072] hover:bg-[#F9FBF7]"
                             >
                                 <span>Filter Tanggal</span>
 
-                                <CalendarDays className="ml-[10px] inline-block w-4 text-black" />
+                                <CalendarDays className="ml-[10px] inline-block w-3 md:w-4 text-black" />
                             </button>
 
                             {isCalendarOpen && (
@@ -1013,7 +1001,7 @@ const ActivityHistory = () => {
                                         <p className="text-[18px] font-extrabold text-black">
                                             {
                                                 monthNames[
-                                                    calendarMonth.getMonth()
+                                                calendarMonth.getMonth()
                                                 ]
                                             }{' '}
                                             {calendarMonth.getFullYear()}
@@ -1058,15 +1046,14 @@ const ActivityHistory = () => {
                                                                 day.dateString,
                                                             )
                                                         }
-                                                        className={`mx-auto flex h-[34px] w-[34px] items-center justify-center rounded-[8px] text-[15px] font-medium transition-all ${
-                                                            isSelected
+                                                        className={`mx-auto flex h-[34px] w-[34px] items-center justify-center rounded-[8px] text-[15px] font-medium transition-all ${isSelected
                                                                 ? 'border border-[#739072] bg-white text-[#739072]'
                                                                 : isToday
-                                                                  ? 'bg-[#EEF3E9] text-[#4F6F52]'
-                                                                  : day.isCurrentMonth
-                                                                    ? 'text-black hover:bg-[#EEF3E9]'
-                                                                    : 'text-black/70 hover:bg-[#EEF3E9]'
-                                                        }`}
+                                                                    ? 'bg-[#EEF3E9] text-[#4F6F52]'
+                                                                    : day.isCurrentMonth
+                                                                        ? 'text-black hover:bg-[#EEF3E9]'
+                                                                        : 'text-black/70 hover:bg-[#EEF3E9]'
+                                                            }`}
                                                     >
                                                         {day.dayNumber}
                                                     </button>
@@ -1111,11 +1098,10 @@ const ActivityHistory = () => {
                             onClick={() =>
                                 setIsFilterOpen((current) => !current)
                             }
-                            className={`rounded-[50px] border px-[18px] py-[11px] text-[12px] font-bold shadow-sm transition-all ${
-                                isFilterOpen || activeFilterCount > 0
+                            className={`rounded-[50px] border px-[18px] py-[11px] text-[12px] font-bold shadow-sm transition-all ${isFilterOpen || activeFilterCount > 0
                                     ? 'border-[#739072] bg-[#EEF3E9] text-[#4F6F52]'
                                     : 'border-[#BFC7BB] bg-white text-[#4B4B4B] hover:border-[#739072] hover:bg-[#F9FBF7]'
-                            }`}
+                                }`}
                         >
                             <span>
                                 Filter
@@ -1337,11 +1323,10 @@ const ActivityHistory = () => {
                                 {tableHeaders.map((header, index) => (
                                     <th
                                         key={header.key}
-                                        className={`px-6 py-4 text-center font-bold ${
-                                            index !== tableHeaders.length - 1
+                                        className={`px-6 py-4 text-center font-bold ${index !== tableHeaders.length - 1
                                                 ? 'border-r border-gray-200'
                                                 : ''
-                                        }`}
+                                            }`}
                                     >
                                         {header.label}
                                     </th>
@@ -1378,11 +1363,10 @@ const ActivityHistory = () => {
                                     <tr
                                         key={log.audit_id || log.audit_number}
                                         onClick={() => goToDetail(log.audit_id)}
-                                        className={`cursor-pointer text-center text-black transition-all hover:bg-[#EEF3E9] ${
-                                            rowIndex % 2 === 0
+                                        className={`cursor-pointer text-center text-black transition-all hover:bg-[#EEF3E9] ${rowIndex % 2 === 0
                                                 ? 'bg-white'
                                                 : 'bg-[#FBFCF8]'
-                                        }`}
+                                            }`}
                                     >
                                         {tableHeaders.map((header) => (
                                             <td
@@ -1390,7 +1374,7 @@ const ActivityHistory = () => {
                                                 className="px-4 py-4"
                                                 title={
                                                     typeof log[header.key] ===
-                                                    'string'
+                                                        'string'
                                                         ? log[header.key]
                                                         : ''
                                                 }
@@ -1460,11 +1444,10 @@ const ActivityHistory = () => {
                                 key={`page-${page}`}
                                 type="button"
                                 onClick={() => setCurrentPage(Number(page))}
-                                className={`flex h-8 w-8 items-center justify-center rounded-full text-[12px] font-bold transition-all ${
-                                    currentPage === page
+                                className={`flex h-8 w-8 items-center justify-center rounded-full text-[12px] font-bold transition-all ${currentPage === page
                                         ? 'scale-105 bg-[#739072] text-white shadow-md'
                                         : 'bg-transparent text-gray-600 hover:bg-[#EEF3E9] hover:text-[#4F6F52]'
-                                }`}
+                                    }`}
                             >
                                 {page}
                             </button>

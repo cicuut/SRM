@@ -13,9 +13,7 @@ import {
     Search,
 } from 'lucide-react';
 import LoadingOverlay from '@/components/loading';
-
-const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+import api from '@/utils/app';
 
 type Role = 'admin' | 'midwife' | 'asisten' | '';
 
@@ -519,15 +517,14 @@ const FinancialReport = () => {
                 return;
             }
 
-            const response = await fetch(`${API_BASE_URL}/auth/me`, {
-                method: 'GET',
+            const response = await api.get('/auth/me', {
                 headers: {
                     Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
             });
 
-            const data = (await readJson(response)) as MeResponse;
+            const data = response.data as MeResponse;
 
             if (response.status === 401 || response.status === 422) {
                 handleUnauthorized();
@@ -539,7 +536,7 @@ const FinancialReport = () => {
                 return;
             }
 
-            if (!response.ok || !data.user) {
+            if (response.status !== 200 || !data.user) {
                 throw new Error(data?.msg || 'Gagal mengecek akses user.');
             }
 
@@ -586,15 +583,14 @@ const FinancialReport = () => {
                 return;
             }
 
-            const response = await fetch(`${API_BASE_URL}/financial/get-all`, {
-                method: 'GET',
+            const response = await api.get('/financial/get-all', {
                 headers: {
                     Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
             });
 
-            const data = await readJson(response);
+            const data = response.data;
 
             if (response.status === 401 || response.status === 422) {
                 handleUnauthorized();
@@ -611,7 +607,7 @@ const FinancialReport = () => {
                 return;
             }
 
-            if (!response.ok) {
+            if (response.status !== 200) {
                 throw new Error(data?.msg || 'Gagal mengambil data keuangan.');
             }
 
@@ -725,7 +721,7 @@ const FinancialReport = () => {
             const matchesMethod =
                 methodFilter === 'all' ||
                 safeLower(transaction.payment_method) ===
-                    safeLower(methodFilter);
+                safeLower(methodFilter);
 
             const matchesStatus =
                 statusFilter === 'all' ||
@@ -1096,21 +1092,20 @@ const FinancialReport = () => {
 
             <section className="w-full rounded-[22px] border border-[#D2D8CF] bg-white px-5 py-5 shadow-sm sm:px-6">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                    <div className="relative min-w-0 flex-1 rounded-[50px] border border-[#D2D8CF] bg-[#FDFEF9] px-5 py-[12px] shadow-sm transition-all focus-within:border-[#739072] xl:max-w-[680px]">
-                        <Search className="absolute left-5 top-1/2 w-4 -translate-y-1/2 text-gray-400" />
-
+                    <div className="relative min-w-0 flex-1 rounded-[50px] border border-[#D2D8CF] bg-[#FDFEF9] px-5 py-[10px] md:py-[12px] shadow-sm transition-all focus-within:border-[#739072] xl:max-w-[680px]">
+                        <Search className="absolute left-5 top-1/2 w-3.5 md:w-4 -translate-y-1/2 text-gray-400" />
                         <input
                             type="text"
                             value={searchQuery}
                             onChange={(event) =>
                                 setSearchQuery(event.target.value)
                             }
-                            placeholder="Cari nomor invoice, visit, rekam medis, tipe, metode, atau status..."
-                            className="w-full bg-transparent pl-8 text-[13px] text-gray-700 outline-none placeholder-gray-400"
+                            placeholder="Cari nomor invoice, visit, rekam medis"
+                            className="w-full bg-transparent pl-8 text-[10px] md:text-[13px] text-gray-700 outline-none placeholder-gray-400"
                         />
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-[10px]">
+                    <div className="grid grid-cols-2 gap-2 md:grid-cols-4 sm:items-center sm:justify-between">
                         <div className="rounded-[50px] bg-[#D2E3C8] px-[20px] py-[11px] text-center text-[12px] font-bold text-black shadow-sm">
                             {formattedSelectedDateRange}
                         </div>
@@ -1121,11 +1116,11 @@ const FinancialReport = () => {
                                 onClick={() =>
                                     setIsCalendarOpen((current) => !current)
                                 }
-                                className="rounded-[50px] border border-[#BFC7BB] bg-white px-[18px] py-[11px] text-[12px] font-bold text-[#4B4B4B] shadow-sm transition-all hover:border-[#739072] hover:bg-[#F9FBF7]"
+                                className="rounded-[50px] border border-[#BFC7BB] bg-white py-1 md:py-2 w-full  text-[9px] md:text-[12px] font-bold text-[#4B4B4B] shadow-sm transition-all hover:border-[#739072] hover:bg-[#F9FBF7]"
                             >
                                 <span>Filter Tanggal</span>
 
-                                <CalendarDays className="ml-[10px] inline-block w-4 text-black" />
+                                <CalendarDays className="ml-[10px] inline-block w-3 md:w-4 text-black" />
                             </button>
 
                             {isCalendarOpen && (
@@ -1145,7 +1140,7 @@ const FinancialReport = () => {
                                         <p className="text-[18px] font-extrabold text-black">
                                             {
                                                 monthNames[
-                                                    calendarMonth.getMonth()
+                                                calendarMonth.getMonth()
                                                 ]
                                             }{' '}
                                             {calendarMonth.getFullYear()}
@@ -1164,7 +1159,7 @@ const FinancialReport = () => {
                                     <div className="px-4 pb-4 pt-4">
                                         <p className="mb-3 text-center text-[11px] font-semibold text-[#6B6B6B]">
                                             {selectedStartDate &&
-                                            !selectedEndDate
+                                                !selectedEndDate
                                                 ? 'Pilih tanggal akhir'
                                                 : 'Pilih tanggal mulai'}
                                         </p>
@@ -1194,9 +1189,9 @@ const FinancialReport = () => {
                                                     selectedStartDate &&
                                                     selectedEndDate &&
                                                     day.dateString >
-                                                        selectedStartDate &&
+                                                    selectedStartDate &&
                                                     day.dateString <
-                                                        selectedEndDate;
+                                                    selectedEndDate;
 
                                                 return (
                                                     <button
@@ -1207,17 +1202,16 @@ const FinancialReport = () => {
                                                                 day.dateString,
                                                             )
                                                         }
-                                                        className={`mx-auto flex h-[34px] w-[34px] items-center justify-center rounded-[8px] text-[15px] font-medium transition-all ${
-                                                            isStart || isEnd
-                                                                ? 'bg-[#739072] text-white'
-                                                                : isInRange
-                                                                  ? 'bg-[#EEF3E9] text-[#4F6F52]'
-                                                                  : isToday
+                                                        className={`mx-auto flex h-[34px] w-[34px] items-center justify-center rounded-[8px] text-[15px] font-medium transition-all ${isStart || isEnd
+                                                            ? 'bg-[#739072] text-white'
+                                                            : isInRange
+                                                                ? 'bg-[#EEF3E9] text-[#4F6F52]'
+                                                                : isToday
                                                                     ? 'bg-[#F8FAF6] text-[#4F6F52]'
                                                                     : day.isCurrentMonth
-                                                                      ? 'text-black hover:bg-[#EEF3E9]'
-                                                                      : 'text-black/70 hover:bg-[#EEF3E9]'
-                                                        }`}
+                                                                        ? 'text-black hover:bg-[#EEF3E9]'
+                                                                        : 'text-black/70 hover:bg-[#EEF3E9]'
+                                                            }`}
                                                     >
                                                         {day.dayNumber}
                                                     </button>
@@ -1262,11 +1256,10 @@ const FinancialReport = () => {
                             onClick={() =>
                                 setIsFilterOpen((current) => !current)
                             }
-                            className={`rounded-[50px] border px-[18px] py-[11px] text-[12px] font-bold shadow-sm transition-all ${
-                                isFilterOpen || activeFilterCount > 0
-                                    ? 'border-[#739072] bg-[#EEF3E9] text-[#4F6F52]'
-                                    : 'border-[#BFC7BB] bg-white text-[#4B4B4B] hover:border-[#739072] hover:bg-[#F9FBF7]'
-                            }`}
+                            className={`rounded-[50px] border py-1 md:py-2 px-2  text-[9px] md:text-[12px] font-bold shadow-sm transition-all ${isFilterOpen || activeFilterCount > 0
+                                ? 'border-[#739072] bg-[#EEF3E9] text-[#4F6F52]'
+                                : 'border-[#BFC7BB] bg-white text-[#4B4B4B] hover:border-[#739072] hover:bg-[#F9FBF7]'
+                                }`}
                         >
                             <span>
                                 Filter
@@ -1275,13 +1268,13 @@ const FinancialReport = () => {
                                     : ''}
                             </span>
 
-                            <Filter className="ml-[10px] inline-block w-4 text-black" />
+                            <Filter className="ml-[10px]  inline-block w-3 md:w-4 text-black" />
                         </button>
 
                         <button
                             type="button"
                             onClick={handleResetAll}
-                            className="rounded-[50px] border border-[#BFC7BB] bg-white px-[18px] py-[11px] text-[12px] font-bold text-[#4B4B4B] shadow-sm transition-all hover:bg-[#F4F4F4]"
+                            className="rounded-[50px] border border-[#BFC7BB] bg-white py-1 md:py-2 px-2 text-[9px] md:text-[12px] font-bold text-[#4B4B4B] shadow-sm transition-all hover:bg-[#F4F4F4]"
                         >
                             Reset
                         </button>
@@ -1391,15 +1384,15 @@ const FinancialReport = () => {
                         </h2>
                     </div>
 
-                    <div className="flex w-full flex-col gap-[10px] sm:flex-row sm:items-center sm:justify-between lg:w-auto lg:justify-end">
+                    <div className="grid grid-cols-2 gap-[10px]">
                         <button
                             type="button"
                             onClick={() =>
                                 router.push('/financial-report/add-invoice')
                             }
-                            className="flex min-h-[38px] items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+                            className="flex items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[9px] md:px-[18px] py-2 md:py-3 text-[9px] md:text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                            <Plus className="w-4" />
+                            <Plus className="w-3.5 h-3.5 md:w-4 md:h-4" />
                             <span>Tambah Invoice</span>
                         </button>
 
@@ -1411,9 +1404,9 @@ const FinancialReport = () => {
                                 isDownloading ||
                                 filteredTransactions.length === 0
                             }
-                            className="flex min-h-[38px] items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+                            className="flex items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[9px] md:px-[18px] py-2 md:py-3 text-[9px] md:text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                            <FileDown className="w-4" />
+                            <FileDown className="w-3.5 h-3.5 md:w-4 md:h-4" />
                             <span>
                                 {isDownloading ? 'Mengunduh...' : 'Download'}
                             </span>
@@ -1491,7 +1484,7 @@ const FinancialReport = () => {
                                             <p className="mt-[4px] truncate text-[11px] font-semibold text-black">
                                                 {formatEnumLabel(
                                                     transaction.payment_method ||
-                                                        '',
+                                                    '',
                                                 )}
                                             </p>
                                         </div>
@@ -1533,11 +1526,10 @@ const FinancialReport = () => {
                                 {tableHeaders.map((header, index) => (
                                     <th
                                         key={header.key}
-                                        className={`px-6 py-4 text-center font-bold ${
-                                            index !== tableHeaders.length - 1
-                                                ? 'border-r border-gray-200'
-                                                : ''
-                                        }`}
+                                        className={`px-6 py-4 text-center font-bold ${index !== tableHeaders.length - 1
+                                            ? 'border-r border-gray-200'
+                                            : ''
+                                            }`}
                                     >
                                         {header.label}
                                     </th>
@@ -1582,11 +1574,10 @@ const FinancialReport = () => {
                                                     transaction.transaction_id,
                                                 )
                                             }
-                                            className={`cursor-pointer text-center text-black transition-all hover:bg-[#EEF3E9] ${
-                                                rowIndex % 2 === 0
-                                                    ? 'bg-white'
-                                                    : 'bg-[#FBFCF8]'
-                                            }`}
+                                            className={`cursor-pointer text-center text-black transition-all hover:bg-[#EEF3E9] ${rowIndex % 2 === 0
+                                                ? 'bg-white'
+                                                : 'bg-[#FBFCF8]'
+                                                }`}
                                         >
                                             {tableHeaders.map((header) => (
                                                 <td
@@ -1659,11 +1650,10 @@ const FinancialReport = () => {
                                 key={`page-${page}`}
                                 type="button"
                                 onClick={() => setCurrentPage(Number(page))}
-                                className={`flex h-8 w-8 items-center justify-center rounded-full text-[12px] font-bold transition-all ${
-                                    currentPage === page
-                                        ? 'scale-105 bg-[#739072] text-white shadow-md'
-                                        : 'bg-transparent text-gray-600 hover:bg-[#EEF3E9] hover:text-[#4F6F52]'
-                                }`}
+                                className={`flex h-8 w-8 items-center justify-center rounded-full text-[12px] font-bold transition-all ${currentPage === page
+                                    ? 'scale-105 bg-[#739072] text-white shadow-md'
+                                    : 'bg-transparent text-gray-600 hover:bg-[#EEF3E9] hover:text-[#4F6F52]'
+                                    }`}
                             >
                                 {page}
                             </button>

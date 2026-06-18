@@ -32,7 +32,7 @@ const ForgetPassword = () => {
                 text: "Password tidak sama",
                 icon: "warning",
                 timer: 2000,
-                confirmButtonColor: "#739072" 
+                confirmButtonColor: "#739072"
             });
             setError("Passwords do not match!");
             setLoading(false);
@@ -40,28 +40,29 @@ const ForgetPassword = () => {
         }
 
         try {
-            const response = await fetch('http://localhost:5000/api/auth/register', {
-                method: 'POST',
+            const response = await api.post('/auth/register', {
+                fullname: fullName,
+                email: email,
+                password: password,
+                strnumber: strNumber
+            }, {
+
                 headers: {
                     'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    fullname: fullName,
-                    email: email,
-                    password: password,
-                    strnumber: strNumber
-                }),
+                }
+
+
             });
 
-            const data = await response.json();
+            const data = await response.data;
 
-            if (response.ok) {
+            if (response.status === 200) {
                 Swal.fire({
                     title: "Pendaftaran Sukses",
                     text: "Pengguna telah masuk ke database!",
                     icon: "success",
                     timer: 2000,
-                    confirmButtonColor: "#739072" 
+                    confirmButtonColor: "#739072"
                 });
 
                 if (data.user_id) {
@@ -75,7 +76,7 @@ const ForgetPassword = () => {
                     title: "Pendaftaran Gagal",
                     text: data.msg || "Something went wrong",
                     icon: "error",
-                    confirmButtonColor: "#739072" ,
+                    confirmButtonColor: "#739072",
                     timer: 2000
                 });
                 setError(data.msg);
@@ -97,7 +98,7 @@ const ForgetPassword = () => {
                     <p className="text-[#739072] text-4xl" >The Digital Heartbeat of Your Clinic.</p>
                 </div>
             </div>
-        
+
             <div className="flex flex-col items-center justify-center w-1/2 gap-4 bg-[#FFF] rounded-tl-[10%] rounded-bl-[10%]">
                 {/** 
                 <div className={styles['regist-input-wrapper']}>

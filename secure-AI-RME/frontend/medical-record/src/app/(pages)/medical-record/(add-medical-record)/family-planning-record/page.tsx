@@ -84,66 +84,74 @@ const FamilyPlanningRecord = () => {
         }
     };
     return (
-        <div className="min-h-screen flex bg-[#FDFEF9]">
-            <div className="flex-1 flex flex-col w-full ml-10 mt-7">
-                <div className="flex flex-col gap-2">
-                    <input
-                        type="text"
-                        value={rmNumber}
-                        readOnly
-                        className="bg-transparent font-mono font-bold cursor-not-allowed focus:outline-none text-3xl text-[#4F6F52] w-full"
-                    />
-                    <p className="text-[10px] text-gray-400">*Otomatis oleh sistem</p>
+        <div className="relative flex w-full min-w-0 flex-col gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-[#D2D8CF] bg-white px-5 py-4 shadow-sm">
+                <div>
+                    <h1 className="text-[20px] font-bold text-[#4F6F52]">
+                        Tambah Rekam Medis
+                    </h1>
+
+                    <p className="mt-1 text-[12px] text-[#6B6B6B]">
+                        Isi data rekam medis baru untuk laporan keuangan klinik.
+                    </p>
                 </div>
-                <PatientInformation
-                    record_type={recordType || "Keluarga Berencana"}
-                    onDataChange={handlePatientUpdate}
-                />
-                <FamilyInformation
-                    onDataChange={handleFamilyUpdate}
-                />
-                <div className="flex flex-col gap-0">
-                    <h2 className="text-md text-[#4F6F52] mt-10 underline leading-none font-lexend!">Riwayat Kehamilan</h2>
-                    <hr className="mt-0"></hr>
-                </div>
-                <div className="flex flex-col mt-4 gap-y-4">
-                    <div className="flex flex-row w-full gap-20 justify-between">
-                        <div className="flex flex-col flex-1 gap-y-1 ">
-                            Jumlah Anak
-                            <input type="number" name="numberOfChildren" value={numberOfChildren} onChange={(e) => setNumberOfChildren(e.target.value)} id="numberOfChildren" className="w-full h-8 rounded-md p-2 bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                        </div>
-                        <div className="flex flex-col  flex-1">
-                            Anak terkecil
-                            <input type="text" name="youngestChild" value={youngestChild} id="youngestChild" onChange={(e) => setYoungestChild(e.target.value)} className="w-full h-8 rounded-md bg-white p-2 drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                        </div>
-                    </div>
-                    <div className="flex flex-row w-full gap-20 justify-between">
-                        <div className="flex flex-col flex-1" >
-                           Penyakit Genetik Dalam Keluarga
-                            <textarea name="geneticDiseaseHistory" value={geneticDiseaseHistory} onChange={(e) => setGeneticDiseaseHistory(e.target.value)} id="geneticDiseaseHistory" className="w-full h-8 p-2 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
-                        </div>
-                    </div>
-                    <div className="flex justify-center gap-4 mt-10">
-                        <button
-                            type="submit"
-                            onClick={handleSubmit}
-                            disabled={loading}
-                            className="px-8 py-2 bg-[#739072] text-white rounded-full hover:bg-[#4F6F52] shadow-lg transition font-bold cursor-pointer"
-                        >
-                            {loading ? (
-                                <div className="flex items-center gap-2">
-                                    <div className="spinner"></div>
-                                    <span>Memproses...</span>
-                                </div>
-                            ) : (
-                                "Simpan"
-                            )}
-                        </button>
-                    </div>
+
+                <div className="rounded-[10px] bg-[#F8FAF6] px-4 py-3 text-right">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#739072]">
+                        Nomor Rekam Medis
+                    </p>
+
+                    <p className="mt-1 text-[14px] font-bold text-[#2F3A2F]">
+                        {rmNumber || "INV-----"}
+                    </p>
                 </div>
             </div>
-        </div>
-
+            <PatientInformation
+                record_type={recordType || "Keluarga Berencana"}
+                onDataChange={handlePatientUpdate}
+            />
+            <FamilyInformation
+                onDataChange={handleFamilyUpdate}
+            />
+            <div className="flex flex-col gap-0">
+                <h2 className="text-md text-[#4F6F52] underline leading-none font-lexend!">Riwayat Kehamilan</h2>
+                <hr className="mt-0"></hr>
+            </div>
+            <div className="grid grid-cols-1 gap-4 px-5  md:grid-cols-2">
+                <label className="block">
+                    <p className="text-md font-medium text-gray-700 md:text-sm">Jumlah Anak</p>
+                    <input type="number" name="numberOfChildren" value={numberOfChildren} onChange={(e) => setNumberOfChildren(e.target.value)} id="numberOfChildren" className="w-full h-8 rounded-md p-2 bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                </label>
+                <label className="block">
+                   <p className="text-md font-medium text-gray-700 md:text-sm">Anak terkecil</p>
+                    <input type="text" name="youngestChild" value={youngestChild} id="youngestChild" onChange={(e) => setYoungestChild(e.target.value)} className="w-full h-8 rounded-md bg-white p-2 drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                </label>
+                </div>
+                <div className="grid grid-cols-1 px-5 pb-5"> 
+                <label className="block">
+                    <p className="text-md font-medium text-gray-700 md:text-sm">Penyakit Genetik Dalam Keluarga</p>
+                    <textarea name="geneticDiseaseHistory" value={geneticDiseaseHistory} onChange={(e) => setGeneticDiseaseHistory(e.target.value)} id="geneticDiseaseHistory" className="w-full h-8 p-2 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2" />
+                </label>
+                </div>
+                
+                <div className="flex justify-center gap-4 ">
+                    <button
+                        type="submit"
+                        onClick={handleSubmit}
+                        disabled={loading}
+                        className="px-8 py-2 bg-[#739072] text-white rounded-full hover:bg-[#4F6F52] shadow-lg transition font-bold cursor-pointer"
+                    >
+                        {loading ? (
+                            <div className="flex items-center gap-2">
+                                <div className="spinner"></div>
+                                <span>Memproses...</span>
+                            </div>
+                        ) : (
+                            "Simpan"
+                        )}
+                    </button>
+                </div>
+            </div>
     )
 
 }

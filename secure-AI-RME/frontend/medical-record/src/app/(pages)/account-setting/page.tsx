@@ -5,9 +5,9 @@ import type { ChangeEvent, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
 import LoadingOverlay from '@/components/loading';
+import api from '@/utils/app';
 
-const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+
 
 type AccountFormData = {
     fullname: string;
@@ -260,22 +260,21 @@ const AccountSetting = () => {
                 return;
             }
 
-            const response = await fetch(`${API_BASE_URL}/auth/me`, {
-                method: 'GET',
+            const response = await api.get(`/auth/me`, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
             });
 
-            const data = (await readJson(response)) as AccountApiResponse;
+            const data = response.data as AccountApiResponse;
 
             if (response.status === 401 || response.status === 422) {
                 handleUnauthorized();
                 return;
             }
 
-            if (!response.ok || !data.user) {
+            if (response.status !== 200 || !data.user) {
                 throw new Error(data?.msg || 'Gagal mengambil data akun');
             }
 
@@ -395,27 +394,25 @@ const AccountSetting = () => {
     };
 
     const updateProfile = async (token: string) => {
-        const response = await fetch(`${API_BASE_URL}/auth/me`, {
-            method: 'PATCH',
+        const response = await api.patch(`/auth/me`, {
+            fullname: formData.fullname.trim(),
+            email: formData.email.trim(),
+            strnumber: formData.strnumber.trim(),
+        }, {
             headers: {
                 Authorization: `Bearer ${token}`,
                 'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                fullname: formData.fullname.trim(),
-                email: formData.email.trim(),
-                strnumber: formData.strnumber.trim(),
-            }),
+            }
         });
 
-        const data = (await readJson(response)) as AccountApiResponse;
+        const data = response.data as AccountApiResponse;
 
         if (response.status === 401 || response.status === 422) {
             handleUnauthorized();
             return null;
         }
 
-        if (!response.ok || !data.user) {
+        if (response.status !== 200 || !data.user) {
             throw new Error(data?.msg || 'Gagal memperbarui data akun');
         }
 
@@ -426,25 +423,23 @@ const AccountSetting = () => {
         token: string,
         photoDataUrl: string,
     ) => {
-        const response = await fetch(`${API_BASE_URL}/auth/me`, {
-            method: 'PATCH',
+        const response = await api.patch(`/auth/me`, {
+            profile_photo: photoDataUrl,
+        }, {
             headers: {
                 Authorization: `Bearer ${token}`,
                 'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                profile_photo: photoDataUrl,
-            }),
+            }
         });
 
-        const data = (await readJson(response)) as AccountApiResponse;
+        const data = response.data as AccountApiResponse;
 
         if (response.status === 401 || response.status === 422) {
             handleUnauthorized();
             return null;
         }
 
-        if (!response.ok) {
+        if (response.status !== 200) {
             throw new Error(
                 data?.msg ||
                     'Foto sudah berubah di tampilan, tapi backend belum menerima field profile_photo.',
@@ -609,27 +604,25 @@ const AccountSetting = () => {
                 return;
             }
 
-            const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
-                method: 'PATCH',
+            const response = await api.patch(`/auth/change-password`, {
+                current_password: passwordForm.currentPassword,
+                new_password: passwordForm.newPassword,
+                confirm_new_password: passwordForm.confirmNewPassword,
+            }, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    current_password: passwordForm.currentPassword,
-                    new_password: passwordForm.newPassword,
-                    confirm_new_password: passwordForm.confirmNewPassword,
-                }),
             });
 
-            const data = await readJson(response);
+            const data = response.data;
 
             if (response.status === 401 || response.status === 422) {
                 handleUnauthorized();
                 return;
             }
 
-            if (!response.ok) {
+            if (response.status !== 200) {
                 throw new Error(data?.msg || 'Gagal mengganti password');
             }
 

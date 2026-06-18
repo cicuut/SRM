@@ -303,7 +303,7 @@ def get_visit_information():
         if not record or not patient:
             return jsonify({"msg": "Rekam medis tidak ditemukan atau bukan milik klinik Anda."}), 404
 
-        now_jakarta = datetime.now(JAKARTA_TZ)
+        now_local = datetime.now()
 
         response_data = {
             "patient_name": get_patient_display_name(patient),
@@ -414,8 +414,8 @@ def add_visit_pregnancy():
 
     data = request.get_json() or {}
     record_id = data.get("record_id")
-    now_jakarta = datetime.now(JAKARTA_TZ)
-
+    now_local = datetime.now()
+    visit_date = now_local.date()
     try:
         record, patient = get_record_for_user(record_id, current_user, current_role)
 
@@ -434,8 +434,8 @@ def add_visit_pregnancy():
             user_id=current_user.user_id,
             clinic_id=patient.clinic_id,
             visit_number=generated_visit_number,
-            visit_date=now_jakarta,
-            visit_time=now_jakarta,
+            visit_date=visit_date,
+            visit_time=now_local,
         )
         db.session.add(new_visit)
         db.session.flush()
@@ -464,9 +464,9 @@ def add_visit_pregnancy():
             record_number=record.record_number,
             patient_name=get_patient_display_name(patient),
             data=data,
-            payment_date=now_jakarta,
+            payment_date=now_local,
         )
-
+        record.last_update = now_local
         db.session.commit()
 
         return jsonify({
@@ -558,7 +558,14 @@ def update_pregnancy_visit_report(uuid):
         current_pregnancy_visit.objective = data.get("objective", "")
         current_pregnancy_visit.assessment = data.get("assessment", "")
         current_pregnancy_visit.plan = data.get("plan", "")
-
+        
+        visit_base = result[0] if isinstance(result, tuple) else result
+        
+        if visit_base and hasattr(visit_base, 'record_id') and visit_base.record_id:
+            db.session.query(MedicalRecord).filter(
+                MedicalRecord.medical_record_id == visit_base.record_id 
+            ).update({"last_update": datetime.now()})
+            
         db.session.commit()
 
         return jsonify({"msg": "Catatan medis berhasil diperbarui.", "visit_id": str(uuid)}), 200
@@ -578,8 +585,8 @@ def add_visit_familyplanning():
 
     data = request.get_json() or {}
     record_id = data.get("record_id")
-    now_jakarta = datetime.now(JAKARTA_TZ)
-
+    now_local = datetime.now()
+    visit_date = now_local.date()
     try:
         record, patient = get_record_for_user(record_id, current_user, current_role)
 
@@ -597,8 +604,8 @@ def add_visit_familyplanning():
             user_id=current_user.user_id,
             clinic_id=patient.clinic_id,
             visit_number=data.get("visit_number"),
-            visit_date=now_jakarta,
-            visit_time=now_jakarta,
+            visit_date=visit_date,
+            visit_time=now_local,
         )
         db.session.add(new_visit)
         db.session.flush()
@@ -622,9 +629,10 @@ def add_visit_familyplanning():
             record_number=record.record_number,
             patient_name=get_patient_display_name(patient),
             data=data,
-            payment_date=now_jakarta,
+            payment_date=now_local,
         )
 
+        record.last_update = now_local
         db.session.commit()
 
         return jsonify({
@@ -727,8 +735,8 @@ def add_visit_immunization():
     record_id = data.get("record_id")
     vaccine_given = data.get("vaccine_given")
     dosage_given = data.get("dosage_given")
-    now_jakarta = datetime.now(JAKARTA_TZ)
-    visit_date = now_jakarta.date()
+    now_local = datetime.now()
+    visit_date = now_local.date()
 
     try:
         record, patient = get_record_for_user(record_id, current_user, current_role)
@@ -757,8 +765,8 @@ def add_visit_immunization():
             user_id=current_user.user_id,
             clinic_id=patient.clinic_id,
             visit_number=generated_visit_number,
-            visit_date=now_jakarta,
-            visit_time=now_jakarta,
+            visit_date=visit_date,
+            visit_time=now_local,
         )
         db.session.add(new_visit)
         db.session.flush()
@@ -784,9 +792,10 @@ def add_visit_immunization():
             record_number=record.record_number,
             patient_name=get_patient_display_name(patient),
             data=data,
-            payment_date=now_jakarta,
+            payment_date=now_local,
         )
 
+        record.last_update = now_local
         db.session.commit()
 
         return jsonify({
@@ -885,7 +894,7 @@ def update_immunization_visit(uuid):
 
             if col_name and hasattr(current_imm_record, col_name):
                 visit, medical_record, patient, user = result
-                target_date = visit.visit_date if visit else datetime.now(JAKARTA_TZ).date()
+                target_date = visit.visit_date if visit else datetime.now().date()
                 setattr(current_imm_record, col_name, target_date)
             else:
                 return jsonify({"msg": f"Jenis vaksin '{new_vaccine_given}' atau dosis tidak dikenali sistem."}), 400
@@ -917,8 +926,8 @@ def add_visit_general():
 
     data = request.get_json() or {}
     record_id = data.get("record_id")
-    now_jakarta = datetime.now(JAKARTA_TZ)
-
+    now_local = datetime.now()
+    visit_date = now_local.date()
     try:
         record, patient = get_record_for_user(record_id, current_user, current_role)
 
@@ -938,8 +947,8 @@ def add_visit_general():
             user_id=current_user.user_id,
             clinic_id=patient.clinic_id,
             visit_number=data.get("visit_number"),
-            visit_date=now_jakarta,
-            visit_time=now_jakarta,
+            visit_date=visit_date,
+            visit_time=now_local,
         )
         db.session.add(new_visit)
         db.session.flush()
@@ -962,9 +971,9 @@ def add_visit_general():
             record_number=record.record_number,
             patient_name=get_patient_display_name(patient),
             data=data,
-            payment_date=now_jakarta,
+            payment_date=now_local,
         )
-
+        record.last_update = now_local
         db.session.commit()
 
         return jsonify({

@@ -5,9 +5,8 @@ import type { ChangeEvent, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
 import LoadingOverlay from '@/components/loading';
-
-const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+import api from '@/utils/app';
+import { Search } from 'lucide-react';
 
 type Role = 'admin' | 'midwife' | 'asisten';
 
@@ -438,48 +437,21 @@ const ManagementSetting = () => {
                 return;
             }
 
-            const response = await fetch(
-                `${API_BASE_URL}/auth/management/overview`,
-                {
-                    method: 'GET',
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
+            const response = await api.get('/auth/management/overview', {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
                 },
-            );
+            });
 
-            const data =
-                (await readJson(response)) as ManagementOverviewResponse;
-
-            if (response.status === 401 || response.status === 422) {
-                handleUnauthorized();
-                return;
-            }
-
-            if (response.status === 400 && data.requires_clinic_setup) {
-                router.push(data.redirect_path || '/register-clinic');
-                return;
-            }
-
-            if (response.status === 403) {
-                setIsForbidden(true);
-                return;
-            }
-
-            if (!response.ok) {
-                throw new Error(
-                    data?.msg || 'Gagal mengambil data management.',
-                );
-            }
+            const data = response.data as ManagementOverviewResponse;
 
             const rawRole = data.user?.role || data.user?.user_role || '';
             const normalizedUserRole = normalizeRole(rawRole);
 
             if (
                 !data.user ||
-                (normalizedUserRole !== 'admin' &&
-                    normalizedUserRole !== 'midwife')
+                (normalizedUserRole !== 'admin' && normalizedUserRole !== 'midwife')
             ) {
                 setIsForbidden(true);
                 return;
@@ -499,21 +471,39 @@ const ManagementSetting = () => {
                 'requires_clinic_setup',
                 data.requires_clinic_setup ? 'true' : 'false',
             );
-        } catch (error) {
-            const message =
-                error instanceof Error
+
+        } catch (error: any) {
+            if (error.response) {
+                const { status, data: serverData } = error.response;
+
+                if (status === 401 || status === 422) {
+                    handleUnauthorized();
+                    return;
+                }
+
+                if (status === 400 && serverData?.requires_clinic_setup) {
+                    router.push(serverData.redirect_path || '/register-clinic');
+                    return;
+                }
+
+                if (status === 403) {
+                    setIsForbidden(true);
+                    return;
+                }
+
+                setErrorMessage(translateMessage(serverData?.msg || 'Gagal mengambil data management.'));
+            } else {
+                const message = error instanceof Error
                     ? translateMessage(error.message)
                     : 'Terjadi kesalahan saat mengambil data management.';
-
-            setErrorMessage(message);
+                setErrorMessage(message);
+            }
         } finally {
             setIsLoading(false);
         }
     };
-
     useEffect(() => {
         fetchOverview();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleClinicChange = (
@@ -668,6 +658,7 @@ const ManagementSetting = () => {
 
             if (validationMessage) {
                 setErrorMessage(validationMessage);
+                setIsSavingClinic(false);
                 return;
             }
 
@@ -678,51 +669,47 @@ const ManagementSetting = () => {
                 return;
             }
 
-            const response = await fetch(
-                `${API_BASE_URL}/auth/management/clinic`,
-                {
-                    method: 'PATCH',
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        clinic_name: clinicForm.clinicName.trim(),
-                        license_number: clinicForm.sipbNo.trim(),
-                        clinic_email: clinicForm.clinicEmail.trim(),
-                        clinic_phone: clinicForm.clinicPhoneNumber.trim(),
-                        clinic_address: clinicForm.clinicAddress.trim(),
-                    }),
+            const response = await api.patch('/auth/management/clinic', {
+                clinic_name: clinicForm.clinicName.trim(),
+                license_number: clinicForm.sipbNo.trim(),
+                clinic_email: clinicForm.clinicEmail.trim(),
+                clinic_phone: clinicForm.clinicPhoneNumber.trim(),
+                clinic_address: clinicForm.clinicAddress.trim(),
+            }, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
                 },
-            );
+            });
 
-            const data = await readJson(response);
-
-            if (response.status === 401 || response.status === 422) {
-                handleUnauthorized();
-                return;
-            }
-
-            if (response.status === 403) {
-                throw new Error(
-                    data?.msg || 'Anda tidak memiliki izin memperbarui klinik.',
-                );
-            }
-
-            if (!response.ok) {
-                throw new Error(data?.msg || 'Gagal memperbarui data klinik.');
-            }
+            const data = response.data;
 
             setClinicForm(mapClinicToForm(data.clinic));
             setSuccessMessage('Informasi klinik berhasil diperbarui.');
             await fetchOverview();
-        } catch (error) {
-            const message =
-                error instanceof Error
+
+        } catch (error: any) {
+            if (error.response) {
+                const status = error.response.status;
+                const serverData = error.response.data;
+
+                if (status === 401 || status === 422) {
+                    handleUnauthorized();
+                    return;
+                }
+
+                if (status === 403) {
+                    setErrorMessage(translateMessage(serverData?.msg || 'Anda tidak memiliki izin memperbarui klinik.'));
+                    return;
+                }
+
+                setErrorMessage(translateMessage(serverData?.msg || 'Gagal memperbarui data klinik.'));
+            } else {
+                const message = error instanceof Error
                     ? translateMessage(error.message)
                     : 'Terjadi kesalahan saat memperbarui data klinik.';
-
-            setErrorMessage(message);
+                setErrorMessage(message);
+            }
         } finally {
             setIsSavingClinic(false);
         }
@@ -745,6 +732,7 @@ const ManagementSetting = () => {
 
             if (validationMessage) {
                 setErrorMessage(validationMessage);
+                setIsCreatingAccount(false);
                 return;
             }
 
@@ -755,56 +743,49 @@ const ManagementSetting = () => {
                 return;
             }
 
-            const response = await fetch(
-                `${API_BASE_URL}/auth/management/users`,
-                {
-                    method: 'POST',
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        fullname: nextAccountForm.fullname.trim(),
-                        email: nextAccountForm.email.trim(),
-                        password: nextAccountForm.password,
-                        strnumber: nextAccountForm.strnumber.trim() || null,
-                        role: nextAccountForm.role,
-                        is_active: nextAccountForm.isActive,
-                    }),
+            const response = await api.post('/auth/management/users', {
+                fullname: nextAccountForm.fullname.trim(),
+                email: nextAccountForm.email.trim(),
+                password: nextAccountForm.password,
+                strnumber: nextAccountForm.strnumber.trim() || null,
+                role: nextAccountForm.role,
+                is_active: nextAccountForm.isActive,
+            }, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
                 },
-            );
+            });
 
-            const data = await readJson(response);
-
-            if (response.status === 401 || response.status === 422) {
-                handleUnauthorized();
-                return;
-            }
-
-            if (response.status === 400 && data.requires_clinic_setup) {
-                router.push(data.redirect_path || '/register-clinic');
-                return;
-            }
-
-            if (response.status === 403) {
-                throw new Error(data?.msg || 'Anda tidak memiliki izin.');
-            }
-
-            if (!response.ok) {
-                throw new Error(data?.msg || 'Gagal membuat akun user.');
-            }
+            const data = response.data;
 
             setAccountForm(emptyAccountForm);
             setIsAccountModalOpen(false);
             setSuccessMessage('Akun user berhasil dibuat.');
             await fetchOverview();
-        } catch (error) {
-            const message =
-                error instanceof Error
-                    ? translateMessage(error.message)
-                    : 'Terjadi kesalahan saat membuat akun user.';
+        } catch (error: any) {
+            if (error.response) {
+                const { status, data: serverData } = error.response;
 
-            setErrorMessage(message);
+                if (status === 401 || status === 422) {
+                    handleUnauthorized();
+                    return;
+                }
+
+                if (status === 400 && serverData?.requires_clinic_setup) {
+                    router.push(serverData.redirect_path || '/register-clinic');
+                    return;
+                }
+
+                if (status === 403) {
+                    setErrorMessage(translateMessage(serverData?.msg || 'Anda tidak memiliki izin.'));
+                    return;
+                }
+
+                setErrorMessage(translateMessage(serverData?.msg || 'Gagal membuat akun user.'));
+            } else {
+                setErrorMessage(error instanceof Error ? translateMessage(error.message) : 'Terjadi kesalahan saat membuat akun user.');
+            }
         } finally {
             setIsCreatingAccount(false);
         }
@@ -857,51 +838,44 @@ const ManagementSetting = () => {
                 return;
             }
 
-            const response = await fetch(
-                `${API_BASE_URL}/auth/management/employees/${selectedEmployee.id}`,
-                {
-                    method: 'PATCH',
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        role: selectedRole,
-                        is_active: selectedIsActive,
-                    }),
+            const response = await api.patch(`/auth/management/employees/${selectedEmployee.id}`, {
+                role: selectedRole,
+                is_active: selectedIsActive,
+            }, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
                 },
-            );
+            });
 
-            const data = await readJson(response);
-
-            if (response.status === 401 || response.status === 422) {
-                handleUnauthorized();
-                return;
-            }
-
-            if (response.status === 400 && data.requires_clinic_setup) {
-                router.push(data.redirect_path || '/register-clinic');
-                return;
-            }
-
-            if (response.status === 403) {
-                throw new Error(data?.msg || 'Anda tidak memiliki izin.');
-            }
-
-            if (!response.ok) {
-                throw new Error(data?.msg || 'Gagal memperbarui user.');
-            }
+            const data = response.data;
 
             setSelectedEmployee(data.employee);
             setSuccessMessage('User berhasil diperbarui.');
             await fetchOverview();
-        } catch (error) {
-            const message =
-                error instanceof Error
-                    ? translateMessage(error.message)
-                    : 'Terjadi kesalahan saat memperbarui user.';
+        } catch (error: any) {
+            if (error.response) {
+                const { status, data: serverData } = error.response;
 
-            setErrorMessage(message);
+                if (status === 401 || status === 422) {
+                    handleUnauthorized();
+                    return;
+                }
+
+                if (status === 400 && serverData?.requires_clinic_setup) {
+                    router.push(serverData.redirect_path || '/register-clinic');
+                    return;
+                }
+
+                if (status === 403) {
+                    setErrorMessage(translateMessage(serverData?.msg || 'Anda tidak memiliki izin.'));
+                    return;
+                }
+
+                setErrorMessage(translateMessage(serverData?.msg || 'Gagal memperbarui user.'));
+            } else {
+                setErrorMessage(error instanceof Error ? translateMessage(error.message) : 'Terjadi kesalahan saat memperbarui user.');
+            }
         } finally {
             setIsSavingEmployee(false);
         }
@@ -922,48 +896,43 @@ const ManagementSetting = () => {
                 return;
             }
 
-            const response = await fetch(
-                `${API_BASE_URL}/auth/management/employees/${selectedEmployee.id}`,
-                {
-                    method: 'DELETE',
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
+            // Konversi ke api.delete (Konfigurasi headers dipasang di argumen kedua)
+            const response = await api.delete(`/auth/management/employees/${selectedEmployee.id}`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
                 },
-            );
+            });
 
-            const data = await readJson(response);
-
-            if (response.status === 401 || response.status === 422) {
-                handleUnauthorized();
-                return;
-            }
-
-            if (response.status === 400 && data.requires_clinic_setup) {
-                router.push(data.redirect_path || '/register-clinic');
-                return;
-            }
-
-            if (response.status === 400 || response.status === 403) {
-                throw new Error(data?.msg || 'User ini tidak bisa dihapus.');
-            }
-
-            if (!response.ok) {
-                throw new Error(data?.msg || 'Gagal menghapus user.');
-            }
+            const data = response.data;
 
             setIsDeleteModalOpen(false);
             setSelectedEmployee(null);
             setSuccessMessage('User berhasil dinonaktifkan dan dilepas dari klinik.');
             await fetchOverview();
-        } catch (error) {
-            const message =
-                error instanceof Error
-                    ? translateMessage(error.message)
-                    : 'Terjadi kesalahan saat menghapus user.';
+        } catch (error: any) {
+            if (error.response) {
+                const { status, data: serverData } = error.response;
 
-            setErrorMessage(message);
+                if (status === 401 || status === 422) {
+                    handleUnauthorized();
+                    return;
+                }
+
+                if (status === 400 && serverData?.requires_clinic_setup) {
+                    router.push(serverData.redirect_path || '/register-clinic');
+                    return;
+                }
+
+                if (status === 400 || status === 403) {
+                    setErrorMessage(translateMessage(serverData?.msg || 'User ini tidak bisa dihapus.'));
+                    return;
+                }
+
+                setErrorMessage(translateMessage(serverData?.msg || 'Gagal menghapus user.'));
+            } else {
+                setErrorMessage(error instanceof Error ? translateMessage(error.message) : 'Terjadi kesalahan saat menghapus user.');
+            }
         } finally {
             setIsSavingEmployee(false);
         }
@@ -1034,12 +1003,9 @@ const ManagementSetting = () => {
                             </div>
 
                             <div className="px-5 py-5 sm:px-6">
-                                <div className="grid w-full min-w-0 grid-cols-1 gap-3 lg:grid-cols-[1fr_auto_180px_180px]">
+                                <div className="grid w-full min-w-0 grid-cols-1 gap-3 lg:grid-cols-[1fr_auto_380px]">
                                     <div className="relative min-w-0 rounded-[50px] border border-[#D2D8CF] bg-[#FDFEF9] px-5 py-[11px] shadow-sm transition-all focus-within:border-[#739072]">
-                                        <span className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-[14px] text-gray-400">
-                                            ⌕
-                                        </span>
-
+                                        <Search className="absolute left-5 top-1/2 w-3.5 md:w-4 -translate-y-1/2 text-gray-400" />
                                         <input
                                             type="text"
                                             value={searchQuery}
@@ -1054,36 +1020,37 @@ const ManagementSetting = () => {
                                     <div className="flex h-[40px] items-center justify-center whitespace-nowrap rounded-[50px] bg-[#D2E3C8] px-5 text-[12px] font-bold text-[#4F6F52] shadow-sm">
                                         {employees.length} User
                                     </div>
+                                    <div className='grid grid-cols-2 gap-3'>
+                                        <select
+                                            value={roleFilter}
+                                            onChange={(event) =>
+                                                setRoleFilter(event.target.value)
+                                            }
+                                            className="h-8 md:h-[40px] rounded-[50px] border border-[#D2D8CF] bg-white text-center text-[9px] md:text-[12px] font-bold text-[#4B4B4B] shadow-sm outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072]"
+                                        >
+                                            <option value="all">Semua Role</option>
+                                            {roleFilterOptions.map((role) => (
+                                                <option
+                                                    key={role.value}
+                                                    value={role.value}
+                                                >
+                                                    {role.label}
+                                                </option>
+                                            ))}
+                                        </select>
 
-                                    <select
-                                        value={roleFilter}
-                                        onChange={(event) =>
-                                            setRoleFilter(event.target.value)
-                                        }
-                                        className="h-[40px] rounded-[50px] border border-[#D2D8CF] bg-white px-4 text-[12px] font-bold text-[#4B4B4B] shadow-sm outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072]"
-                                    >
-                                        <option value="all">Semua Role</option>
-                                        {roleFilterOptions.map((role) => (
-                                            <option
-                                                key={role.value}
-                                                value={role.value}
-                                            >
-                                                {role.label}
-                                            </option>
-                                        ))}
-                                    </select>
-
-                                    <select
-                                        value={statusFilter}
-                                        onChange={(event) =>
-                                            setStatusFilter(event.target.value)
-                                        }
-                                        className="h-[40px] rounded-[50px] border border-[#D2D8CF] bg-white px-4 text-[12px] font-bold text-[#4B4B4B] shadow-sm outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072]"
-                                    >
-                                        <option value="all">Semua Status</option>
-                                        <option value="active">Aktif</option>
-                                        <option value="inactive">Tidak Aktif</option>
-                                    </select>
+                                        <select
+                                            value={statusFilter}
+                                            onChange={(event) =>
+                                                setStatusFilter(event.target.value)
+                                            }
+                                            className="h-8 md:h-[40px] rounded-[50px] border border-[#D2D8CF] bg-white text-center text-[9px] md:text-[12px] font-bold text-[#4B4B4B] shadow-sm outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072]"
+                                        >
+                                            <option value="all">Semua Status</option>
+                                            <option value="active">Aktif</option>
+                                            <option value="inactive">Tidak Aktif</option>
+                                        </select>
+                                    </div>
                                 </div>
 
                                 <div className="mt-5 hidden w-full overflow-x-auto rounded-[16px] border border-[#E4E8E1] lg:block">

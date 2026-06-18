@@ -6,9 +6,7 @@ import Image from 'next/image';
 import Swal from 'sweetalert2';
 import Cookies from 'js-cookie';
 import styles from './login.module.css';
-
-const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+import api from "@/utils/app";
 
 type UserRole = 'admin' | 'midwife' | 'asisten' | string;
 
@@ -243,53 +241,29 @@ const Login = () => {
 
         try {
             setError('');
-            setLoading(true);
+            setLoading(false);
 
             if (!email.trim() || !password) {
                 setError('Email dan kata sandi wajib diisi.');
+                setLoading(false); 
                 return;
             }
 
-            const response = await fetch(`${API_BASE_URL}/auth/login`, {
-                method: 'POST',
+            const response = await api.post(`/auth/login`, {
+                email: email.trim().toLowerCase(),
+                password: password
+            }, {
                 headers: {
                     'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    email: email.trim().toLowerCase(),
-                    password,
-                }),
+                }
             });
 
-            const data = (await readJson(response)) as LoginResponse;
-
-            if (!response.ok) {
-                const message = translateLoginMessage(data?.msg || 'Login gagal.');
-                setError(message);
-
-                await Swal.fire({
-                    title: 'Login Gagal',
-                    text: message,
-                    icon: 'error',
-                    confirmButtonColor: '#739072',
-                });
-
-                return;
-            }
+            const data = response.data as LoginResponse;
 
             if (!data.access_token || !data.user) {
-                const message =
-                    'Respon login dari server tidak lengkap. Silakan coba lagi.';
-
+                const message = 'Respon login dari server tidak lengkap. Silakan coba lagi.';
                 setError(message);
-
-                await Swal.fire({
-                    title: 'Login Gagal',
-                    text: message,
-                    icon: 'error',
-                    confirmButtonColor: '#739072',
-                });
-
+                setLoading(false);
                 return;
             }
 
@@ -302,26 +276,23 @@ const Login = () => {
                 title: 'Berhasil Masuk',
                 text: 'Selamat datang kembali!',
                 icon: 'success',
-                timer: 1200,
+                timer: 2000,
                 showConfirmButton: false,
-                confirmButtonColor: '#739072',
             });
 
             router.replace(redirectPath);
-        } catch (error) {
-            const message =
-                error instanceof Error
-                    ? translateLoginMessage(error.message)
-                    : 'Tidak dapat terhubung ke server. Pastikan backend sedang berjalan.';
+
+        } catch (error: any) {
+            setLoading(false);
+            let message = 'Tidak dapat terhubung ke server. Pastikan backend sedang berjalan.';
+
+            if (error.response && error.response.data) {
+                message = translateLoginMessage(error.response.data.msg || 'Login gagal.');
+            } else if (error instanceof Error) {
+                message = translateLoginMessage(error.message);
+            }
 
             setError(message);
-
-            await Swal.fire({
-                title: 'Login Gagal',
-                text: message,
-                icon: 'error',
-                confirmButtonColor: '#739072',
-            });
         } finally {
             setLoading(false);
         }

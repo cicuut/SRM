@@ -324,6 +324,7 @@ def create_patient_and_record(data, current_clinic_id, record_type):
     
     count = get_next_record_sequence_and_increment(record_type, clinic_uuid)
     auto_record_number = generate_record_number(record_type, count)
+    current_time = datetime.now()
     
     new_record = MedicalRecord(
         patient_id=new_patient.patient_id,
@@ -331,7 +332,8 @@ def create_patient_and_record(data, current_clinic_id, record_type):
         record_type=record_type,
         clinic_id=clinic_uuid,
         status='Active',
-        created_at=datetime.utcnow(),
+        created_at=current_time,
+        last_update=current_time,
     )
 
     db.session.add(new_record)
@@ -1236,6 +1238,8 @@ def update_patient_and_family_data(uuid):
             family.education_level = data.get('family_education', family.education_level)
             family.occupation = data.get('family_occupation', family.occupation)
 
+        record.last_update = datetime.now()
+        
         db.session.commit()
 
         return jsonify({
@@ -1261,7 +1265,7 @@ def update_pregnancy_record_data(uuid):
         if not payload:
             return jsonify({'msg': 'Payload data tidak boleh kosong.'}), 400
 
-        _record, _patient, error_response = get_record_or_404(uuid, current_user, current_role)
+        record, _patient, error_response = get_record_or_404(uuid, current_user, current_role)
 
         if error_response:
             return error_response
@@ -1315,7 +1319,9 @@ def update_pregnancy_record_data(uuid):
                 baby_height=clean_float(item.get('baby_height')),
             )
             db.session.add(new_history)
-
+            
+        record.last_update = datetime.now()
+        
         db.session.commit()
         return jsonify({'msg': 'Berhasil diperbarui.'}), 200
 
@@ -1337,7 +1343,7 @@ def update_family_planning_record_data(uuid):
         if not payload:
             return jsonify({'msg': 'Payload data tidak boleh kosong.'}), 400
 
-        _record, _patient, error_response = get_record_or_404(uuid, current_user, current_role)
+        record, _patient, error_response = get_record_or_404(uuid, current_user, current_role)
 
         if error_response:
             return error_response
@@ -1357,7 +1363,7 @@ def update_family_planning_record_data(uuid):
             'family_med_history',
             family_planning_record.family_med_history,
         )
-
+        record.last_update = datetime.now()
         db.session.commit()
         return jsonify({'msg': 'Berhasil diperbarui.'}), 200
 
@@ -1379,7 +1385,7 @@ def update_delivery_record_data(uuid):
         if not payload:
             return jsonify({'msg': 'Payload data tidak boleh kosong.'}), 400
 
-        _record, _patient, error_response = get_record_or_404(uuid, current_user, current_role)
+        record, _patient, error_response = get_record_or_404(uuid, current_user, current_role)
 
         if error_response:
             return error_response
@@ -1406,7 +1412,7 @@ def update_delivery_record_data(uuid):
             'baby_complications',
             delivery_record.baby_complications,
         )
-
+        record.last_update = datetime.now()
         db.session.commit()
         return jsonify({'msg': 'Berhasil diperbarui.'}), 200
 

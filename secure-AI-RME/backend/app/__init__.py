@@ -5,10 +5,14 @@ from flask_cors import CORS
 from datetime import timedelta
 import os
 from dotenv import load_dotenv
-
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 db = SQLAlchemy()
-
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["2000 per day", "500 per hour"]
+)
 
 def create_app():
     load_dotenv()
@@ -34,7 +38,7 @@ def create_app():
 
     db.init_app(app)
     JWTManager(app)
-
+    limiter.init_app(app)
 
     from .audit_hooks import register_audit_hooks
     register_audit_hooks()

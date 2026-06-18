@@ -45,9 +45,9 @@ const DailyReport = () => {
   const [verificationInput, setVerificationInput] = useState("");
   const [filteredResults, setFilteredResults] = useState<VisitList[]>([]);
   const [visitSearch, setVisitSearch] = useState("");
-  
-  const [visitType, setVisitType] = useState<string>("Semua"); 
-  const [selectedType, setSelectedType] = useState("Select a type"); 
+
+  const [visitType, setVisitType] = useState<string>("Semua");
+  const [selectedType, setSelectedType] = useState("Select a type");
   const [selectedRMLabel, setSelectedRMLabel] = useState("Tipe RM");
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([
     null,
@@ -74,7 +74,7 @@ const DailyReport = () => {
     e.preventDefault();
     setIsModalOpen(false);
     setIsDropdownOpen(false);
-    
+
     switch (selectedType) {
       case "Rekam Medis Kehamilan":
         router.push("/medical-record/pregnancy-record?type=Kehamilan");
@@ -100,7 +100,7 @@ const DailyReport = () => {
           timer: 2000,
         });
     }
-    setSelectedType("Select a type"); 
+    setSelectedType("Select a type");
   };
 
   const handleVisit = (rmId: string, type: string) => {
@@ -169,11 +169,11 @@ const DailyReport = () => {
       fetchData();
     }
 
-  // 🔒 DEPENDENCY LOCK: Kunci menggunakan nilai teks string tanggal murni agar tidak terjadi loop referensi objek array!
+    // 🔒 DEPENDENCY LOCK: Kunci menggunakan nilai teks string tanggal murni agar tidak terjadi loop referensi objek array!
   }, [visitSearch, visitType, formatDateToString(startDate), formatDateToString(endDate)]);
 
   const handleFilterChange = (type: string, label: string) => {
-    setVisitType(type === "All" ? "Semua" : type); 
+    setVisitType(type === "All" ? "Semua" : type);
     setSelectedRMLabel(label);
   };
 
@@ -247,25 +247,25 @@ const DailyReport = () => {
     <div>
       <div className="flex-1 flex flex-col w-full gap-5">
         {loading && <LoadingOverlay />}
-        
+
         <section className="w-full rounded-[22px] border border-[#D2D8CF] bg-white px-5 py-5 shadow-sm sm:px-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="relative min-w-0 flex-1 rounded-[50px] border border-[#D2D8CF] bg-[#FDFEF9] px-5 py-[12px] shadow-sm transition-all focus-within:border-[#739072] xl:max-w-[680px]">
-              <Search className="absolute left-5 top-1/2 w-4 -translate-y-1/2 text-gray-400" />
+            <div className="relative min-w-0 flex-1 rounded-[50px] border border-[#D2D8CF] bg-[#FDFEF9] px-5 py-[10px] md:py-[12px] shadow-sm transition-all focus-within:border-[#739072] xl:max-w-[680px]">
+              <Search className="absolute left-5 top-1/2 w-3.5 md:w-4 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 value={visitSearch}
                 placeholder="Masukan Nama Pasien"
                 onChange={(e) => setVisitSearch(e.target.value)}
-                className="w-full bg-transparent pl-8 text-[13px] text-gray-700 outline-none placeholder-gray-400"
+                className="w-full bg-transparent pl-8 text-[10px] md:text-[13px] text-gray-700 outline-none placeholder-gray-400"
               />
             </div>
-            <div className="flex flex-wrap items-center gap-[10px]">
-              <div className="rounded-[50px] bg-[#D2E3C8] px-[20px] py-[11px] text-center text-[12px] font-bold text-black shadow-sm">
+            <div className="grid grid-cols-1 gap-1 md:grid-cols-3 sm:items-center sm:justify-between">
+              <div className="relative rounded-[50px] bg-[#D2E3C8] px-[10px] py-[5px] md:px-[20px] md:py-[11px] text-center text-[8px] md:text-[12px] font-bold text-black shadow-sm">
                 <DateLabel />
               </div>
 
-              <div className="relative inline-block">
+              <div className="relative block  " >
                 <DateRangeFilter
                   onFilterDate={handleFilterDate}
                   selectedStartDate={startDate}
@@ -289,13 +289,13 @@ const DailyReport = () => {
               </h2>
             </div>
 
-            <div className="flex w-full flex-col gap-[10px] sm:flex-row sm:items-center sm:justify-between lg:w-auto lg:justify-end">
+            <div className="grid grid-cols-2 gap-[10px]">
               <button
                 type="button"
                 onClick={() => setIsModalVisitOpen(true)}
-                className="flex min-h-[38px] items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[9px] md:px-[18px] py-2 md:py-3 text-[9px] md:text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <Plus className="w-4" />
+                <Plus className="w-3.5 h-3.5 md:w-4 md:h-4" />
                 <span>Tambah Kunjungan</span>
               </button>
 
@@ -303,11 +303,58 @@ const DailyReport = () => {
                 type="button"
                 disabled={loading || visitReportList.length === 0}
                 onClick={handleDownloadExcelReport}
-                className="flex min-h-[38px] items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[9px] md:px-[18px] py-2 md:py-3 text-[9px] md:text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <FileDown className="w-4" />
+                <FileDown className="w-3.5 h-3.5 md:w-4 md:h-4" />
                 <span>Download</span>
               </button>
+            </div>
+          </div>
+          <div className="block lg:hidden">
+            <div className="grid grid-cols-1 gap-[12px] px-4 py-4 sm:grid-cols-2">
+              {currentItems.length === 0 ? (
+                <div className="col-span-full rounded-[14px] border border-[#E4E8E1] bg-[#F8FAF6] px-4 py-8 text-center text-[12px] text-gray-500">
+                  {visitSearch.length >= 3 ? "Kunjungan tidak ditemukan." : "Belum ada riwayat kunjungan."}
+                </div>
+              ) : (
+                currentItems.map((item, index) => (
+                  <button
+                    key={item.visit_id || index}
+                    type="button"
+                    onClick={() => handleViewRecordDetail(item.visit_id)}
+                    className="w-full rounded-[16px] border border-[#E4E8E1] bg-white px-4 py-4 text-left shadow-sm transition-all hover:border-[#86A789] hover:bg-[#F8FAF6]"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-[14px] font-bold text-black">
+                          {item.patient_name}
+                        </p>
+                        <p className="mt-[3px] text-[11px] font-semibold text-[#5F785F]">
+                          ID: {item.visit_number}
+                        </p>
+                      </div>
+                      <span className="inline-flex shrink-0 justify-center rounded-full bg-[#D2E3C8] px-2.5 py-1 text-[10px] font-bold text-[#4F6F52]">
+                        {item.record_type}
+                      </span>
+                    </div>
+
+                    <div className="mt-[14px] grid grid-cols-2 gap-x-4 gap-y-3 text-[11px]">
+                      <div>
+                        <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-gray-400">Waktu Kunjungan</p>
+                        <p className="mt-[4px] font-semibold text-black truncate">{item.visit_date}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-gray-400">No. Rekam Medis</p>
+                        <p className="mt-[4px] font-semibold text-black truncate">{item.record_number || '-'}</p>
+                      </div>
+                      <div className="col-span-2 border-t border-gray-100 pt-2 mt-1">
+                        <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-gray-400">Dibuat Oleh</p>
+                        <p className="mt-[2px] font-medium text-gray-700 truncate">{item.made_by}</p>
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
             </div>
           </div>
           <div className="hidden w-full overflow-x-auto lg:block">
@@ -337,9 +384,8 @@ const DailyReport = () => {
                   currentItems.map((item, index) => (
                     <tr
                       key={item.visit_id || index}
-                      className={`cursor-pointer text-center text-black transition-all hover:bg-[#EEF3E9] ${
-                        index % 2 === 0 ? "bg-white" : "bg-[#FBFCF8]"
-                      }`}
+                      className={`cursor-pointer text-center text-black transition-all hover:bg-[#EEF3E9] ${index % 2 === 0 ? "bg-white" : "bg-[#FBFCF8]"
+                        }`}
                       onClick={() => handleViewRecordDetail(item.visit_id)}
                     >
                       <td className="px-4 py-4 ">{item.visit_number}</td>
@@ -372,7 +418,7 @@ const DailyReport = () => {
               className="flex items-center gap-x-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-[12px] font-bold text-gray-600 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <ChevronLeft className="w-4 h-4" />
-              <span>Previous</span>
+              <span>Sebelumnya</span>
             </button>
             {getPageNumbers().map((page, index) => {
               if (page === "...") {
@@ -387,11 +433,10 @@ const DailyReport = () => {
                 <button
                   key={`page-${page}`}
                   onClick={() => setCurrentPage(Number(page))}
-                  className={`w-8 h-8 text-[12px] font-bold rounded-full flex items-center justify-center transition-all ${
-                    currentPage === page
-                      ? "bg-[#739072] text-white shadow-md scale-105"
-                      : "text-gray-600 bg-transparent hover:bg-[#EEF3E9] hover:text-[#4F6F52]"
-                  }`}
+                  className={`w-8 h-8 text-[12px] font-bold rounded-full flex items-center justify-center transition-all ${currentPage === page
+                    ? "bg-[#739072] text-white shadow-md scale-105"
+                    : "text-gray-600 bg-transparent hover:bg-[#EEF3E9] hover:text-[#4F6F52]"
+                    }`}
                 >
                   {page}
                 </button>
@@ -402,7 +447,7 @@ const DailyReport = () => {
               disabled={currentPage === totalPages}
               className="flex items-center gap-x-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-[12px] font-bold text-gray-600 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <span>Next</span>
+              <span>Berikutnya</span>
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
@@ -559,7 +604,7 @@ const DailyReport = () => {
                       <li
                         key={item}
                         onClick={() => {
-                          setSelectedType("Rekam Medis " + item); 
+                          setSelectedType("Rekam Medis " + item);
                           setIsDropdownOpen(false);
                         }}
                         className="px-4 py-3 hover:bg-[#D2E3C8] hover:text-[#4F6F52] cursor-pointer transition-colors text-sm border-b last:border-0 border-gray-50"
@@ -585,11 +630,10 @@ const DailyReport = () => {
                 <button
                   type="submit"
                   disabled={selectedType === "Select a type"}
-                  className={`px-8 py-2 text-white rounded-full shadow-lg transition font-bold ${
-                    selectedType === "Select a type"
-                      ? "bg-gray-300 cursor-not-allowed opacity-60 shadow-none"
-                      : "bg-[#739072] hover:bg-[#4F6F52]"
-                  }`}
+                  className={`px-8 py-2 text-white rounded-full shadow-lg transition font-bold ${selectedType === "Select a type"
+                    ? "bg-gray-300 cursor-not-allowed opacity-60 shadow-none"
+                    : "bg-[#739072] hover:bg-[#4F6F52]"
+                    }`}
                 >
                   Pilih Rekam Medis
                 </button>

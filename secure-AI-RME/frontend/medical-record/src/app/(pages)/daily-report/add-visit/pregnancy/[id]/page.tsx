@@ -115,110 +115,106 @@ const AddVisitPregnancy = () => {
   };
 
   return (
-    <div className="w-full flex flex-col px-10 mt-7 ">
+    <div className="relative flex w-full min-w-0 flex-col gap-4">
       <AddVisitInformation visitNumber={visitNumber} data={data} />
       <div className="border-b-2 text-[#D9D9D9] font-bold">
         <p className="text-sm border-b-2 w-fit border-[#739072] text-[#739072] font-bold">
           Tanda Vital
         </p>
       </div>
-      <div className="flex-1 flex flex-col py-5 gap-6">
-        <div className="flex flex-row gap-10 w-full ">
-          <div className="flex flex-col flex-1 text-sm gap-2">
-            <label className="block mb-1 font-bold text-black">Berat</label>
-            <input
-              type="number"
-              name="weight"
-              value={weight}
-              placeholder="tanpa satuan"
-              onChange={(e) => setWeight(e.target.value)}
-              id="weight"
-              className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
-            />
-          </div>
-          <div className="flex flex-col flex-1 text-sm gap-2">
-            <label className="block mb-1 font-bold text-black">Tinggi</label>
-            <input
-              type="number"
-              name="height"
-              value={height}
-              placeholder="tanpa satuan"
-              onChange={(e) => setHeight(e.target.value)}
-              id="height"
-              className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
-            />
-          </div>
+      <div className="grid grid-cols-2 gap-4 px-5 md:grid-cols-3 lg:grid-cols-4">
+        <label className="block">
+          <p className="text-md font-medium text-gray-700 md:text-sm">
+            Berat</p>
+          <input
+            type="number"
+            name="weight"
+            value={weight}
+            placeholder="tanpa satuan"
+            onChange={(e) => setWeight(e.target.value)}
+            id="weight"
+            className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
+          />
+        </label>
+        <label className="block">
+           <p className="text-md font-medium text-gray-700 md:text-sm">Tinggi</p>
+          <input
+            type="number"
+            name="height"
+            value={height}
+            placeholder="tanpa satuan"
+            onChange={(e) => setHeight(e.target.value)}
+            id="height"
+            className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
+          />
+        </label>
 
-          <div className="flex flex-col flex-1 text-sm gap-2">
-            <label className="block mb-1 font-bold text-black">
-              Tekanan Darah
-            </label>
-            <input
-              type="text"
-              name="blood_pressure"
-              placeholder="tanpa satuan"
-              value={bloodPressure}
-              onChange={handleBloodPressureChange}
-              maxLength={7} 
-              id="blood_pressure"
-              className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
-            />
-          </div>
-          <div className="flex flex-col flex-1 text-sm gap-2">
-            <label className="block mb-1 font-bold text-black">
-              Suhu Badan
-            </label>
-            <input
-              type="number"
-              name="temperature"
-              value={temperature}
-              placeholder="tanpa satuan"
-              onChange={(e) => setTemperature(e.target.value)}
-              id="temperature"
-              className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
-            />
-          </div>
-        </div>
-        <div className="flex flex-row gap-10">
-          <div className="flex flex-col text-sm gap-2">
-            <label className="block mb-1 font-bold text-black">
-              Frekuensi Pernapasan
-            </label>
-            <input
-              type="number"
-              name="respiratory_rate"
-              value={respiratoryRate}
-              placeholder="tanpa satuan"
-              onChange={(e) => setRespiratoryRate(e.target.value)}
-              id="respiratory_rate"
-              className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
-            />
-          </div>
-          <div className="flex flex-col text-sm gap-2">
-            <label className="block mb-1 font-bold text-black">
-              Detak Jantung
-            </label>
-            <input
-              type="number"
-              name="heart_rate"
-              value={heartRate}
-              placeholder="tanpa satuan"
-              onChange={(e) => setHeartRate(e.target.value)}
-              id="heart_rate"
-              className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
-            />
-          </div>
-        </div>
+        <label className="block">
+          <p className="text-md font-medium text-gray-700 md:text-sm">
+            Tekanan Darah
+          </p>
+          <input
+            type="text"
+            name="blood_pressure"
+            placeholder="tanpa satuan"
+            value={bloodPressure}
+            onChange={handleBloodPressureChange}
+            maxLength={7}
+            id="blood_pressure"
+            className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
+          />
+        </label>
+        <label className="block">
+          <p className="text-md font-medium text-gray-700 md:text-sm">
+            Suhu Badan
+          </p>
+          <input
+            type="number"
+            name="temperature"
+            value={temperature}
+            placeholder="tanpa satuan"
+            onChange={(e) => setTemperature(e.target.value)}
+            id="temperature"
+            className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
+          />
+        </label>
+        <label className="block">
+          <p className="text-md font-medium text-gray-700 md:text-sm">
+            Frekuensi Pernapasan
+          </p>
+          <input
+            type="number"
+            name="respiratory_rate"
+            value={respiratoryRate}
+            placeholder="tanpa satuan"
+            onChange={(e) => setRespiratoryRate(e.target.value)}
+            id="respiratory_rate"
+            className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
+          />
+        </label>
+        <label className="block">
+          <p className="text-md font-medium text-gray-700 md:text-sm">
+            Detak Jantung
+          </p>
+          <input
+            type="number"
+            name="heart_rate"
+            value={heartRate}
+            placeholder="tanpa satuan"
+            onChange={(e) => setHeartRate(e.target.value)}
+            id="heart_rate"
+            className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
+          />
+        </label>
       </div>
+
       <div className="border-b-2 text-[#D9D9D9] font-bold">
-        {" "}
         <p className="text-sm border-b-2 w-fit border-[#739072] text-[#739072] font-bold">
           SOAP
         </p>
       </div>
-      <div className="flex-1 flex flex-col py-5 gap-6">
-        <div className="flex flex-col text-sm gap-2">
-          <label className="block mb-1 font-bold text-black">Subjective</label>
+      <div className="grid grid-cols-1 gap-4 px-5">
+        <label className="block"  >           <p className="text-md font-medium text-gray-700 md:text-sm">Subjective</p>
           <textarea
             name="subjective"
             value={subjective}
@@ -226,9 +222,8 @@ const AddVisitPregnancy = () => {
             id="subjective"
             className="p-2 w-full h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
           />
-        </div>
-        <div className="flex flex-col text-sm gap-2">
-          <label className="block mb-1 font-bold text-black">Objective</label>
+        </label>
+        <label className="block"  >          <p className="text-md font-medium text-gray-700 md:text-sm">Objective</p >
           <textarea
             name="objective"
             value={objective}
@@ -236,9 +231,8 @@ const AddVisitPregnancy = () => {
             id="objective"
             className="p-2 w-full h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
           />
-        </div>
-        <div className="flex flex-col text-sm gap-2">
-          <label className="block mb-1 font-bold text-black">Assessment</label>
+        </label>
+        <label className="block"  >          <p className="text-md font-medium text-gray-700 md:text-sm">Assessment</p>
           <textarea
             name="assessment"
             value={assessment}
@@ -246,9 +240,9 @@ const AddVisitPregnancy = () => {
             id="assessment"
             className="p-2 w-full h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
           />
-        </div>
-        <div className="flex flex-col text-sm gap-2">
-          <label className="block mb-1 font-bold text-black">Plan</label>
+        </label>
+        <label className="block"  >
+          <p className="text-md font-medium text-gray-700 md:text-sm">Plan</p>
           <textarea
             name="plan"
             value={plan}
@@ -256,7 +250,7 @@ const AddVisitPregnancy = () => {
             id="plan"
             className="p-2 w-full h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
           />
-        </div>
+        </label>
       </div>
 
       <div className="flex-1 flex flex-col py-5 gap-6">
