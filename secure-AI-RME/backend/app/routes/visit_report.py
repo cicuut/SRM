@@ -309,8 +309,8 @@ def get_visit_information():
             "patient_name": get_patient_display_name(patient),
             "record_number": record.record_number,
             "record_type": record.record_type,
-            "visit_date": format_date(now_jakarta.date()),
-            "visit_time": now_jakarta.strftime("%H:%M"),
+            "visit_date": format_date(now_local.date()),
+            "visit_time": now_local.strftime("%H:%M"),
         }
 
         return jsonify(response_data), 200

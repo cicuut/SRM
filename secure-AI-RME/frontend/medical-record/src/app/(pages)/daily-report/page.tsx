@@ -85,7 +85,7 @@ const DailyReport = () => {
       case "Rekam Medis Poli Umum":
         router.push("/medical-record/general-record?type=Umum");
         break;
-      case "Rekam Medis Bayi dan Imunisasi":
+      case "Rekam Medis Imunisasi":
         router.push("/medical-record/immunization-record?type=Imunisasi");
         break;
       case "Rekam Medis Persalinan":
