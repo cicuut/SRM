@@ -568,21 +568,28 @@ const AddInvoice = () => {
                 return;
             }
 
-            const response = await api.post('/financial/add', {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    payment_date: formData.payment_date,
-                    visit_id: formData.visit_id || null,
-                    trans_type: formData.trans_type,
-                    amount: isUnpaid ? 0 : Number(formData.amount),
-                    payment_method: isUnpaid ? null : formData.payment_method,
-                    status: formData.status,
-                    description: formData.description.trim(),
-                }),
-            });
+            const payload = {
+                payment_date: formData.payment_date,
+                visit_id: formData.visit_id || null,
+                trans_type: formData.trans_type,
+                amount: isUnpaid ? 0 : Number(formData.amount),
+                payment_method: isUnpaid ? null : formData.payment_method,
+                status: formData.status,
+                description: formData.description.trim(),
+            };
+
+            console.log('PAYLOAD:', payload);
+
+            const response = await api.post(
+                '/financial/add',
+                payload,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                }
+            );
 
             const data = response.data;
 
@@ -596,18 +603,23 @@ const AddInvoice = () => {
                 return;
             }
 
-            if (response.status !== 200) {
+            if (response.status !== 200 && response.status !== 201) {
                 throw new Error(data?.msg || 'Gagal menambahkan invoice.');
             }
 
             router.push('/financial-report');
-        } catch (error) {
+
+        } catch (error: any) {
+
+            console.error('ERROR:', error?.response?.data);
+
             const message =
-                error instanceof Error
-                    ? translateErrorMessage(error.message)
-                    : 'Terjadi kesalahan saat menambahkan invoice.';
+                error?.response?.data?.msg ||
+                error?.message ||
+                'Terjadi kesalahan saat menambahkan invoice.';
 
             setErrorMessage(message);
+
         } finally {
             setIsSubmitting(false);
         }
