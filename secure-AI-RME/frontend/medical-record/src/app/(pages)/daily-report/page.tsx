@@ -130,10 +130,8 @@ const DailyReport = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      // Jika user sedang mengetik pencarian tapi belum sampai 3 karakter, tahan kueri
       if (visitSearch.length > 0 && visitSearch.length < 3) return;
 
-      // Nyalakan loading overlay jika tidak sedang mengetik (inisialisasi awal / ganti filter)
       if (visitSearch.length === 0) {
         setLoading(true);
       }
@@ -157,7 +155,6 @@ const DailyReport = () => {
       }
     };
 
-    // Mekanisme Debounce: Tahan 500ms saat mengetik agar tidak membombardir Flask API
     if (visitSearch.length >= 3) {
       const delayDebounceFn = setTimeout(() => {
         fetchData();
@@ -165,11 +162,9 @@ const DailyReport = () => {
 
       return () => clearTimeout(delayDebounceFn);
     } else {
-      // Jika input kosong atau user ganti filter tipe/tanggal, langsung eksekusi instan
       fetchData();
     }
 
-    // 🔒 DEPENDENCY LOCK: Kunci menggunakan nilai teks string tanggal murni agar tidak terjadi loop referensi objek array!
   }, [visitSearch, visitType, formatDateToString(startDate), formatDateToString(endDate)]);
 
   const handleFilterChange = (type: string, label: string) => {

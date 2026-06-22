@@ -356,7 +356,7 @@ const FamilyInformation = () => {
                   Pilih Jenis Kelamin
                 </option>
                 <option value="perempuan">Perempuan</option>
-                <option value="laki-laki">Pria</option>
+                <option value="laki-laki">Laki-Laki</option>
               </select>
             </label>
             <label className="flex flex-col text-sm gap-2">
