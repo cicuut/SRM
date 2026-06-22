@@ -171,7 +171,7 @@ const PatientInformation = (props: PatientInformationProps) => {
             value={formData.national_id}
             onChange={handleInputChange}
             onBlur={(e) => handleNikCheck(e.target.value)}
-            className="p-2 p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
+            className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
           />
         </label>
         <div className="grid grid-cols-2 gap-4 md:col-span-2 md:grid-cols-4">
@@ -248,7 +248,7 @@ const PatientInformation = (props: PatientInformationProps) => {
             id="phone"
             value={formData.patient_number}
             onChange={handleInputChange}
-            className="p-2 p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
+            className=" p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
           />
         </label>
         <label className="block">

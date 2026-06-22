@@ -245,7 +245,7 @@ const DailyReport = () => {
 
         <section className="w-full rounded-[22px] border border-[#D2D8CF] bg-white px-5 py-5 shadow-sm sm:px-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="relative min-w-0 flex-1 rounded-[50px] border border-[#D2D8CF] bg-[#FDFEF9] px-5 py-[10px] md:py-[12px] shadow-sm transition-all focus-within:border-[#739072] xl:max-w-[680px]">
+            <div className="relative min-w-0 flex-1 rounded-[50px] border border-[#D2D8CF] bg-[#FDFEF9] px-5 py-2.5 md:py-3 shadow-sm transition-all focus-within:border-[#739072] xl:max-w-170">
               <Search className="absolute left-5 top-1/2 w-3.5 md:w-4 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
@@ -256,7 +256,7 @@ const DailyReport = () => {
               />
             </div>
             <div className="grid grid-cols-1 gap-1 md:grid-cols-3 sm:items-center sm:justify-between">
-              <div className="relative rounded-[50px] bg-[#D2E3C8] px-[10px] py-[5px] md:px-[20px] md:py-[11px] text-center text-[8px] md:text-[12px] font-bold text-black shadow-sm">
+              <div className="relative rounded-[50px] bg-[#D2E3C8] px-2.5 py-1.25 md:px-5 md:py-2.75 text-center text-[8px] md:text-[12px] font-bold text-black shadow-sm">
                 <DateLabel />
               </div>
 
@@ -276,19 +276,19 @@ const DailyReport = () => {
           </div>
         </section>
 
-        <section className="w-full overflow-hidden min-h-[600px] rounded-[22px] border border-[#D2D8CF] bg-white shadow-sm">
-          <div className="flex flex-col gap-[16px] border-b border-[#E4E8E1] px-5 py-[20px] lg:flex-row lg:items-center lg:justify-between sm:px-[26px]">
+        <section className="w-full overflow-hidden min-h-150 rounded-[22px] border border-[#D2D8CF] bg-white shadow-sm">
+          <div className="flex flex-col gap-4 border-b border-[#E4E8E1] px-5 py-5 lg:flex-row lg:items-center lg:justify-between sm:px-6.5">
             <div className="min-w-0">
               <h2 className="text-[20px] font-extrabold leading-none text-[#5F785F]">
                 Daftar Kunjungan
               </h2>
             </div>
 
-            <div className="grid grid-cols-2 gap-[10px]">
+            <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
                 onClick={() => setIsModalVisitOpen(true)}
-                className="flex items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[9px] md:px-[18px] py-2 md:py-3 text-[9px] md:text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-2.25 md:px-4.5 py-2 md:py-3 text-[9px] md:text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Plus className="w-3.5 h-3.5 md:w-4 md:h-4" />
                 <span>Tambah Kunjungan</span>
@@ -298,7 +298,7 @@ const DailyReport = () => {
                 type="button"
                 disabled={loading || visitReportList.length === 0}
                 onClick={handleDownloadExcelReport}
-                className="flex items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[9px] md:px-[18px] py-2 md:py-3 text-[9px] md:text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-2.25 md:px-4.5 py-2 md:py-3 text-[9px] md:text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <FileDown className="w-3.5 h-3.5 md:w-4 md:h-4" />
                 <span>Download</span>
@@ -306,7 +306,7 @@ const DailyReport = () => {
             </div>
           </div>
           <div className="block lg:hidden">
-            <div className="grid grid-cols-1 gap-[12px] px-4 py-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-2">
               {currentItems.length === 0 ? (
                 <div className="col-span-full rounded-[14px] border border-[#E4E8E1] bg-[#F8FAF6] px-4 py-8 text-center text-[12px] text-gray-500">
                   {visitSearch.length >= 3 ? "Kunjungan tidak ditemukan." : "Belum ada riwayat kunjungan."}
@@ -317,14 +317,14 @@ const DailyReport = () => {
                     key={item.visit_id || index}
                     type="button"
                     onClick={() => handleViewRecordDetail(item.visit_id)}
-                    className="w-full rounded-[16px] border border-[#E4E8E1] bg-white px-4 py-4 text-left shadow-sm transition-all hover:border-[#86A789] hover:bg-[#F8FAF6]"
+                    className="w-full rounded-2xl border border-[#E4E8E1] bg-white px-4 py-4 text-left shadow-sm transition-all hover:border-[#86A789] hover:bg-[#F8FAF6]"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate text-[14px] font-bold text-black">
                           {item.patient_name}
                         </p>
-                        <p className="mt-[3px] text-[11px] font-semibold text-[#5F785F]">
+                        <p className="mt-0.75 text-[11px] font-semibold text-[#5F785F]">
                           ID: {item.visit_number}
                         </p>
                       </div>
@@ -333,18 +333,18 @@ const DailyReport = () => {
                       </span>
                     </div>
 
-                    <div className="mt-[14px] grid grid-cols-2 gap-x-4 gap-y-3 text-[11px]">
+                    <div className="mt-3.5 grid grid-cols-2 gap-x-4 gap-y-3 text-[11px]">
                       <div>
                         <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-gray-400">Waktu Kunjungan</p>
-                        <p className="mt-[4px] font-semibold text-black truncate">{item.visit_date}</p>
+                        <p className="mt-1 font-semibold text-black truncate">{item.visit_date}</p>
                       </div>
                       <div>
                         <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-gray-400">No. Rekam Medis</p>
-                        <p className="mt-[4px] font-semibold text-black truncate">{item.record_number || '-'}</p>
+                        <p className="mt-1 font-semibold text-black truncate">{item.record_number || '-'}</p>
                       </div>
                       <div className="col-span-2 border-t border-gray-100 pt-2 mt-1">
                         <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-gray-400">Dibuat Oleh</p>
-                        <p className="mt-[2px] font-medium text-gray-700 truncate">{item.made_by}</p>
+                        <p className="mt-0.5 font-medium text-gray-700 truncate">{item.made_by}</p>
                       </div>
                     </div>
                   </button>

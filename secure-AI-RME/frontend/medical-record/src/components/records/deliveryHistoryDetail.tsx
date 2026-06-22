@@ -289,7 +289,7 @@ const DeliverHistoryDetail = () => {
                       vit_k_given: boolValue,
                     }));
                   }}
-                  className="mt-1 h-[42px] w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 cursor-pointer"
+                  className="mt-1 h-10.5 w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 cursor-pointer"
                 >
                   <option value="" disabled hidden>
                     Pilih Status
@@ -311,7 +311,7 @@ const DeliverHistoryDetail = () => {
                       hbo_given: boolValue,
                     }));
                   }}
-                  className="mt-1 h-[42px] w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 cursor-pointer"
+                  className="mt-1 h-10.5 w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 cursor-pointer"
                 >
                   <option value="" disabled hidden>
                     Pilih Status
@@ -333,7 +333,7 @@ const DeliverHistoryDetail = () => {
                       eye_ointment: boolValue,
                     }));
                   }}
-                  className="mt-1 h-[42px] w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 cursor-pointer"
+                  className="mt-1 h-10.5 w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 cursor-pointer"
                 >
                   <option value="" disabled hidden>
                     Pilih Status
@@ -355,7 +355,7 @@ const DeliverHistoryDetail = () => {
                       imd: boolValue,
                     }));
                   }}
-                  className="mt-1 h-[42px] w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 cursor-pointer"
+                  className="mt-1 h-10.5 w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 cursor-pointer"
                 >
                   <option value="" disabled hidden>
                     Pilih Status
