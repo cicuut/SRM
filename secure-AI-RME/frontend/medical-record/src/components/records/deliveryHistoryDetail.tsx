@@ -233,8 +233,8 @@ const DeliverHistoryDetail = () => {
                   <option value="" disabled hidden>
                     Pilih Jenis Kelamin
                   </option>
-                  <option value="perempuan">Wanita</option>
-                  <option value="laki-laki">Pria</option>
+                  <option value="perempuan">Perempuan</option>
+                  <option value="laki-laki">Laki-laki</option>
                 </select>
               </label>
               <label className="flex flex-col text-sm gap-2">

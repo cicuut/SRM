@@ -19,6 +19,7 @@ from app.models import (
     VisitMaster,
     db,
 )
+from app.utils import get_jakarta_now
 
 try:
     import holidays
@@ -570,7 +571,7 @@ def forecast_date_range(
 
 
 def get_month_bounds(reference: Optional[date] = None) -> Tuple[date, date]:
-    today = reference or date.today()
+    today = reference or get_jakarta_now().date()
     month_start = today.replace(day=1)
 
     if today.month == 12:
@@ -591,7 +592,7 @@ def build_forecast_payload(
     user_id: Optional[str] = None,
     include_all_clinics: bool = False,
 ) -> dict:
-    today = reference or date.today()
+    today = reference or get_jakarta_now().date()
     month_start, month_end = get_month_bounds(today)
     history_start = month_start - timedelta(days=120)
 

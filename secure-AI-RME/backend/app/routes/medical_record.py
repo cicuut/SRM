@@ -24,7 +24,7 @@ from app.utils import (
     format_date,
     parse_date,
 )
-from datetime import datetime
+from datetime import date, datetime
 from flask_jwt_extended import jwt_required, get_jwt_identity
 import uuid
 
@@ -359,7 +359,68 @@ def get_add_record_required_fields():
         'address',
     ]
 
+@medical_record_bp.route('/check-nik/<nik_query>', methods=['GET'])
+@jwt_required()
+def check_duplicate_nik(nik_query):
+    current_user, current_role, error_response = require_medical_record_access(require_clinic=True)
+    if error_response:
+        return error_response
 
+    target_nik = str(nik_query).strip()
+
+    try:
+        patients = Patient.query.filter_by(clinic_id=current_user.clinic_id, role='self').all()
+        
+        for p in patients:
+            if safe_decrypt(p.national_id) == target_nik:
+                
+                family_data = {
+                    'family_name': '', 'family_nik': '', 'family_birthdate': '',
+                    'family_gender': '', 'relation': '', 'family_address': '',
+                    'family_number': '', 'family_education': '', 'family_occupation': ''
+                }
+                
+                if p.family_link_id:
+                    family_person = Patient.query.filter_by(
+                        patient_id=p.family_link_id, 
+                        clinic_id=current_user.clinic_id
+                    ).first()
+                    
+                    if family_person:
+                        family_data = {
+                            'family_name': safe_decrypt(family_person.patient_name).title(),
+                            'family_nik': safe_decrypt(family_person.national_id),
+                            'family_birthdate': family_person.birth_date.strftime('%Y-%m-%d') if family_person.birth_date else '',
+                            'family_gender': family_person.gender,
+                            'relation': family_person.relation or '-',
+                            'family_address': safe_decrypt(family_person.address),
+                            'family_number': safe_decrypt(family_person.patient_number),
+                            'family_education': family_person.education_level or '-',
+                            'family_occupation': family_person.occupation or '-'
+                        }
+
+                return jsonify({
+                    'exists': True,
+                    'msg': 'NIK terdaftar! Data pasien dan keluarga akan langsung terisi.',
+                    'patient_data': {
+                        'patient_name': safe_decrypt(p.patient_name).title(),
+                        'birth_date': p.birth_date.strftime('%Y-%m-%d') if p.birth_date else '',
+                        'gender': p.gender,
+                        'patient_number': safe_decrypt(p.patient_number),
+                        'education_level': p.education_level or '-',
+                        'occupation': p.occupation or '-',
+                        'address': safe_decrypt(p.address),
+                        'insurance_number': safe_decrypt(p.insurance_number),
+                        'primary_health_facility': p.primary_health_facility or '-'
+                    },
+                    'family_data': family_data
+                }), 200
+                
+        # Jika NIK belum pernah terdaftar sama sekali
+        return jsonify({'exists': False, 'msg': 'NIK belum terdaftar. Silakan input data baru.'}), 200
+
+    except Exception as e:
+        return jsonify({'msg': 'Gagal memeriksa NIK sistem.', 'error': str(e)}), 500
 @medical_record_bp.route('/add-pregnancy', methods=['POST'])
 @jwt_required()
 def add_pregnancy_record():
@@ -1137,13 +1198,25 @@ def filter_rm_type():
         return error_response
 
     try:
+        search_query = request.args.get("search", "").strip().lower()
         selected_type = request.args.get('type')
-
+        start_date = request.args.get("start_date", "").strip()
+        end_date = request.args.get("end_date", "").strip()
+        
         query = base_record_query(current_user, current_role)
 
-        if selected_type and selected_type != 'All':
+        if selected_type and selected_type not in ['All', 'Semua', 'Select a type']:
             query = query.filter(MedicalRecord.record_type == selected_type)
 
+        if start_date and end_date:
+            start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+            end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+            query = query.filter(
+                db.func.date(MedicalRecord.created_at) >= start_date,
+                db.func.date(MedicalRecord.created_at) <= end_date
+            )
+
+        # Ambil hasil dari database setelah semua kueri ter-filter
         results = query.order_by(MedicalRecord.created_at.desc()).all()
 
         filtered_data = []
@@ -1157,6 +1230,15 @@ def filter_rm_type():
             decrypted_nik = str(raw_nik) if raw_nik else '-'
 
             _dob_searchable, dob_display = format_birth_date_for_search(raw_dob)
+
+            searchable = " ".join([
+                decrypted_name.lower(),
+                decrypted_nik.lower(),
+                record.record_number.lower()
+            ])
+            
+            if search_query and search_query not in searchable:
+                continue
 
             filtered_data.append({
                 'rm_id': record.record_id,
@@ -1174,8 +1256,7 @@ def filter_rm_type():
 
     except Exception as e:
         return jsonify({'msg': 'Gagal memfilter data.', 'error': str(e)}), 500
-
-
+    
 # -----------------------------------------------------------------------------
 # Update data
 # -----------------------------------------------------------------------------
@@ -1419,3 +1500,120 @@ def update_delivery_record_data(uuid):
     except Exception as e:
         db.session.rollback()
         return jsonify({'msg': 'Terjadi kesalahan internal server.', 'error': str(e)}), 500
+
+
+@medical_record_bp.route("/json-delivery-record", methods=["GET"])
+@jwt_required()
+def get_json_visit_report():
+    # 1. Pastikan require_clinic=True untuk menangkap data klinik Bidan yang sedang login
+    current_user, current_role, error_response = require_medical_record_access(require_clinic=True)
+
+    if error_response:
+        return error_response
+
+    try:
+        start_date_str = request.args.get("start_date")
+        end_date_str = request.args.get("end_date")
+        search_query = request.args.get("search", "").strip().lower()
+        current_clinic_id = getattr(current_user, 'clinic_id', None) 
+
+        query = db.session.query(MedicalRecord, Patient).join(
+            Patient, MedicalRecord.patient_id == Patient.patient_id
+        ).filter(
+            MedicalRecord.record_type == "Persalinan"
+        )
+
+        if current_clinic_id:
+            query = query.filter(MedicalRecord.clinic_id == current_clinic_id)
+
+        if start_date_str and end_date_str:
+            start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+            end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+            query = query.filter(
+                db.func.date(MedicalRecord.created_at) >= start_date,
+                db.func.date(MedicalRecord.created_at) <= end_date
+            )
+        raw_records = query.order_by(MedicalRecord.created_at.desc()).all()
+        results = []    
+
+        for medical_record, patient in raw_records:
+            decrypted_name = safe_decrypt(patient.patient_name)
+            decrypted_nik = safe_decrypt(patient.national_id)
+            decrypted_address = safe_decrypt(patient.address) if patient.address else "-"
+            decrypted_phone = safe_decrypt(patient.patient_number) if patient.patient_number else "-"
+            birth_date = format_date(patient.birth_date) if patient.birth_date else ""
+
+            patient_age = "-"
+            if patient.birth_date:
+                today = date.today()
+                
+                calc_age = today.year - patient.birth_date.year
+                calc_month = today.month - patient.birth_date.month
+                if today.day < patient.birth_date.day:
+                    calc_month -= 1
+                if calc_month < 0:
+                    calc_age -= 1
+                    calc_month += 12
+                patient_age = f"{calc_age} Tahun {calc_month} Bulan"
+
+            decrypted_family_name = "-"
+            family_age = "-"
+
+            if patient.family_link_id:
+                family = Patient.query.filter_by(patient_id=patient.family_link_id).first()
+                if family:
+                    decrypted_family_name = safe_decrypt(family.patient_name)
+                    
+                    if family.birth_date:
+                        today = date.today()
+                        calc_age = today.year - family.birth_date.year
+                        calc_month = today.month - family.birth_date.month
+                        if today.day < family.birth_date.day:
+                            calc_month -= 1
+                        if calc_month < 0:
+                            calc_age -= 1
+                            calc_month += 12
+                        family_age = f"{calc_age} Tahun {calc_month} Bulan"
+
+            searchable = " ".join([
+                str(decrypted_name).lower(),
+                str(decrypted_nik).lower(),
+                str(medical_record.record_number).lower(),
+            ])
+
+            if search_query and search_query not in searchable:
+                continue
+
+            delivery_detail = DeliveryRecord.query.filter_by(record_id=medical_record.record_id).first()
+            d_date = format_date(delivery_detail.delivery_date) if (delivery_detail and delivery_detail.delivery_date) else medical_record.created_at.strftime("%Y-%m-%d")
+
+            row_data = {
+                "record_id": str(medical_record.record_id),
+                "record_number": medical_record.record_number,
+                "created_at": medical_record.created_at.strftime("%Y-%m-%d %H:%M"),            
+                "patient_id": str(patient.patient_id),
+                "patient_name": str(decrypted_name).title() if decrypted_name else "Unknown",
+                "national_id": decrypted_nik,
+                "birth_date": birth_date,
+                "patient_age": patient_age,
+                "phone_number": decrypted_phone,
+                "address": decrypted_address,
+                "family_name": str(decrypted_family_name).title() if decrypted_family_name else "-",
+                "family_age": family_age,
+                
+                "delivery_date": format_date(delivery_detail.delivery_date) if (delivery_detail and delivery_detail.delivery_date) else "-",
+                "delivery_type": delivery_detail.delivery_type if delivery_detail else "-",
+                "deliver_complications": safe_decrypt(delivery_detail.deliver_complications) if (delivery_detail and delivery_detail.deliver_complications) else "-",
+                "baby_gender": delivery_detail.baby_gender if delivery_detail else "-",
+                "baby_weight": delivery_detail.baby_weight if delivery_detail else 0,
+                "baby_length": delivery_detail.baby_length if delivery_detail else 0,
+                "apgar_score": delivery_detail.apgar_score if delivery_detail else "-",
+                "baby_complications": safe_decrypt(delivery_detail.baby_complications) if (delivery_detail and delivery_detail.baby_complications) else "-",
+            }
+
+            results.append(row_data)
+
+        return jsonify({"status": "success", "results": results}), 200
+
+    except Exception as e:
+        return jsonify({"msg": "Terjadi kesalahan pada server saat memuat data laporan persalinan.", "error": str(e)}), 500

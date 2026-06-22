@@ -1,23 +1,3 @@
-"""
-Layanan Top 5 Diagnosa Bulanan (pendekatan hibrida).
-
-Alur singkat:
-  1. Ambil teks assessment/keluhan dari kunjungan bulan ini.
-  2. Bersihkan & pecah teks menjadi fragmen diagnosa.
-  3. Kelompokkan fragmen:
-     - Tahap 1: aturan sinonim (CANONICAL_ASSESSMENT_RULES)
-     - Tahap 2: clustering TF-IDF + DBSCAN (atau greedy jika sklearn tidak ada)
-     - Tahap 3: fuzzy merge ke bucket yang sudah ada
-  4. Hitung frekuensi per label → kembalikan top N.
-
-Digunakan oleh: GET /api/dashboard/top-assessments
-
-Aturan akses data:
-  - admin    : semua klinik
-  - midwife  : hanya clinic_id miliknya
-  - asisten  : hanya clinic_id miliknya
-"""
-
 from __future__ import annotations
 
 import re

@@ -27,10 +27,10 @@ const BillingForm = ({
         </p>
       </div>
       <div className="grid grid-cols-1 gap-4 px-5  md:grid-cols-3">
-        <label className="block">           
-           <p className="text-md font-medium text-gray-700 md:text-sm">Total</p>
+        <label className="block">
+          <p className="text-md font-medium text-gray-700 md:text-sm">Total</p>
           <input
-            type="text"
+            type="number"
             name="total"
             value={total}
             onChange={(e) => setTotal(e.target.value)}
@@ -49,7 +49,9 @@ const BillingForm = ({
           )}
         </label>
         <label className="block">
-          <p className="text-md font-medium text-gray-700 md:text-sm">Payment Method</p>
+          <p className="text-md font-medium text-gray-700 md:text-sm">
+            Payment Method
+          </p>
           <select
             name="payment_method"
             value={paymentMethod}
@@ -83,8 +85,8 @@ const BillingForm = ({
             <option value="paid">Terbayar</option>
             <option value="unpaid">Belum Bayar</option>
           </select>
-        </label>    
-        </div >
+        </label>
+      </div>
     </>
   );
 };

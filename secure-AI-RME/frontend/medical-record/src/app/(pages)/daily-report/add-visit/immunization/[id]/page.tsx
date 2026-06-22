@@ -51,7 +51,7 @@ const AddVisitImmunization = () => {
     HBO: ["Dosis 1"],
     BCG: ["Dosis 1"],
     POLIO: ["Polio 1", "Polio 2", "Polio 3", "Polio 4"],
-    DPT: ["DPT 1", "DPT 2", "DPT 3"],
+    DPT: ["DPT 1", "DPT 2", "DPT 3", "DPT 4"],
     PCV: ["PCV 1", "PCV 2", "PCV 3"],
     CAMPAK: ["Campak 1", "Campak 2"],
     IPV: ["IPV 1", "IPV 2"],
