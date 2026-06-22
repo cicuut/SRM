@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 import PatientInformation from "@/components/add-records/patientInformation";
@@ -622,4 +622,16 @@ const PregnancyRecord = () => {
   );
 };
 
-export default PregnancyRecord;
+export default function PregnancyRecordPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex items-center justify-center min-h-screen bg-[#F8FAF6]">
+                <p className="text-[#739072] animate-pulse font-medium text-sm">
+                    Memuat Form Kehamilan...
+                </p>
+            </div>
+        }>
+            <PregnancyRecord />
+        </Suspense>
+    );
+}

@@ -1,11 +1,7 @@
 'use client';
 import React from "react";
-import { useState, useEffect } from "react";
-import { emit } from "process";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import axios from "axios";
-import { request } from "http";
-import Cookies from 'js-cookie';
 import Swal from 'sweetalert2';
 import PatientInformation from "@/components/add-records/patientInformation";
 import FamilyInformation from "@/components/add-records/familyInformation";
@@ -129,4 +125,17 @@ const GeneralRecord = () => {
     )
 
 }
-export default GeneralRecord;
+export default function GeneralRecordPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex items-center justify-center min-h-screen bg-[#F8FAF6]">
+                <p className="text-[#739072] animate-pulse font-medium text-sm">
+                    Memuat Form Poli Umum...
+                </p>
+            </div>
+        }>
+            <GeneralRecord />
+        </Suspense>
+    );
+}
+
