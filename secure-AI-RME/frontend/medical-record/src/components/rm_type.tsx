@@ -50,7 +50,7 @@ const RMTypeFilter = ({ onFilterChange, currentLabel }: Props) => {
     <div className="relative inline-block text-left">
       <div
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center justify-center gap-1 min-w-[90px] md:min-w-[220px] text-center border p-1 md:p-2 rounded-[50px] border-gray-400 cursor-pointer${isFiltered
+        className={`flex items-center justify-center gap-1 min-w-22.5 md:min-w-55 text-center border p-1 md:p-2 rounded-[50px] border-gray-400 cursor-pointer${isFiltered
           ? "bg-[#F0F4EF] border-[#739072] text-[#4F6F52] border"
           : "bg-white border-gray-400 border text-gray-700"
           }`}

@@ -108,7 +108,7 @@ const FamilyInformation = (props: FamilyInformationProps) => {
   return (
     <>
       <div className="flex flex-col gap-0">
-        <h2 className="text-md text-[#4F6F52]  underline leading-none !font-lexend">
+        <h2 className="text-md text-[#4F6F52]  underline leading-none">
           Identitas Keluarga
         </h2>
         <hr className="mt-0"></hr>

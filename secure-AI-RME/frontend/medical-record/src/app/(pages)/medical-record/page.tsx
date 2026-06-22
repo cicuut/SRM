@@ -274,9 +274,11 @@ const MedicalRecord = () => {
   return (
     <div>
       <div className="flex-1 flex flex-col  w-full  gap-5">
+                {loading && <LoadingOverlay />}
+
         <section className="w-full rounded-[22px] border border-[#D2D8CF] bg-white px-5 py-5 shadow-sm sm:px-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="relative min-w-0 flex-1 rounded-[50px] border border-[#D2D8CF] bg-[#FDFEF9] px-5 py-[10px] md:py-[12px] shadow-sm transition-all focus-within:border-[#739072] xl:max-w-[680px]">
+            <div className="relative min-w-0 flex-1 rounded-[50px] border border-[#D2D8CF] bg-[#FDFEF9] px-5 py-2.5 md:py-3 shadow-sm transition-all focus-within:border-[#739072] xl:max-w-170">
               <Search className="absolute left-5 top-1/2 w-3.5 md:w-4 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
@@ -312,19 +314,19 @@ const MedicalRecord = () => {
           </div>
         </section>
         {/* Medical records table */}
-        <section className="min-h-[600px] w-full overflow-hidden rounded-[22px] border border-[#D2D8CF] bg-white shadow-sm">
-          <div className="flex flex-col gap-[16px] border-b border-[#E4E8E1] px-5 py-[20px] lg:flex-row lg:items-center lg:justify-between sm:px-[26px]">
+        <section className="min-h-150 w-full overflow-hidden rounded-[22px] border border-[#D2D8CF] bg-white shadow-sm">
+          <div className="flex flex-col gap-4 border-b border-[#E4E8E1] px-5 py-5 lg:flex-row lg:items-center lg:justify-between sm:px-6.5">
             <div className="min-w-0">
               <h2 className="text-[20px] font-extrabold leading-none text-[#5F785F]">
                 Daftar Rekam Medis
               </h2>
             </div>
 
-            <div className="flex w-40 md:w-full flex-col gap-[10px] sm:flex-row sm:items-center sm:justify-between lg:w-auto lg:justify-end">
+            <div className="flex w-40 md:w-full flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between lg:w-auto lg:justify-end">
               <button
                 type="button"
                 onClick={() => setIsModalOpen(true)}
-                className="flex items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[9px] md:px-[18px] py-2 md:py-3 text-[9px] md:text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-2.25 md:px-4.5 py-2 md:py-3 text-[9px] md:text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Plus className="w-3.5 h-3.5 md:w-4 md:h-4" />
                 <span>Tambah Rekam Medis</span>
@@ -333,7 +335,7 @@ const MedicalRecord = () => {
                 <button
                   type="button"
                   onClick={handleDownloadExcelReport}
-                  className="flex items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[9px] md:px-[18px] py-2 md:py-3 text-[9px] md:text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="flex items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-2.25 md:px-4.5 py-2 md:py-3 text-[9px] md:text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <FileDown className="w-3.5 h-3.5 md:w-4 md:h-4" />
                   <span>Download</span>
@@ -343,7 +345,7 @@ const MedicalRecord = () => {
           </div>
 
           <div className="block lg:hidden">
-            <div className="grid grid-cols-1 gap-[12px] px-4 py-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-2">
               {currentItems.length === 0 ? (
                 <div className="col-span-full rounded-[14px] border border-[#E4E8E1] bg-[#F8FAF6] px-4 py-8 text-center text-[12px] text-gray-500">
                   Pasien tidak ditemukan atau data kosong.
@@ -354,14 +356,14 @@ const MedicalRecord = () => {
                     key={item.rm_id}
                     type="button"
                     onClick={() => handleViewRecordDetail(item.rm_id)}
-                    className="w-full rounded-[16px] border border-[#E4E8E1] bg-white px-4 py-4 text-left shadow-sm transition-all hover:border-[#86A789] hover:bg-[#F8FAF6]"
+                    className="w-full rounded-2xl border border-[#E4E8E1] bg-white px-4 py-4 text-left shadow-sm transition-all hover:border-[#86A789] hover:bg-[#F8FAF6]"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate text-[13px] font-bold text-black">
                           {item.patient_name}
                         </p>
-                        <p className="mt-[3px] text-[11px] font-medium text-[#6B6B6B]">
+                        <p className="mt-0.75 text-[11px] font-medium text-[#6B6B6B]">
                           No. RM: {item.record_number}
                         </p>
                       </div>
@@ -372,12 +374,12 @@ const MedicalRecord = () => {
                       </span>
                     </div>
 
-                    <div className="mt-[14px] grid grid-cols-2 gap-x-4 gap-y-3 text-[11px]">
+                    <div className="mt-3.5 grid grid-cols-2 gap-x-4 gap-y-3 text-[11px]">
                       <div>
                         <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">
                           Tipe RM
                         </p>
-                        <p className="mt-[4px] font-semibold text-black truncate">
+                        <p className="mt-1 font-semibold text-black truncate">
                           {item.record_type}
                         </p>
                       </div>
@@ -385,7 +387,7 @@ const MedicalRecord = () => {
                         <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">
                           NIK
                         </p>
-                        <p className="mt-[4px] font-semibold text-black truncate">
+                        <p className="mt-1 font-semibold text-black truncate">
                           {item.nik}
                         </p>
                       </div>
@@ -393,7 +395,7 @@ const MedicalRecord = () => {
                         <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">
                           Tgl Lahir
                         </p>
-                        <p className="mt-[4px] font-semibold text-black truncate">
+                        <p className="mt-1 font-semibold text-black truncate">
                           {item.birth_date}
                         </p>
                       </div>
@@ -401,7 +403,7 @@ const MedicalRecord = () => {
                         <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">
                           Diperbarui
                         </p>
-                        <p className="mt-[4px] font-semibold text-gray-500 truncate">
+                        <p className="mt-1 font-semibold text-gray-500 truncate">
                           {item.updated_at.split(" ")[0]}
                         </p>
                       </div>

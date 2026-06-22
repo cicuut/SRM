@@ -44,7 +44,7 @@ export const getDynamicColumns = (): ColumnConfig[] => {
     { header: "Jenis Kelamin Bayi", key: "baby_gender", width: 18 },
     { header: "Berat Bayi", key: "baby_weight", width: 18 },
     { header: "Panjang Bayi", key: "baby_length", width: 18 },
-    { header: "Komplikasi Bayi", key: "baby_complication", width: 20 },
+    { header: "Komplikasi Bayi", key: "baby_complications", width: 30 },
   ];
   return baseColumns;
 };
