@@ -265,7 +265,7 @@ const PatientInformation = (props: PatientInformationProps) => {
         </label>
         <label className="block">
           <p className="text-md font-medium text-gray-700 md:text-sm">
-            Pendidikan<span className="text-red-500">*</span>
+            Pendidikan
           </p>
           <input
             type="text"
@@ -278,7 +278,7 @@ const PatientInformation = (props: PatientInformationProps) => {
         </label>
         <label className="block">
           <p className="text-md font-medium text-gray-700 md:text-sm">
-            Pekerjaan<span className="text-red-500">*</span>
+            Pekerjaan
           </p>
           <input
             type="text"

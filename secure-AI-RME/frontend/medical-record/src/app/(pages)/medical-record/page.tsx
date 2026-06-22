@@ -274,6 +274,8 @@ const MedicalRecord = () => {
   return (
     <div>
       <div className="flex-1 flex flex-col  w-full  gap-5">
+                {loading && <LoadingOverlay />}
+
         <section className="w-full rounded-[22px] border border-[#D2D8CF] bg-white px-5 py-5 shadow-sm sm:px-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="relative min-w-0 flex-1 rounded-[50px] border border-[#D2D8CF] bg-[#FDFEF9] px-5 py-[10px] md:py-[12px] shadow-sm transition-all focus-within:border-[#739072] xl:max-w-[680px]">

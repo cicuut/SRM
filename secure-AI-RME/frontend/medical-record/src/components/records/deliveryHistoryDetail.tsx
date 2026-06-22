@@ -368,11 +368,11 @@ const DeliverHistoryDetail = () => {
             <div className="flex flex-col gap-5">
               <label className="flex flex-col text-sm gap-2">
                 <span className="text-[12px] font-bold text-[#2F3A2F]">
-                  Komplikasi Persalinan
+                  Komplikasi Bayi
                 </span>
                 <textarea
                   name="delivery_complications"
-                  value={formData.deliver_complications || ""}
+                  value={formData.baby_complications || ""}
                   onChange={handleInputChange}
                   rows={3}
                   className="mt-1 w-full resize-y rounded-[10px] border border-[#D2D8CF] bg-white px-3 py-3 text-[13px] leading-relaxed text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10"

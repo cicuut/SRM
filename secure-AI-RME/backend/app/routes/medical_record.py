@@ -24,7 +24,7 @@ from app.utils import (
     format_date,
     parse_date,
 )
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from flask_jwt_extended import jwt_required, get_jwt_identity
 import uuid
 
@@ -95,6 +95,22 @@ def require_medical_record_access(require_clinic=True):
             }),
             400,
         )
+    
+    if current_user.clinic_id:
+        try:
+            one_year_ago = datetime.now() - timedelta(days=365)
+            
+            db.session.query(MedicalRecord).filter(
+                MedicalRecord.clinic_id == current_user.clinic_id,
+                MedicalRecord.status == 'Active',
+                MedicalRecord.last_update < one_year_ago
+            ).update({MedicalRecord.status: 'Inactive'}, synchronize_session=False)
+            
+            db.session.commit()
+            
+        except Exception as e:
+            db.session.rollback()
+            print(f"⚠️ [Auto-Update Status RM] Gagal mendeteksi data usang: {str(e)}")
 
     return current_user, current_role, None
 
