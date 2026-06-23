@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 
 from app.diagnose import get_top_diagnoses_payload
-from app.forecast_service import SERVICE_MODELS, build_forecast_payload
+from app.forecast_service import build_forecast_payload
 from app.models import User, db
 
 
@@ -160,14 +160,3 @@ def get_visitor_forecast():
             ),
             500,
         )
-
-
-@dashboard_bp.route("/forecast-services", methods=["GET"])
-@jwt_required()
-def get_forecast_services():
-    current_user, current_role, error_response = require_dashboard_access()
-
-    if error_response:
-        return error_response
-
-    return jsonify({"services": list(SERVICE_MODELS.keys())}), 200
