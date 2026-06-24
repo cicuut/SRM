@@ -1145,7 +1145,16 @@ def delete_medical_record(uuid):
 
         patient_name = safe_decrypt(patient.patient_name, fallback='Pasien')
 
+        family_id = patient.family_link_id
+
         db.session.delete(medical_record)
+        db.session.delete(patient)
+        db.session.flush()
+
+        if family_id:
+            family_member = Patient.query.get(family_id)
+            if family_member:
+                db.session.delete(family_member)
         db.session.commit()
 
         return jsonify({
