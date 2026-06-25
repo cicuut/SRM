@@ -811,7 +811,7 @@ def get_pregnancy_record_data(uuid):
                 'baby_weight': obs.baby_weight or '-',
                 'baby_height': obs.baby_height or '-',
                 'baby_complications': safe_decrypt(obs.baby_complications),
-                'postpartum_status': safe_decrypt(obs.postpartum_status),
+                'postpartum_status': obs.postpartum_status,
                 'postpartum_complications': safe_decrypt(obs.postpartum_complications),
             })
 

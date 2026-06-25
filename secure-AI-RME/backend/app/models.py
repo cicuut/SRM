@@ -215,7 +215,7 @@ class ObstetricHistory(db.Model):
     baby_weight = db.Column(db.Float, nullable=True)
     baby_height = db.Column(db.Float, nullable=True)
     baby_complications = db.Column(EncryptedText, nullable=True)
-    postpartum_status = db.Column(EncryptedText, nullable=True)
+    postpartum_status = db.Column(db.String(50), nullable=True)
     postpartum_complications = db.Column(EncryptedText, nullable=True)
 
 
@@ -449,7 +449,7 @@ class Audit(db.Model):
         default=uuid.uuid4,
     )
     user_id = db.Column(
-        UUID(as_uuid=True),
+        UUID(as_uuid=True, ondelete='CASCADE'),
         db.ForeignKey('users.user_id'),
     )
     clinic_id = db.Column(
@@ -492,21 +492,21 @@ class Financial(db.Model):
     )
     visit_id = db.Column(
         UUID(as_uuid=True),
-        db.ForeignKey('visit_master.visit_id'),
+        db.ForeignKey('visit_master.visit_id', ondelete='CASCADE'),
         nullable=True,
     )
     clinic_id = db.Column(
         UUID(as_uuid=True),
-        db.ForeignKey('clinic.clinic_id'),
+        db.ForeignKey('clinic.clinic_id', ondelete='CASCADE'),
         nullable=True,
     )
     user_id = db.Column(
         UUID(as_uuid=True),
-        db.ForeignKey('users.user_id'),
+        db.ForeignKey('users.user_id', ondelete='CASCADE'),
         nullable=True,
     )
     patient_id = db.Column(
-        UUID(as_uuid=True),
+        UUID(as_uuid=True, ondelete='CASCADE'),
         db.ForeignKey('patient.patient_id'),
         nullable=True,
     )
