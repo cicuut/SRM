@@ -30,13 +30,22 @@ type MeResponse = {
 
 type VisitReportOption = {
     visit_id: string;
-    visit_date: string;
+    visit_date: string | null;
     visit_number: string;
+    visit_display?: string;
+    record_id?: string | null;
     record_number: string;
+    patient_id?: string | null;
     patient_name: string;
-    nik: string;
+    patient_number?: string;
+    nik?: string;
     record_type: string;
-    made_by: string;
+    clinic_id?: string | null;
+    billing_transaction_id?: string | null;
+    billing_transaction_number?: string;
+    billing_status?: string;
+    billing_amount?: number;
+    billing_payment_date?: string | null;
 };
 
 type InvoiceFormData = {
@@ -125,6 +134,14 @@ const translateErrorMessage = (message?: string) => {
 
     if (normalized.includes('gagal mengambil data laporan kunjungan')) {
         return 'Gagal mengambil data laporan kunjungan.';
+    }
+
+    if (
+        normalized.includes('sudah memiliki billing') ||
+        normalized.includes('sudah terbayar') ||
+        normalized.includes('sudah lunas')
+    ) {
+        return 'Laporan kunjungan ini sudah memiliki billing terbayar. Pilih laporan kunjungan lain yang belum terbayar.';
     }
 
     if (normalized.includes('gagal menambahkan invoice')) {
@@ -219,13 +236,16 @@ const AddInvoice = () => {
         return visitReports.filter((visit) => {
             const searchableText = [
                 visit.patient_name,
+                visit.patient_number,
                 visit.nik,
                 visit.visit_number,
                 visit.record_number,
                 visit.record_type,
                 visit.visit_date,
-                visit.made_by,
+                visit.billing_status,
+                visit.billing_transaction_number,
             ]
+                .filter(Boolean)
                 .join(' ')
                 .toLowerCase();
 
@@ -342,13 +362,15 @@ const AddInvoice = () => {
                 return;
             }
 
-            const response = await api.get(`/financial/transaction-number?date=${encodeURIComponent(date)}`, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
+            const response = await api.get(
+                `/financial/transaction-number?date=${encodeURIComponent(date)}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
                 },
-            });
-                    
+            );
 
             const data = response.data;
 
@@ -390,7 +412,7 @@ const AddInvoice = () => {
                 return;
             }
 
-            const response = await api.get('/visit-report/get-all-visit', {
+            const response = await api.get('/financial/unpaid-visits?limit=500', {
                 headers: {
                     Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json',
@@ -411,18 +433,25 @@ const AddInvoice = () => {
 
             if (response.status !== 200) {
                 throw new Error(
-                    data?.msg || 'Gagal mengambil data laporan kunjungan.',
+                    data?.msg ||
+                        'Gagal mengambil data laporan kunjungan yang belum terbayar.',
                 );
             }
 
-            setVisitReports(Array.isArray(data) ? data : []);
-        } catch (error) {
-            const message =
-                error instanceof Error
-                    ? translateErrorMessage(error.message)
-                    : 'Terjadi kesalahan saat mengambil data laporan kunjungan.';
+            const unpaidVisits = Array.isArray(data?.data)
+                ? data.data
+                : Array.isArray(data)
+                  ? data
+                  : [];
 
-            setErrorMessage(message);
+            setVisitReports(unpaidVisits);
+        } catch (error: any) {
+            const message =
+                error?.response?.data?.msg ||
+                error?.message ||
+                'Terjadi kesalahan saat mengambil data laporan kunjungan yang belum terbayar.';
+
+            setErrorMessage(translateErrorMessage(message));
         } finally {
             setIsLoadingVisits(false);
         }
@@ -578,18 +607,12 @@ const AddInvoice = () => {
                 description: formData.description.trim(),
             };
 
-            console.log('PAYLOAD:', payload);
-
-            const response = await api.post(
-                '/financial/add',
-                payload,
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
-                }
-            );
+            const response = await api.post('/financial/add', payload, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
 
             const data = response.data;
 
@@ -608,18 +631,13 @@ const AddInvoice = () => {
             }
 
             router.push('/financial-report');
-
         } catch (error: any) {
-
-            console.error('ERROR:', error?.response?.data);
-
             const message =
                 error?.response?.data?.msg ||
                 error?.message ||
                 'Terjadi kesalahan saat menambahkan invoice.';
 
-            setErrorMessage(message);
-
+            setErrorMessage(translateErrorMessage(message));
         } finally {
             setIsSubmitting(false);
         }
@@ -690,7 +708,7 @@ const AddInvoice = () => {
 
                     <div className="block">
                         <span className={labelClassName}>
-                            Laporan Kunjungan
+                            Laporan Kunjungan Belum Terbayar
                             <span className="ml-1 font-medium text-[#8A8A8A]">
                                 (opsional)
                             </span>
@@ -708,7 +726,7 @@ const AddInvoice = () => {
                                         ? `${selectedVisit.patient_name} - ${selectedVisit.visit_number}`
                                         : isLoadingVisits
                                           ? 'Memuat data...'
-                                          : 'Pilih laporan kunjungan bila ada'}
+                                          : 'Pilih laporan kunjungan belum terbayar'}
                                 </span>
 
                                 <span className="shrink-0 rounded-full bg-[#F8FAF6] px-3 py-1 text-[11px] font-bold text-[#4F6F52]">
@@ -729,8 +747,8 @@ const AddInvoice = () => {
                         </div>
 
                         <p className="mt-1 text-[11px] text-[#8A8A8A]">
-                            Invoice dapat dibuat tanpa terhubung ke laporan
-                            kunjungan.
+                            Daftar pilihan hanya menampilkan laporan kunjungan
+                            yang belum lunas atau belum terbayar.
                         </p>
                     </div>
 
@@ -855,7 +873,9 @@ const AddInvoice = () => {
                                     <p className="mt-1 text-[11px] text-[#6B6B6B]">
                                         {selectedVisit.record_number} -{' '}
                                         {selectedVisit.record_type} -{' '}
-                                        {selectedVisit.visit_date}
+                                        {selectedVisit.visit_date || '-'} - Status:{' '}
+                                        {selectedVisit.billing_status ||
+                                            'belum terbayar'}
                                     </p>
                                 ) : (
                                     <p className="mt-1 text-[11px] text-[#6B6B6B]">
@@ -912,14 +932,16 @@ const AddInvoice = () => {
                         <div className="flex flex-col gap-3 border-b border-[#E4E8E1] px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
                             <div>
                                 <h2 className="text-[18px] font-bold text-[#4F6F52]">
-                                    Pilih Laporan Kunjungan
+                                    Pilih Laporan Kunjungan Belum Terbayar
                                 </h2>
 
                                 <p className="mt-1 text-[12px] text-[#6B6B6B]">
-                                    Laporan kunjungan bersifat opsional. Cari
-                                    berdasarkan nama pasien, NIK, nomor RM,
-                                    nomor kunjungan, tipe rekam medis, tanggal,
-                                    atau pembuat laporan.
+                                    Daftar ini hanya berisi laporan kunjungan
+                                    yang belum memiliki billing lunas atau
+                                    terbayar. Cari berdasarkan nama pasien,
+                                    nomor pasien, nomor RM, nomor kunjungan,
+                                    tipe rekam medis, tanggal, atau status
+                                    billing.
                                 </p>
                             </div>
 
@@ -940,7 +962,7 @@ const AddInvoice = () => {
                                     onChange={(event) =>
                                         setSearchKeyword(event.target.value)
                                     }
-                                    placeholder="Cari laporan kunjungan..."
+                                    placeholder="Cari laporan kunjungan belum terbayar..."
                                     className="h-[42px] flex-1 rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10"
                                     autoFocus
                                 />
@@ -968,7 +990,7 @@ const AddInvoice = () => {
 
                             <p className="mt-2 text-[11px] font-semibold text-[#6B6B6B]">
                                 Menampilkan {filteredVisitReports.length} dari{' '}
-                                {visitReports.length} laporan kunjungan
+                                {visitReports.length} laporan kunjungan belum terbayar
                             </p>
                         </div>
 
@@ -984,7 +1006,7 @@ const AddInvoice = () => {
                                     </p>
 
                                     <p className="mt-1 text-[12px] text-[#6B6B6B]">
-                                        Coba gunakan kata kunci lain.
+                                        Coba gunakan kata kunci lain atau pastikan masih ada laporan kunjungan yang belum terbayar.
                                     </p>
                                 </div>
                             ) : (
@@ -1014,8 +1036,11 @@ const AddInvoice = () => {
                                                         </p>
 
                                                         <p className="mt-1 text-[12px] text-[#6B6B6B]">
-                                                            NIK: {visit.nik} -
-                                                            RM:{' '}
+                                                            No. Pasien:{' '}
+                                                            {visit.patient_number ||
+                                                                visit.nik ||
+                                                                '-'}{' '}
+                                                            - RM:{' '}
                                                             {
                                                                 visit.record_number
                                                             }
@@ -1031,12 +1056,13 @@ const AddInvoice = () => {
 
                                                     <div className="shrink-0 text-left sm:text-right">
                                                         <p className="text-[12px] font-bold text-[#4F6F52]">
-                                                            {visit.visit_date}
+                                                            {visit.visit_date || '-'}
                                                         </p>
 
                                                         <p className="mt-1 text-[11px] text-[#6B6B6B]">
-                                                            Dibuat oleh:{' '}
-                                                            {visit.made_by}
+                                                            Status:{' '}
+                                                            {visit.billing_status ||
+                                                                'belum terbayar'}
                                                         </p>
 
                                                         {isSelected && (

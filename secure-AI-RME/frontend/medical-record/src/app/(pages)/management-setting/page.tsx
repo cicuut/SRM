@@ -103,21 +103,15 @@ const inputClassName =
 const textAreaClassName =
     'mt-[8px] min-h-[76px] w-full min-w-0 resize-none rounded-[4px] border border-[#BFC7BB] bg-white px-3 py-2 text-[12px] text-black shadow-sm outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072] disabled:cursor-not-allowed disabled:bg-[#F8FAF6] disabled:opacity-70';
 
-const readJson = async (response: Response) => {
-    try {
-        return await response.json();
-    } catch {
-        return {};
-    }
-};
-
 const normalizeRole = (value?: string | null): Role | '' => {
     const role = String(value || '').trim().toLowerCase();
 
     if (role === 'admin' || role === 'developer') return 'admin';
+
     if (role === 'midwife' || role === 'bidan' || role === 'owner') {
         return 'midwife';
     }
+
     if (role === 'asisten' || role === 'assistant' || role === 'staff') {
         return 'asisten';
     }
@@ -207,6 +201,22 @@ const translateMessage = (message?: string) => {
         return 'Akun Anda sedang tidak aktif.';
     }
 
+    if (
+        normalizedMessage.includes('deleted permanently') ||
+        normalizedMessage.includes('deleted_permanently') ||
+        normalizedMessage.includes('dihapus permanen')
+    ) {
+        return 'User berhasil dihapus permanen dari database.';
+    }
+
+    if (
+        normalizedMessage.includes('dinonaktifkan') ||
+        normalizedMessage.includes('deactivate') ||
+        normalizedMessage.includes('deactivated')
+    ) {
+        return 'Status akun berhasil dinonaktifkan.';
+    }
+
     return rawMessage;
 };
 
@@ -223,8 +233,8 @@ const UserAvatar = ({
         size === 'lg'
             ? 'h-[54px] w-[54px] text-[20px]'
             : size === 'sm'
-                ? 'h-[36px] w-[36px] text-[12px]'
-                : 'h-[38px] w-[38px] text-[12px]';
+              ? 'h-[36px] w-[36px] text-[12px]'
+              : 'h-[38px] w-[38px] text-[12px]';
 
     return (
         <div
@@ -471,7 +481,6 @@ const ManagementSetting = () => {
                 'requires_clinic_setup',
                 data.requires_clinic_setup ? 'true' : 'false',
             );
-
         } catch (error: any) {
             if (error.response) {
                 const { status, data: serverData } = error.response;
@@ -491,19 +500,26 @@ const ManagementSetting = () => {
                     return;
                 }
 
-                setErrorMessage(translateMessage(serverData?.msg || 'Gagal mengambil data management.'));
+                setErrorMessage(
+                    translateMessage(
+                        serverData?.msg || 'Gagal mengambil data management.',
+                    ),
+                );
             } else {
-                const message = error instanceof Error
-                    ? translateMessage(error.message)
-                    : 'Terjadi kesalahan saat mengambil data management.';
+                const message =
+                    error instanceof Error
+                        ? translateMessage(error.message)
+                        : 'Terjadi kesalahan saat mengambil data management.';
                 setErrorMessage(message);
             }
         } finally {
             setIsLoading(false);
         }
     };
+
     useEffect(() => {
         fetchOverview();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleClinicChange = (
@@ -669,25 +685,28 @@ const ManagementSetting = () => {
                 return;
             }
 
-            const response = await api.patch('/auth/management/clinic', {
-                clinic_name: clinicForm.clinicName.trim(),
-                license_number: clinicForm.sipbNo.trim(),
-                clinic_email: clinicForm.clinicEmail.trim(),
-                clinic_phone: clinicForm.clinicPhoneNumber.trim(),
-                clinic_address: clinicForm.clinicAddress.trim(),
-            }, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
+            const response = await api.patch(
+                '/auth/management/clinic',
+                {
+                    clinic_name: clinicForm.clinicName.trim(),
+                    license_number: clinicForm.sipbNo.trim(),
+                    clinic_email: clinicForm.clinicEmail.trim(),
+                    clinic_phone: clinicForm.clinicPhoneNumber.trim(),
+                    clinic_address: clinicForm.clinicAddress.trim(),
                 },
-            });
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                },
+            );
 
             const data = response.data;
 
             setClinicForm(mapClinicToForm(data.clinic));
             setSuccessMessage('Informasi klinik berhasil diperbarui.');
             await fetchOverview();
-
         } catch (error: any) {
             if (error.response) {
                 const status = error.response.status;
@@ -699,15 +718,25 @@ const ManagementSetting = () => {
                 }
 
                 if (status === 403) {
-                    setErrorMessage(translateMessage(serverData?.msg || 'Anda tidak memiliki izin memperbarui klinik.'));
+                    setErrorMessage(
+                        translateMessage(
+                            serverData?.msg ||
+                                'Anda tidak memiliki izin memperbarui klinik.',
+                        ),
+                    );
                     return;
                 }
 
-                setErrorMessage(translateMessage(serverData?.msg || 'Gagal memperbarui data klinik.'));
+                setErrorMessage(
+                    translateMessage(
+                        serverData?.msg || 'Gagal memperbarui data klinik.',
+                    ),
+                );
             } else {
-                const message = error instanceof Error
-                    ? translateMessage(error.message)
-                    : 'Terjadi kesalahan saat memperbarui data klinik.';
+                const message =
+                    error instanceof Error
+                        ? translateMessage(error.message)
+                        : 'Terjadi kesalahan saat memperbarui data klinik.';
                 setErrorMessage(message);
             }
         } finally {
@@ -743,21 +772,23 @@ const ManagementSetting = () => {
                 return;
             }
 
-            const response = await api.post('/auth/management/users', {
-                fullname: nextAccountForm.fullname.trim(),
-                email: nextAccountForm.email.trim(),
-                password: nextAccountForm.password,
-                strnumber: nextAccountForm.strnumber.trim() || null,
-                role: nextAccountForm.role,
-                is_active: nextAccountForm.isActive,
-            }, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
+            await api.post(
+                '/auth/management/users',
+                {
+                    fullname: nextAccountForm.fullname.trim(),
+                    email: nextAccountForm.email.trim(),
+                    password: nextAccountForm.password,
+                    strnumber: nextAccountForm.strnumber.trim() || null,
+                    role: nextAccountForm.role,
+                    is_active: nextAccountForm.isActive,
                 },
-            });
-
-            const data = response.data;
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                },
+            );
 
             setAccountForm(emptyAccountForm);
             setIsAccountModalOpen(false);
@@ -778,13 +809,21 @@ const ManagementSetting = () => {
                 }
 
                 if (status === 403) {
-                    setErrorMessage(translateMessage(serverData?.msg || 'Anda tidak memiliki izin.'));
+                    setErrorMessage(
+                        translateMessage(serverData?.msg || 'Anda tidak memiliki izin.'),
+                    );
                     return;
                 }
 
-                setErrorMessage(translateMessage(serverData?.msg || 'Gagal membuat akun user.'));
+                setErrorMessage(
+                    translateMessage(serverData?.msg || 'Gagal membuat akun user.'),
+                );
             } else {
-                setErrorMessage(error instanceof Error ? translateMessage(error.message) : 'Terjadi kesalahan saat membuat akun user.');
+                setErrorMessage(
+                    error instanceof Error
+                        ? translateMessage(error.message)
+                        : 'Terjadi kesalahan saat membuat akun user.',
+                );
             }
         } finally {
             setIsCreatingAccount(false);
@@ -838,20 +877,74 @@ const ManagementSetting = () => {
                 return;
             }
 
-            const response = await api.patch(`/auth/management/employees/${selectedEmployee.id}`, {
-                role: selectedRole,
-                is_active: selectedIsActive,
-            }, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            });
+            const previousRole = normalizeRole(
+                selectedEmployee.role || selectedEmployee.user_role,
+            );
+            const previousIsActive = Boolean(selectedEmployee.is_active);
 
-            const data = response.data;
+            const roleChanged = selectedRole !== previousRole;
+            const statusChanged = selectedIsActive !== previousIsActive;
 
-            setSelectedEmployee(data.employee);
-            setSuccessMessage('User berhasil diperbarui.');
+            if (!roleChanged && !statusChanged) {
+                setSuccessMessage('Tidak ada perubahan data user.');
+                return;
+            }
+
+            let latestEmployee = selectedEmployee;
+
+            if (roleChanged) {
+                const roleResponse = await api.patch(
+                    `/auth/management/employees/${selectedEmployee.id}`,
+                    {
+                        role: selectedRole,
+                    },
+                    {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                        },
+                    },
+                );
+
+                latestEmployee = roleResponse.data.employee;
+            }
+
+            if (statusChanged) {
+                const statusResponse = await api.patch(
+                    `/auth/management/employees/${selectedEmployee.id}/status`,
+                    {
+                        is_active: selectedIsActive,
+                    },
+                    {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                        },
+                    },
+                );
+
+                latestEmployee = statusResponse.data.employee;
+            }
+
+            setSelectedEmployee(latestEmployee);
+            setSelectedIsActive(Boolean(latestEmployee.is_active));
+            setSelectedRole(
+                (normalizeRole(latestEmployee.role || latestEmployee.user_role) ||
+                    'asisten') as Role,
+            );
+
+            if (roleChanged && statusChanged) {
+                setSuccessMessage('Role dan status akun berhasil diperbarui.');
+            } else if (roleChanged) {
+                setSuccessMessage('Role akun berhasil diperbarui.');
+            } else {
+                setSuccessMessage(
+                    selectedIsActive
+                        ? 'Akun berhasil diaktifkan.'
+                        : 'Akun berhasil dinonaktifkan.',
+                );
+            }
+
             await fetchOverview();
         } catch (error: any) {
             if (error.response) {
@@ -868,13 +961,21 @@ const ManagementSetting = () => {
                 }
 
                 if (status === 403) {
-                    setErrorMessage(translateMessage(serverData?.msg || 'Anda tidak memiliki izin.'));
+                    setErrorMessage(
+                        translateMessage(serverData?.msg || 'Anda tidak memiliki izin.'),
+                    );
                     return;
                 }
 
-                setErrorMessage(translateMessage(serverData?.msg || 'Gagal memperbarui user.'));
+                setErrorMessage(
+                    translateMessage(serverData?.msg || 'Gagal memperbarui user.'),
+                );
             } else {
-                setErrorMessage(error instanceof Error ? translateMessage(error.message) : 'Terjadi kesalahan saat memperbarui user.');
+                setErrorMessage(
+                    error instanceof Error
+                        ? translateMessage(error.message)
+                        : 'Terjadi kesalahan saat memperbarui user.',
+                );
             }
         } finally {
             setIsSavingEmployee(false);
@@ -896,19 +997,16 @@ const ManagementSetting = () => {
                 return;
             }
 
-            // Konversi ke api.delete (Konfigurasi headers dipasang di argumen kedua)
-            const response = await api.delete(`/auth/management/employees/${selectedEmployee.id}`, {
+            await api.delete(`/auth/management/employees/${selectedEmployee.id}`, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
             });
 
-            const data = response.data;
-
             setIsDeleteModalOpen(false);
             setSelectedEmployee(null);
-            setSuccessMessage('User berhasil dinonaktifkan dan dilepas dari klinik.');
+            setSuccessMessage('User berhasil dihapus permanen dari database.');
             await fetchOverview();
         } catch (error: any) {
             if (error.response) {
@@ -925,13 +1023,21 @@ const ManagementSetting = () => {
                 }
 
                 if (status === 400 || status === 403) {
-                    setErrorMessage(translateMessage(serverData?.msg || 'User ini tidak bisa dihapus.'));
+                    setErrorMessage(
+                        translateMessage(serverData?.msg || 'User ini tidak bisa dihapus.'),
+                    );
                     return;
                 }
 
-                setErrorMessage(translateMessage(serverData?.msg || 'Gagal menghapus user.'));
+                setErrorMessage(
+                    translateMessage(serverData?.msg || 'Gagal menghapus user.'),
+                );
             } else {
-                setErrorMessage(error instanceof Error ? translateMessage(error.message) : 'Terjadi kesalahan saat menghapus user.');
+                setErrorMessage(
+                    error instanceof Error
+                        ? translateMessage(error.message)
+                        : 'Terjadi kesalahan saat menghapus user.',
+                );
             }
         } finally {
             setIsSavingEmployee(false);
@@ -1005,7 +1111,7 @@ const ManagementSetting = () => {
                             <div className="px-5 py-5 sm:px-6">
                                 <div className="grid w-full min-w-0 grid-cols-1 gap-3 lg:grid-cols-[1fr_auto_380px]">
                                     <div className="relative min-w-0 rounded-[50px] border border-[#D2D8CF] bg-[#FDFEF9] px-5 py-[11px] shadow-sm transition-all focus-within:border-[#739072]">
-                                        <Search className="absolute left-5 top-1/2 w-3.5 md:w-4 -translate-y-1/2 text-gray-400" />
+                                        <Search className="absolute left-5 top-1/2 w-3.5 -translate-y-1/2 text-gray-400 md:w-4" />
                                         <input
                                             type="text"
                                             value={searchQuery}
@@ -1020,13 +1126,14 @@ const ManagementSetting = () => {
                                     <div className="flex h-[40px] items-center justify-center whitespace-nowrap rounded-[50px] bg-[#D2E3C8] px-5 text-[12px] font-bold text-[#4F6F52] shadow-sm">
                                         {employees.length} User
                                     </div>
-                                    <div className='grid grid-cols-2 gap-3'>
+
+                                    <div className="grid grid-cols-2 gap-3">
                                         <select
                                             value={roleFilter}
                                             onChange={(event) =>
                                                 setRoleFilter(event.target.value)
                                             }
-                                            className="h-8 md:h-[40px] rounded-[50px] border border-[#D2D8CF] bg-white text-center text-[9px] md:text-[12px] font-bold text-[#4B4B4B] shadow-sm outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072]"
+                                            className="h-8 rounded-[50px] border border-[#D2D8CF] bg-white text-center text-[9px] font-bold text-[#4B4B4B] shadow-sm outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072] md:h-[40px] md:text-[12px]"
                                         >
                                             <option value="all">Semua Role</option>
                                             {roleFilterOptions.map((role) => (
@@ -1044,7 +1151,7 @@ const ManagementSetting = () => {
                                             onChange={(event) =>
                                                 setStatusFilter(event.target.value)
                                             }
-                                            className="h-8 md:h-[40px] rounded-[50px] border border-[#D2D8CF] bg-white text-center text-[9px] md:text-[12px] font-bold text-[#4B4B4B] shadow-sm outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072]"
+                                            className="h-8 rounded-[50px] border border-[#D2D8CF] bg-white text-center text-[9px] font-bold text-[#4B4B4B] shadow-sm outline-none transition-all focus:border-[#739072] focus:ring-1 focus:ring-[#739072] md:h-[40px] md:text-[12px]"
                                         >
                                             <option value="all">Semua Status</option>
                                             <option value="active">Aktif</option>
@@ -1138,10 +1245,11 @@ const ManagementSetting = () => {
 
                                                             <td className="px-5 py-4">
                                                                 <span
-                                                                    className={`inline-flex min-w-[76px] justify-center rounded-full px-3 py-1 text-[10px] font-bold ${employee.is_active
-                                                                        ? 'bg-[#D2E3C8] text-[#4F6F52]'
-                                                                        : 'bg-[#F3E8C8] text-[#7A5A00]'
-                                                                        }`}
+                                                                    className={`inline-flex min-w-[76px] justify-center rounded-full px-3 py-1 text-[10px] font-bold ${
+                                                                        employee.is_active
+                                                                            ? 'bg-[#D2E3C8] text-[#4F6F52]'
+                                                                            : 'bg-[#F3E8C8] text-[#7A5A00]'
+                                                                    }`}
                                                                 >
                                                                     {employee.is_active
                                                                         ? 'Aktif'
@@ -1222,10 +1330,11 @@ const ManagementSetting = () => {
                                                             </span>
 
                                                             <span
-                                                                className={`rounded-full px-3 py-1 text-[10px] font-bold ${employee.is_active
-                                                                    ? 'bg-[#D2E3C8] text-[#4F6F52]'
-                                                                    : 'bg-[#F3E8C8] text-[#7A5A00]'
-                                                                    }`}
+                                                                className={`rounded-full px-3 py-1 text-[10px] font-bold ${
+                                                                    employee.is_active
+                                                                        ? 'bg-[#D2E3C8] text-[#4F6F52]'
+                                                                        : 'bg-[#F3E8C8] text-[#7A5A00]'
+                                                                }`}
                                                             >
                                                                 {employee.is_active
                                                                     ? 'Aktif'
@@ -1592,7 +1701,7 @@ const ManagementSetting = () => {
 
                                 <label className="block">
                                     <span className="text-[11px] font-bold text-black">
-                                        Status
+                                        Status Akun
                                     </span>
                                     <select
                                         value={
@@ -1611,6 +1720,10 @@ const ManagementSetting = () => {
                                         <option value="active">Aktif</option>
                                         <option value="inactive">Tidak Aktif</option>
                                     </select>
+                                    <p className="mt-2 text-[10px] font-medium text-[#6B6B6B]">
+                                        Status tidak aktif hanya menonaktifkan
+                                        login akun. Data user tetap tersimpan.
+                                    </p>
                                 </label>
                             </div>
 
@@ -1624,7 +1737,7 @@ const ManagementSetting = () => {
                                     }
                                     className="h-[36px] rounded-[50px] border border-red-200 bg-white px-[18px] text-[12px] font-bold text-red-600 transition-all hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
-                                    Hapus User
+                                    Hapus Permanen
                                 </button>
 
                                 <div className="flex flex-col-reverse gap-[10px] sm:flex-row sm:justify-end">
@@ -1666,8 +1779,13 @@ const ManagementSetting = () => {
                             <span className="font-bold">
                                 {selectedEmployee.fullname}
                             </span>{' '}
-                            akan dinonaktifkan dan dilepas dari akses klinik.
+                            akan dihapus dari sistem dan tidak dapat digunakan lagi untuk login.
                         </p>
+
+                        <div className="mt-4 rounded-[12px] border border-red-200 bg-red-50 px-4 py-3 text-[12px] leading-relaxed text-red-700">
+                            Tindakan ini bersifat permanen. Jika hanya ingin menghentikan
+                            akses sementara, ubah status akun menjadi Tidak Aktif.
+                        </div>
 
                         <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                             <button
@@ -1685,7 +1803,9 @@ const ManagementSetting = () => {
                                 disabled={isSavingEmployee}
                                 className="h-[36px] rounded-[50px] bg-red-600 px-[18px] text-[12px] font-bold text-white transition-all hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                             >
-                                {isSavingEmployee ? 'Menghapus...' : 'Hapus'}
+                                {isSavingEmployee
+                                    ? 'Menghapus...'
+                                    : 'Hapus Permanen'}
                             </button>
                         </div>
                     </div>

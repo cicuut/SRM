@@ -101,7 +101,7 @@ def get_current_user():
 
 
 def get_financial_scope_clinic_id(user):
-    if not user or not hasattr(user, 'clinic_id') or not user.clinic_id:
+    if not user or not hasattr(user, "clinic_id") or not user.clinic_id:
         return None
 
     return user.clinic_id
@@ -198,6 +198,39 @@ def is_income_type(trans_type):
 
 def is_expense_type(trans_type):
     return str(trans_type or "").strip().lower() in ("pengeluaran",)
+
+
+def normalize_status_text(value):
+    if value is None:
+        return ""
+
+    return str(value).strip().lower()
+
+
+PAID_STATUS_ALIASES = {
+    "paid",
+    "lunas",
+    "terbayar",
+    "dibayar",
+    "sudah dibayar",
+    "sudah terbayar",
+}
+
+UNPAID_STATUS_ALIASES = {
+    "unpaid",
+    "belum terbayar",
+    "pending",
+    "draft",
+    "menunggu pembayaran",
+}
+
+
+def is_paid_status(value):
+    return normalize_status_text(value) in PAID_STATUS_ALIASES
+
+
+def is_unpaid_status(value):
+    return normalize_status_text(value) in UNPAID_STATUS_ALIASES
 
 
 # -----------------------------------------------------------------------------
@@ -505,6 +538,93 @@ def resolve_visit_or_record_reference(reference_id, clinic_id=None):
         resolved_row["visit_number"] = latest_visit.get("visit_number")
 
     return resolved_row
+
+
+def has_paid_financial_for_visit(visit_id, clinic_id=None, exclude_transaction_id=None):
+    if not visit_id:
+        return False
+
+    conditions = [
+        "f.visit_id::text = :visit_id",
+        "LOWER(TRIM(f.status::text)) = ANY(:paid_statuses)",
+    ]
+
+    params = {
+        "visit_id": str(visit_id),
+        "paid_statuses": list(PAID_STATUS_ALIASES),
+    }
+
+    if clinic_id:
+        conditions.append("f.clinic_id::text = :clinic_id")
+        params["clinic_id"] = str(clinic_id)
+
+    if exclude_transaction_id:
+        conditions.append("f.transaction_id::text <> :exclude_transaction_id")
+        params["exclude_transaction_id"] = str(exclude_transaction_id)
+
+    row = db.session.execute(
+        text(
+            f"""
+            SELECT 1
+            FROM financial f
+            WHERE {' AND '.join(conditions)}
+            LIMIT 1
+            """
+        ),
+        params,
+    ).first()
+
+    return row is not None
+
+
+def serialize_unpaid_visit_row(row):
+    if not row:
+        return {}
+
+    encrypted_patient_name = row.get("patient_name")
+    patient_name = safe_decrypt(encrypted_patient_name) if encrypted_patient_name else "-"
+
+    encrypted_patient_number = row.get("patient_number")
+    patient_number = safe_decrypt(encrypted_patient_number) if encrypted_patient_number else "-"
+
+    latest_status = row.get("billing_status")
+    normalized_status = normalize_status_text(latest_status)
+
+    if not latest_status:
+        billing_status = "belum terbayar"
+    elif is_paid_status(latest_status):
+        billing_status = latest_status
+    elif normalized_status in UNPAID_STATUS_ALIASES:
+        billing_status = latest_status
+    else:
+        billing_status = latest_status or "belum terbayar"
+
+    visit_display = (
+        row.get("visit_number")
+        or row.get("record_number")
+        or row.get("visit_id")
+        or "-"
+    )
+
+    return {
+        "visit_id": row.get("visit_id"),
+        "visit_number": row.get("visit_number") or "-",
+        "visit_date": format_date(row.get("visit_date")),
+        "visit_time": format_date(row.get("visit_time")),
+        "visit_display": visit_display,
+        "record_id": row.get("record_id"),
+        "record_number": row.get("record_number") or "-",
+        "record_type": row.get("record_type") or "-",
+        "patient_id": row.get("patient_id"),
+        "patient_name": patient_name or "-",
+        "patient_number": patient_number or "-",
+        "clinic_id": row.get("clinic_id"),
+        "billing_transaction_id": row.get("billing_transaction_id"),
+        "billing_transaction_number": row.get("billing_transaction_number") or "-",
+        "billing_status": billing_status,
+        "billing_amount": float(row.get("billing_amount") or 0),
+        "billing_payment_date": format_date(row.get("billing_payment_date")),
+    }
 
 
 # -----------------------------------------------------------------------------
@@ -854,7 +974,7 @@ def get_all_financial_transactions():
 
     try:
         current_clinic_id = get_financial_scope_clinic_id(current_user)
-        
+
         date_filter = request.args.get("date")
         search_query = request.args.get("search", "").strip()
 
@@ -910,6 +1030,148 @@ def get_all_financial_transactions():
             jsonify(
                 {
                     "msg": "Gagal mengambil data keuangan.",
+                    "error": str(e),
+                }
+            ),
+            500,
+        )
+
+
+@financial_bp.route("/unpaid-visits", methods=["GET"])
+@jwt_required()
+def get_unpaid_visits():
+    current_user, error_response = require_financial_access()
+
+    if error_response:
+        return error_response
+
+    try:
+        requested_clinic_id = normalize_optional_uuid(request.args.get("clinic_id"))
+        current_clinic_id = get_financial_scope_clinic_id(current_user)
+        scope_clinic_id = (
+            requested_clinic_id
+            if is_admin_user(current_user) and requested_clinic_id
+            else current_clinic_id
+        )
+
+        date_filter = request.args.get("date")
+        search_query = request.args.get("search", "").strip()
+        limit_raw = request.args.get("limit", 100)
+
+        try:
+            limit = int(limit_raw)
+        except (TypeError, ValueError):
+            limit = 100
+
+        limit = max(1, min(limit, 500))
+
+        conditions = [
+            """
+            NOT EXISTS (
+                SELECT 1
+                FROM financial paid_financial
+                WHERE paid_financial.visit_id = vm.visit_id
+                  AND LOWER(TRIM(paid_financial.status::text)) = ANY(:paid_statuses)
+            )
+            """
+        ]
+
+        params = {
+            "paid_statuses": list(PAID_STATUS_ALIASES),
+            "limit": limit,
+        }
+
+        if scope_clinic_id:
+            conditions.append("vm.clinic_id::text = :clinic_id")
+            params["clinic_id"] = str(scope_clinic_id)
+
+        if date_filter:
+            conditions.append("CAST(vm.visit_date AS date) = :visit_date")
+            params["visit_date"] = parse_payment_date(date_filter)
+
+        if search_query:
+            conditions.append(
+                """
+                (
+                    LOWER(COALESCE(vm.visit_number, '')) LIKE :search
+                    OR LOWER(COALESCE(mr.record_number, '')) LIKE :search
+                    OR LOWER(COALESCE(mr.record_type::text, '')) LIKE :search
+                )
+                """
+            )
+            params["search"] = f"%{search_query.lower()}%"
+
+        rows = db.session.execute(
+            text(
+                f"""
+                SELECT
+                    vm.visit_id::text AS visit_id,
+                    vm.visit_number,
+                    vm.visit_date,
+                    vm.visit_time,
+                    vm.record_id::text AS record_id,
+                    vm.clinic_id::text AS clinic_id,
+
+                    mr.record_number,
+                    mr.record_type::text AS record_type,
+
+                    p.patient_id::text AS patient_id,
+                    p.patient_name,
+                    p.patient_number,
+
+                    latest_financial.transaction_id::text AS billing_transaction_id,
+                    latest_financial.transaction_number AS billing_transaction_number,
+                    latest_financial.status::text AS billing_status,
+                    latest_financial.amount AS billing_amount,
+                    latest_financial.payment_date AS billing_payment_date
+                FROM visit_master vm
+                JOIN medical_record mr
+                    ON mr.record_id = vm.record_id
+                JOIN patient p
+                    ON p.patient_id = mr.patient_id
+                LEFT JOIN LATERAL (
+                    SELECT
+                        f.transaction_id,
+                        f.transaction_number,
+                        f.status,
+                        f.amount,
+                        f.payment_date
+                    FROM financial f
+                    WHERE f.visit_id = vm.visit_id
+                    ORDER BY
+                        f.payment_date DESC NULLS LAST,
+                        f.transaction_number DESC
+                    LIMIT 1
+                ) latest_financial ON TRUE
+                WHERE {' AND '.join(conditions)}
+                ORDER BY
+                    vm.visit_date DESC NULLS LAST,
+                    vm.visit_time DESC NULLS LAST,
+                    vm.visit_number DESC
+                LIMIT :limit
+                """
+            ),
+            params,
+        ).mappings().all()
+
+        return (
+            jsonify(
+                {
+                    "data": [serialize_unpaid_visit_row(row) for row in rows],
+                    "count": len(rows),
+                }
+            ),
+            200,
+        )
+
+    except ValueError as e:
+        return jsonify({"msg": str(e)}), 400
+
+    except Exception as e:
+        return (
+            jsonify(
+                {
+                    "msg": "Gagal mengambil laporan kunjungan yang belum terbayar.",
                     "error": str(e),
                 }
             ),
@@ -997,6 +1259,16 @@ def add_financial_transaction():
 
         if not transaction_clinic_id:
             return jsonify({"msg": "Klinik untuk transaksi tidak ditemukan."}), 400
+
+        if visit_id and has_paid_financial_for_visit(visit_id, transaction_clinic_id):
+            return (
+                jsonify(
+                    {
+                        "msg": "Laporan kunjungan ini sudah memiliki billing berstatus terbayar/lunas. Pilih laporan kunjungan lain yang belum terbayar."
+                    }
+                ),
+                409,
+            )
 
         year = normalized_data["payment_date"].year
         sequence_number = reserve_next_sequence(year, transaction_clinic_id)
