@@ -449,8 +449,8 @@ class Audit(db.Model):
         default=uuid.uuid4,
     )
     user_id = db.Column(
-        UUID(as_uuid=True, ondelete='CASCADE'),
-        db.ForeignKey('users.user_id'),
+        UUID(as_uuid=True),
+        db.ForeignKey('users.user_id', ondelete='CASCADE'),
     )
     clinic_id = db.Column(
         UUID(as_uuid=True), 
@@ -506,8 +506,8 @@ class Financial(db.Model):
         nullable=True,
     )
     patient_id = db.Column(
-        UUID(as_uuid=True, ondelete='CASCADE'),
-        db.ForeignKey('patient.patient_id'),
+        UUID(as_uuid=True),
+        db.ForeignKey('patient.patient_id', ondelete='CASCADE'),
         nullable=True,
     )
     transaction_number = db.Column(db.String(50), nullable=False)

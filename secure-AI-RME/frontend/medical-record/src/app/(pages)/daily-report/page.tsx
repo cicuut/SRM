@@ -33,11 +33,28 @@ interface VisitList {
   made_by: string;
 }
 
+type Role = 'admin' | 'midwife' | 'asisten' | '';
+
+const normalizeRole = (role?: string | null): Role => {
+  const normalizedRole = String(role || '').trim().toLowerCase();
+  if (normalizedRole === 'admin') return 'admin';
+  if (normalizedRole === 'developer') return 'admin';
+  if (normalizedRole === 'midwife') return 'midwife';
+  if (normalizedRole === 'bidan') return 'midwife';
+  if (normalizedRole === 'owner') return 'midwife';
+  if (normalizedRole === 'asisten') return 'asisten';
+  if (normalizedRole === 'assistant') return 'asisten';
+  if (normalizedRole === 'staff') return 'asisten';
+  return normalizedRole as Role;
+};
+
+
 const DailyReport = () => {
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentRole, setCurrentRole] = useState<Role>('');
   const [visitReportList, setVisitReportList] = useState<VisitList[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isModalVisitOpen, setIsModalVisitOpen] = useState(false);
@@ -129,6 +146,9 @@ const DailyReport = () => {
   };
 
   useEffect(() => {
+    const storedRole = normalizeRole(localStorage.getItem('user_role'));
+    setCurrentRole(storedRole);
+
     const fetchData = async () => {
       if (visitSearch.length > 0 && visitSearch.length < 3) return;
 
@@ -208,7 +228,11 @@ const DailyReport = () => {
     return pageNumbers;
   };
 
+  const canDownloadReport = currentRole === 'admin' || currentRole === 'midwife';
+
+
   const handleDownloadExcelReport = async () => {
+    if (!canDownloadReport) return;
     try {
       setLoading(true);
       const formattedStart = formatDateToString(startDate);
@@ -284,7 +308,7 @@ const DailyReport = () => {
               </h2>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="flex w-40 md:w-full flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between lg:w-auto lg:justify-end">
               <button
                 type="button"
                 onClick={() => setIsModalVisitOpen(true)}
@@ -293,16 +317,17 @@ const DailyReport = () => {
                 <Plus className="w-3.5 h-3.5 md:w-4 md:h-4" />
                 <span>Tambah Kunjungan</span>
               </button>
-
-              <button
-                type="button"
-                disabled={loading || visitReportList.length === 0}
-                onClick={handleDownloadExcelReport}
-                className="flex items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-2.25 md:px-4.5 py-2 md:py-3 text-[9px] md:text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <FileDown className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                <span>Download</span>
-              </button>
+              {canDownloadReport && (
+                <button
+                  type="button"
+                  disabled={loading || visitReportList.length === 0}
+                  onClick={handleDownloadExcelReport}
+                  className="flex items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-2.25 md:px-4.5 py-2 md:py-3 text-[9px] md:text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <FileDown className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                  <span>Download</span>
+                </button>
+              )}
             </div>
           </div>
           <div className="block lg:hidden">
