@@ -32,10 +32,29 @@ interface MedicalRecordList {
   address?: string;
 }
 
+
+type Role = 'admin' | 'midwife' | 'asisten' | '';
+
+const normalizeRole = (role?: string | null): Role => {
+  const normalizedRole = String(role || '').trim().toLowerCase();
+  if (normalizedRole === 'admin') return 'admin';
+  if (normalizedRole === 'developer') return 'admin';
+  if (normalizedRole === 'midwife') return 'midwife';
+  if (normalizedRole === 'bidan') return 'midwife';
+  if (normalizedRole === 'owner') return 'midwife';
+  if (normalizedRole === 'asisten') return 'asisten';
+  if (normalizedRole === 'assistant') return 'asisten';
+  if (normalizedRole === 'staff') return 'asisten';
+  return normalizedRole as Role;
+};
+
+
+
 // Main component for medical records page
 const MedicalRecord = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [currentRole, setCurrentRole] = useState<Role>('');
   const [medicalRecordList, setMedicalRecordList] = useState<
     MedicalRecordList[]
   >([]);
@@ -76,6 +95,9 @@ const MedicalRecord = () => {
   };
 
   useEffect(() => {
+    const storedRole = normalizeRole(localStorage.getItem('user_role'));
+    setCurrentRole(storedRole);
+
     const fetchMedicalRecord = async () => {
       try {
         const response = await api.get("/medical-record/get-all-records");
@@ -231,7 +253,11 @@ const MedicalRecord = () => {
     return pageNumbers;
   };
 
+  const canDownloadReport = currentRole === 'admin' || currentRole === 'midwife';
+
   const handleDownloadExcelReport = async () => {
+    if (!canDownloadReport) return;
+
     try {
       setLoading(true);
       const formattedStart = formatDateToString(startDate);
@@ -244,7 +270,7 @@ const MedicalRecord = () => {
           search: medicalSearch,
         },
       });
-
+      
       const fetchedExcelData: DynamicVisitRow[] = response.data.results;
       await handleExportXlsxData(
         fetchedExcelData,
@@ -331,7 +357,7 @@ const MedicalRecord = () => {
                 <Plus className="w-3.5 h-3.5 md:w-4 md:h-4" />
                 <span>Tambah Rekam Medis</span>
               </button>
-              {selectedRMValue === "Persalinan" && (
+              {selectedRMValue === "Persalinan" && canDownloadReport && (
                 <button
                   type="button"
                   onClick={handleDownloadExcelReport}

@@ -811,7 +811,7 @@ def get_pregnancy_record_data(uuid):
                 'baby_weight': obs.baby_weight or '-',
                 'baby_height': obs.baby_height or '-',
                 'baby_complications': safe_decrypt(obs.baby_complications),
-                'postpartum_status': safe_decrypt(obs.postpartum_status),
+                'postpartum_status': obs.postpartum_status,
                 'postpartum_complications': safe_decrypt(obs.postpartum_complications),
             })
 
@@ -1145,7 +1145,16 @@ def delete_medical_record(uuid):
 
         patient_name = safe_decrypt(patient.patient_name, fallback='Pasien')
 
+        family_id = patient.family_link_id
+
         db.session.delete(medical_record)
+        db.session.delete(patient)
+        db.session.flush()
+
+        if family_id:
+            family_member = Patient.query.get(family_id)
+            if family_member:
+                db.session.delete(family_member)
         db.session.commit()
 
         return jsonify({
