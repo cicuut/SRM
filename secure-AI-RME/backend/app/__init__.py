@@ -7,12 +7,14 @@ import os
 from dotenv import load_dotenv
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_mail import Mail
 
 db = SQLAlchemy()
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["2000 per day", "500 per hour"]
 )
+mail = Mail()
 
 def create_app():
     load_dotenv()
@@ -35,10 +37,20 @@ def create_app():
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET")
     app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(days=1)
+    app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
+    app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
+    app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'True') == 'True'
+    app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+    app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+    app.config['MAIL_DEFAULT_SENDER'] = (
+        'SRM Security System', 
+        os.environ.get('MAIL_USERNAME')
+    )
 
     db.init_app(app)
     JWTManager(app)
     limiter.init_app(app)
+    mail.init_app(app)
 
     from .audit_hooks import register_audit_hooks
     register_audit_hooks()

@@ -1,5 +1,4 @@
 "use client";
-
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -70,40 +69,41 @@ const normalizeClinicId = (clinicId?: string | null) => {
 const translateLoginMessage = (message?: string) => {
   const normalized = String(message || "").toLowerCase();
 
-  if (
-    normalized.includes("email atau password salah") ||
-    normalized.includes("invalid") ||
-    normalized.includes("wrong password") ||
-    normalized.includes("email or password")
-  ) {
-    return "Email atau kata sandi tidak sesuai.";
+ if (normalized.includes("diblokir") || normalized.includes("dikunci") || normalized.includes("sisa kesempatan")) {
+    return message || "Akses ditolak.";
   }
 
   if (
-    normalized.includes("akun anda sedang tidak aktif") ||
-    normalized.includes("akun anda tidak aktif") ||
+    normalized.includes("salah") || 
+    normalized.includes("invalid") || 
+    normalized.includes("wrong")
+  ) {
+    return message || "Email atau kata sandi tidak sesuai.";
+  }
+
+  if (
+    normalized.includes("tidak aktif") || 
     normalized.includes("inactive")
   ) {
-    return "Akun Anda sedang tidak aktif. Silakan hubungi pengelola sistem.";
+    return "Akun Anda sedang tidak aktif. Silakan hubungi admin.";
   }
 
   if (
-    normalized.includes("user tidak ditemukan") ||
+    normalized.includes("tidak ditemukan") || 
     normalized.includes("not found")
   ) {
     return "Akun tidak ditemukan.";
   }
 
   if (
-    normalized.includes("email dan password wajib diisi") ||
-    normalized.includes("email dan kata sandi wajib diisi") ||
+    normalized.includes("wajib diisi") || 
     normalized.includes("required")
   ) {
     return "Email dan kata sandi wajib diisi.";
   }
 
   if (
-    normalized.includes("failed to fetch") ||
+    normalized.includes("failed to fetch") || 
     normalized.includes("network error")
   ) {
     return "Tidak dapat terhubung ke server. Pastikan backend sedang berjalan.";
@@ -290,7 +290,7 @@ const Login = () => {
         timer: 2000,
         showConfirmButton: false,
       });
-
+      setLoading(false);
       router.replace(redirectPath);
     } catch (error: any) {
       setLoading(false);
@@ -306,9 +306,8 @@ const Login = () => {
       }
 
       setError(message);
-    } finally {
-      setLoading(false);
-    }
+      
+    } 
   };
 
   return (

@@ -202,7 +202,7 @@ const DeliverHistoryDetail = () => {
                 Komplikasi Persalinan
               </span>
               <textarea
-                name="delivery_complications"
+                name="deliver_complications"
                 value={formData.deliver_complications || ""}
                 onChange={handleInputChange}
                 rows={3}
@@ -371,7 +371,7 @@ const DeliverHistoryDetail = () => {
                   Komplikasi Bayi
                 </span>
                 <textarea
-                  name="delivery_complications"
+                  name="baby_complications"
                   value={formData.baby_complications || ""}
                   onChange={handleInputChange}
                   rows={3}

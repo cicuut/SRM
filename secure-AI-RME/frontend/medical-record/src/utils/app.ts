@@ -26,10 +26,13 @@ api.interceptors.response.use(
     if (error.response?.status === 401 || error.response?.status === 404) {
       console.warn("Sesi tidak valid, kembali ke login...");
       
-      Cookies.remove("access_token"); 
-      
-      if (typeof window !== "undefined") {
-        window.location.href = "/login";
+    if (typeof window !== "undefined") {
+        const isLoginPage = window.location.pathname === "/login";
+
+        if (!isLoginPage) {
+          Cookies.remove("access_token"); 
+          window.location.href = "/login";
+        }
       }
     }
     return Promise.reject(error);
