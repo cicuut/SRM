@@ -596,23 +596,6 @@ const AddInvoice = () => {
                 handleUnauthorized();
                 return;
             }
-
-            const payload = {
-                payment_date: formData.payment_date,
-                visit_id: formData.visit_id || null,
-                trans_type: formData.trans_type,
-                amount: isUnpaid ? 0 : Number(formData.amount),
-                payment_method: isUnpaid ? null : formData.payment_method,
-                status: formData.status,
-                description: formData.description.trim(),
-            };
-
-            const response = await api.post('/financial/add', payload, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            });
             const payload = {
                 payment_date: formData.payment_date,
                 visit_id: formData.visit_id || null,
