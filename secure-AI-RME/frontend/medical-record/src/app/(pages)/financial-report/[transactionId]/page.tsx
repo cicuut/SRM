@@ -523,20 +523,23 @@ const DetailInvoicePage = () => {
                 return;
             }
 
-            const response = await api.patch(`/financial/detail/${transactionId}`, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
+            const response = await api.patch(
+                `/financial/detail/${transactionId}`,
+                {
                     payment_date: formData.payment_date,
                     trans_type: formData.trans_type,
                     amount: Number(formData.amount),
                     payment_method: formData.payment_method,
                     status: formData.status,
                     description: formData.description.trim(),
-                }),
-            });
+                },
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                },
+            );
 
             const data = response.data;
 

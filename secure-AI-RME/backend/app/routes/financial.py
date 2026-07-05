@@ -576,6 +576,40 @@ def has_paid_financial_for_visit(visit_id, clinic_id=None, exclude_transaction_i
 
     return row is not None
 
+def get_unpaid_financial_for_visit(visit_id, clinic_id=None):
+    if not visit_id:
+        return None
+
+    conditions = [
+        "f.visit_id::text = :visit_id",
+        "LOWER(TRIM(f.status::text)) = ANY(:unpaid_statuses)",
+    ]
+
+    params = {
+        "visit_id": str(visit_id),
+        "unpaid_statuses": list(UNPAID_STATUS_ALIASES),
+    }
+
+    if clinic_id:
+        conditions.append("f.clinic_id::text = :clinic_id")
+        params["clinic_id"] = str(clinic_id)
+
+    row = db.session.execute(
+        text(
+            f"""
+            SELECT
+                f.transaction_id::text AS transaction_id,
+                f.transaction_number
+            FROM financial f
+            WHERE {' AND '.join(conditions)}
+            ORDER BY f.payment_date DESC NULLS LAST, f.transaction_number DESC
+            LIMIT 1
+            """
+        ),
+        params,
+    ).mappings().first()
+
+    return dict(row) if row else None
 
 def serialize_unpaid_visit_row(row):
     if not row:
@@ -1270,67 +1304,97 @@ def add_financial_transaction():
                 409,
             )
 
-        year = normalized_data["payment_date"].year
-        sequence_number = reserve_next_sequence(year, transaction_clinic_id)
-        transaction_number = generate_financial_number(year, sequence_number)
-        transaction_id = str(uuid.uuid4())
-
         enum_types = get_financial_enum_type_names()
 
-        db.session.execute(
-            text(
-                f"""
-                INSERT INTO financial (
-                    transaction_id,
-                    visit_id,
-                    user_id,
-                    patient_id,
-                    clinic_id,
-                    transaction_number,
-                    trans_type,
-                    amount,
-                    payment_method,
-                    status,
-                    payment_date,
-                    description
-                )
-                VALUES (
-                    CAST(:transaction_id AS uuid),
-                    CAST(:visit_id AS uuid),
-                    CAST(:user_id AS uuid),
-                    CAST(:patient_id AS uuid),
-                    CAST(:clinic_id AS uuid),
-                    :transaction_number,
-                    CAST(:trans_type AS {enum_types['trans_type']}),
-                    :amount,
-                    CAST(:payment_method AS {enum_types['payment_method']}),
-                    CAST(:status AS {enum_types['status']}),
-                    :payment_date,
-                    :description
-                )
-                """
-            ),
-            {
-                "transaction_id": transaction_id,
-                "visit_id": visit_id,
-                "user_id": str(current_user_id),
-                "patient_id": patient_id,
-                "clinic_id": str(transaction_clinic_id),
-                "transaction_number": transaction_number,
-                "trans_type": normalized_data["trans_type"],
-                "amount": normalized_data["amount"],
-                "payment_method": normalized_data["payment_method"],
-                "status": normalized_data["status"],
-                "payment_date": normalized_data["payment_date"],
-                "description": normalized_data["description"],
-            },
+        existing_unpaid = (
+            get_unpaid_financial_for_visit(visit_id, transaction_clinic_id)
+            if visit_id
+            else None
         )
 
+        if existing_unpaid:
+            # Invoice unpaid utk visit ini udah ada -> UPDATE, jangan bikin baru
+            transaction_id = existing_unpaid["transaction_id"]
+            transaction_number = existing_unpaid["transaction_number"]
+
+            old_row = fetch_financial_by_transaction_id(transaction_id, transaction_clinic_id)
+            old_data = serialize_financial_row(old_row)
+
+            db.session.execute(
+                text(
+                    f"""
+                    UPDATE financial
+                    SET
+                        payment_date = :payment_date,
+                        trans_type = CAST(:trans_type AS {enum_types['trans_type']}),
+                        amount = :amount,
+                        payment_method = CAST(:payment_method AS {enum_types['payment_method']}),
+                        status = CAST(:status AS {enum_types['status']}),
+                        description = :description
+                    WHERE transaction_id::text = :transaction_id
+                    """
+                ),
+                {
+                    "transaction_id": transaction_id,
+                    "payment_date": normalized_data["payment_date"],
+                    "trans_type": normalized_data["trans_type"],
+                    "amount": normalized_data["amount"],
+                    "payment_method": normalized_data["payment_method"],
+                    "status": normalized_data["status"],
+                    "description": normalized_data["description"],
+                },
+            )
+
+            action = "UPDATE_INVOICE"
+            success_message = "Invoice berhasil diperbarui (invoice lama dipakai lagi, bukan bikin baru)."
+            status_code = 200
+        else:
+            year = normalized_data["payment_date"].year
+            sequence_number = reserve_next_sequence(year, transaction_clinic_id)
+            transaction_number = generate_financial_number(year, sequence_number)
+            transaction_id = str(uuid.uuid4())
+            old_data = {}
+
+            db.session.execute(
+                text(
+                    f"""
+                    INSERT INTO financial (
+                        transaction_id, visit_id, user_id, patient_id, clinic_id,
+                        transaction_number, trans_type, amount, payment_method,
+                        status, payment_date, description
+                    )
+                    VALUES (
+                        CAST(:transaction_id AS uuid), CAST(:visit_id AS uuid),
+                        CAST(:user_id AS uuid), CAST(:patient_id AS uuid),
+                        CAST(:clinic_id AS uuid), :transaction_number,
+                        CAST(:trans_type AS {enum_types['trans_type']}), :amount,
+                        CAST(:payment_method AS {enum_types['payment_method']}),
+                        CAST(:status AS {enum_types['status']}), :payment_date, :description
+                    )
+                    """
+                ),
+                {
+                    "transaction_id": transaction_id,
+                    "visit_id": visit_id,
+                    "user_id": str(current_user_id),
+                    "patient_id": patient_id,
+                    "clinic_id": str(transaction_clinic_id),
+                    "transaction_number": transaction_number,
+                    "trans_type": normalized_data["trans_type"],
+                    "amount": normalized_data["amount"],
+                    "payment_method": normalized_data["payment_method"],
+                    "status": normalized_data["status"],
+                    "payment_date": normalized_data["payment_date"],
+                    "description": normalized_data["description"],
+                },
+            )
+
+            action = "ADD_INVOICE"
+            success_message = "Transaksi keuangan berhasil ditambahkan."
+            status_code = 201
+
         fetch_scope_clinic_id = None if is_admin_user(current_user) else transaction_clinic_id
-        saved_row = fetch_financial_by_transaction_id(
-            transaction_id,
-            fetch_scope_clinic_id,
-        )
+        saved_row = fetch_financial_by_transaction_id(transaction_id, fetch_scope_clinic_id)
         saved_data = serialize_financial_row(saved_row)
 
         if not reference_id:
@@ -1343,8 +1407,8 @@ def add_financial_transaction():
 
         write_audit_log(
             user_id=current_user_id,
-            action="ADD_INVOICE",
-            old_values={},
+            action=action,
+            old_values={"module": "Financial", **old_data} if old_data else {},
             new_values={
                 "module": "Financial",
                 **saved_data,
@@ -1355,13 +1419,8 @@ def add_financial_transaction():
         db.session.commit()
 
         return (
-            jsonify(
-                {
-                    "msg": "Transaksi keuangan berhasil ditambahkan.",
-                    "data": saved_data,
-                }
-            ),
-            201,
+            jsonify({"msg": success_message, "data": saved_data}),
+            status_code,
         )
 
     except ValueError as e:

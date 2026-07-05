@@ -676,7 +676,10 @@ const AddInvoice = () => {
                     </p>
 
                     <p className="mt-1 text-[14px] font-bold text-[#2F3A2F]">
-                        {transactionNumber || 'INV-----'}
+                        {selectedVisit?.billing_transaction_number &&
+                        selectedVisit.billing_status?.toLowerCase() !== 'dibayar'
+                            ? selectedVisit.billing_transaction_number
+                            : transactionNumber || 'INV-----'}
                     </p>
                 </div>
             </div>
