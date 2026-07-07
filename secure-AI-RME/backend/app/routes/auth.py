@@ -1,10 +1,13 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
+import threading
+from flask_mail import Message
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from app.models import db, User, Clinic
 from app.utils import write_audit_log
 from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import text
 from .. import limiter
+
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -462,6 +465,32 @@ def get_management_payload(manager):
         "can_create_assistant": True,
     }
 
+def send_security_alert_in_background(app_context, email, ip_address, user_agent):
+    with app_context: 
+        try:
+            mail_extension = current_app.extensions.get('mail')
+            msg = Message(
+                subject="[Security Alert] Percobaan Login Mencurigakan",
+                recipients=[email]
+            )
+            
+            msg.body = (
+                f"Halo,\n\n"
+                f"Sistem keamanan kami mendeteksi adanya 5 kali percobaan login yang GAGAL berturut-turut pada akun Anda.\n\n"
+                f"Demi menjaga keamanan data medis pasien, akun Anda telah DIKUNCI SEMENTARA selama 15 menit.\n\n"
+                f"Detail Aktivitas:\n"
+                f"- Waktu: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} WIB\n"
+                f"- Alamat IP: {ip_address}\n"
+                f"- Perangkat/Browser: {user_agent}\n\n"
+                f"Jika ini bukan tindakan Anda, mohon segera hubungi Administrator klinik untuk melakukan reset password.\n\n"
+                f"Salam,\n"
+                f"NADI Security Team"
+            )
+            
+            mail_extension.send(msg)
+
+        except Exception as e:
+            print(f"Gagal mengirim email keamanan: {str(e)}")
 
 @auth_bp.route("/roles", methods=["GET"])
 def get_roles():
@@ -783,12 +812,12 @@ def create_or_update_clinic():
 )
 def login():
     data = request.get_json() or {}
-
     email = (data.get("email") or "").strip().lower()
     password = data.get("password")
-
     current_time = datetime.now()
-
+    user_ip = request.remote_addr
+    user_agent = request.headers.get('User-Agent', 'Unknown Device')
+  
     if not email or not password:
         return jsonify({"msg": "Email dan password wajib diisi."}), 400
 
@@ -819,28 +848,20 @@ def login():
         if user.failed_login_attempts >= 5:
             user.locked_until = current_time + timedelta(minutes=15)
             db.session.commit()
-
-            return (
-                jsonify(
-                    {
-                        "msg": "Akun Anda diblokir sementara selama 15 menit."
-                    }
-                ),
-                403,
+            app_context = current_app._get_current_object().app_context()
+            email_thread = threading.Thread(
+                target=send_security_alert_in_background,
+                args=(app_context, user.email, user_ip, user_agent)
             )
+            email_thread.start()
 
+            return jsonify({
+                "msg": "Akun Anda diblokir sementara selama 15 menit."
+            }), 403
+            
         db.session.commit()
-        sisa_mencoba = 5 - user.failed_login_attempts
-
-        return (
-            jsonify(
-                {
-                    "msg": f"Email atau password salah. Sisa kesempatan: {sisa_mencoba} kali."
-                }
-            ),
-            401,
-        )
-
+        try_left = 5 - user.failed_login_attempts
+        return jsonify({"msg": f"Email atau password salah. Sisa kesempatan: {try_left} kali."}), 401
     try:
         old_values = {
             "module": "Authentication",

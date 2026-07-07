@@ -73,6 +73,7 @@ const FamilyInformation = () => {
     if (!originalFormData) return false;
     return JSON.stringify(originalFormData) !== JSON.stringify(formData);
   }, [formData, originalFormData]);
+
   const formatDate = (dateString: string | undefined | null) => {
     if (!dateString) return "";
     const date = new Date(dateString);
@@ -136,8 +137,8 @@ const FamilyInformation = () => {
       } catch (err: any) {
         setError(
           err.response?.data?.msg ||
-            err.message ||
-            "Terjadi kesalahan pengambilan data",
+          err.message ||
+          "Terjadi kesalahan pengambilan data",
         );
       } finally {
         setLoading(false);
@@ -453,8 +454,8 @@ const FamilyInformation = () => {
                 Umur Keluarga
               </span>
               <input
-                name="age"
-                value={formData.age}
+                name="family_age"
+                value={formData.family_age}
                 onChange={handleInputChange}
                 type="text"
                 disabled
