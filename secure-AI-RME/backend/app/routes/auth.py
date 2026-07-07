@@ -470,7 +470,7 @@ def send_security_alert_in_background(app_context, email, ip_address, user_agent
         try:
             mail_extension = current_app.extensions.get('mail')
             msg = Message(
-                subject="[Security Alert] Percobaan Login Mencurigakan",
+                subject="Notifikasi Keamanan Sistem Intenal Rekam Medis",
                 recipients=[email]
             )
             
@@ -482,9 +482,8 @@ def send_security_alert_in_background(app_context, email, ip_address, user_agent
                 f"- Waktu: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} WIB\n"
                 f"- Alamat IP: {ip_address}\n"
                 f"- Perangkat/Browser: {user_agent}\n\n"
-                f"Jika ini bukan tindakan Anda, mohon segera hubungi Administrator klinik untuk melakukan reset password.\n\n"
-                f"Salam,\n"
-                f"NADI Security Team"
+                f"Jika ini bukan tindakan Anda, mohon segera reply email ini atau hubungi admin.\n\n"
+                f"Terima kasih atas perhatian Anda.\n"
             )
             
             mail_extension.send(msg)
@@ -830,6 +829,16 @@ def login():
         time_left = user.locked_until - current_time
         minutes_left = int(time_left.total_seconds() / 60) + 1
 
+        time_elapsed_since_lock = timedelta(minutes=15) - time_left
+        seconds_since_lock = time_elapsed_since_lock.total_seconds()
+        
+        if 295 < seconds_since_lock < 305 or 595 < seconds_since_lock < 605:
+            app_context = current_app._get_current_object().app_context()
+            email_thread = threading.Thread(
+                target=send_security_alert_in_background,
+                args=(app_context, user.email, user_ip, user_agent)
+            )
+            email_thread.start()
         return (
             jsonify(
                 {
