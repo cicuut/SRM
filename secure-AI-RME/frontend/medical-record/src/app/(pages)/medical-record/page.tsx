@@ -205,7 +205,7 @@ const MedicalRecord = () => {
     };
 
     fetchData();
-  }, [medicalSearch, selectedRMValue, startDate, endDate]); // 👈 Semua pemicu sudah berkumpul di sini!
+  }, [medicalSearch, selectedRMValue, startDate, endDate]); 
   const getPageNumbers = () => {
     const pageNumbers = [];
 
