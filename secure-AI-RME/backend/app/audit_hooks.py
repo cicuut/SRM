@@ -187,6 +187,76 @@ def get_existing_direct_record_code(obj):
 
     return None
 
+def get_user_clinic_id(user_id):
+    if not user_id:
+        return None
+
+    from app.models import User
+
+    try:
+        user = db.session.get(User, UUID(str(user_id)))
+    except Exception:
+        return None
+
+    if not user or not user.clinic_id:
+        return None
+
+    return str(user.clinic_id)
+
+
+def get_clinic_id_from_object(obj, session=None):
+    # 1) Kolom clinic_id langsung (Patient, MedicalRecord, VisitMaster, Financial, dll)
+    direct_clinic_id = get_object_value(obj, "clinic_id")
+
+    if direct_clinic_id:
+        return str(direct_clinic_id)
+
+    if not session:
+        return None
+
+    # 2) Lewat visit_master (utk VisitPregnancy, VisitFamilyPlanning, VisitGeneral, VisitImunization)
+    visit_id = get_visit_id_from_obj(obj)
+
+    if visit_id:
+        try:
+            row = session.execute(
+                text(
+                    """
+                    SELECT clinic_id::text AS clinic_id
+                    FROM visit_master
+                    WHERE visit_id::text = :visit_id
+                    """
+                ),
+                {"visit_id": str(visit_id)},
+            ).mappings().first()
+
+            if row and row.get("clinic_id"):
+                return row["clinic_id"]
+        except Exception:
+            pass
+
+    # 3) Lewat medical_record (utk PregnancyRecord, KbRecord, GeneralRecord, DeliveryRecord, ImmunizationRecord)
+    record_id = get_object_value(obj, "record_id")
+
+    if record_id:
+        try:
+            row = session.execute(
+                text(
+                    """
+                    SELECT clinic_id::text AS clinic_id
+                    FROM medical_record
+                    WHERE record_id::text = :record_id
+                    """
+                ),
+                {"record_id": str(record_id)},
+            ).mappings().first()
+
+            if row and row.get("clinic_id"):
+                return row["clinic_id"]
+        except Exception:
+            pass
+
+    return None
 
 def get_visit_id_from_obj(obj):
     class_name = obj.__class__.__name__
@@ -613,7 +683,12 @@ def ensure_record_code(values, record_code):
 
 
 def add_audit_log(session, user_id, action, old_values, new_values, obj=None):
-    audit_number = generate_audit_number(session)
+    clinic_id = get_clinic_id_from_object(obj, session) if obj is not None else None
+
+    if not clinic_id:
+        clinic_id = get_user_clinic_id(user_id)
+
+    audit_number = generate_audit_number(session, clinic_id)
 
     prefix = get_model_prefix(obj) if obj is not None else "REC"
 
@@ -637,6 +712,7 @@ def add_audit_log(session, user_id, action, old_values, new_values, obj=None):
 
     audit_log = Audit(
         user_id=user_id,
+        clinic_id=UUID(clinic_id) if clinic_id else None,
         audit_number=audit_number,
         times=now_jakarta(),
         action=action,
