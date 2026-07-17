@@ -34,16 +34,17 @@ const rm_type: rm_type_filter[] = [
 interface Props {
   onFilterChange: (type: string, label: string) => void;
   currentLabel: string;
+  excludeValues?: string[];
 }
 
-const RMTypeFilter = ({ onFilterChange, currentLabel }: Props) => {
+const RMTypeFilter = ({ onFilterChange, currentLabel, excludeValues = [] }: Props) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const handleSelect = (item: rm_type_filter) => {
     setIsOpen(false);
     onFilterChange(item.value, item.label);
   };
-
+  const filteredRmType = rm_type.filter((item) => !excludeValues.includes(item.value));
   const isFiltered =
     currentLabel !== "Tipe RM" && currentLabel !== "Semua Tipe";
   return (
@@ -69,7 +70,7 @@ const RMTypeFilter = ({ onFilterChange, currentLabel }: Props) => {
           ></div>
 
           <ul className="absolute left-1/2 md:left-0 -translate-x-1/2 md:translate-x-0 mt-2 w-40 md:w-56 bg-white border border-gray-100 rounded-2xl shadow-xl z-20 overflow-hidden animate-in fade-in zoom-in-95 duration-150 py-1">
-            {rm_type.map((item) => (
+            {filteredRmType.map((item) => (
               <li
                 key={item.value}
                 onClick={() => handleSelect(item)}
