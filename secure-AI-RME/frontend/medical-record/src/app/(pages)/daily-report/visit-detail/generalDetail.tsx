@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useMemo } from "react";
 import VisitInformation from "@/components/visit/visit-information";
-import { useParams, useRouter } from "next/navigation"; // FIX: Gunakan useRouter App Router Next.js 13+
+import { useParams, useRouter } from "next/navigation"; 
 import api from "@/utils/app";
 import Swal from "sweetalert2";
 
@@ -30,7 +30,6 @@ const VisitGeneralDetail = () => {
   const [visitGeneralDetail, setVisitGeneralDetail] =
     useState<VisitGeneralDetailProps | null>(null);
 
-  // FIX: Deklarasikan state formData dan originalFormData dengan interface yang jelas
   const [formData, setFormData] = useState<SOAPFormData>({
     subjective: "",
     objective: "",

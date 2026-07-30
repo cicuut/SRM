@@ -7,13 +7,15 @@ import {
   Search,
   X,
   ChevronDown,
-  Download,
+  FileDown,
   ChevronRight,
   ChevronLeft,
 } from "lucide-react";
 import api from "@/utils/app";
 import RMTypeFilter from "@/components/rm_type";
 import LoadingOverlay from "@/components/loading";
+import { handleExportXlsxData, DynamicVisitRow } from "@/utils/export-delivery";
+import DateRangeFilter from "@/components/date_range";
 
 // Interface for medical record data
 interface MedicalRecordList {
@@ -30,10 +32,29 @@ interface MedicalRecordList {
   address?: string;
 }
 
+
+type Role = 'admin' | 'midwife' | 'asisten' | '';
+
+const normalizeRole = (role?: string | null): Role => {
+  const normalizedRole = String(role || '').trim().toLowerCase();
+  if (normalizedRole === 'admin') return 'admin';
+  if (normalizedRole === 'developer') return 'admin';
+  if (normalizedRole === 'midwife') return 'midwife';
+  if (normalizedRole === 'bidan') return 'midwife';
+  if (normalizedRole === 'owner') return 'midwife';
+  if (normalizedRole === 'asisten') return 'asisten';
+  if (normalizedRole === 'assistant') return 'asisten';
+  if (normalizedRole === 'staff') return 'asisten';
+  return normalizedRole as Role;
+};
+
+
+
 // Main component for medical records page
 const MedicalRecord = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [currentRole, setCurrentRole] = useState<Role>('');
   const [medicalRecordList, setMedicalRecordList] = useState<
     MedicalRecordList[]
   >([]);
@@ -43,6 +64,11 @@ const MedicalRecord = () => {
   const [filteredResults, setFilteredResults] = useState<MedicalRecordList[]>(
     [],
   );
+  const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([
+    null,
+    null,
+  ]);
+  const [startDate, endDate] = dateRange;
   const [medicalSearch, setMedicalSearch] = useState("");
   const [selectedRMValue, setSelectedRMValue] = useState("Select a type");
   const [selectedRMLabel, setSelectedRMLabel] = useState("Tipe RM");
@@ -60,7 +86,18 @@ const MedicalRecord = () => {
 
   const currentItems = totalDataList.slice(indexOfFirstItem, indexOfLastItem);
 
+  const formatDateToString = (date: Date | null): string => {
+    if (!date) return "";
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
   useEffect(() => {
+    const storedRole = normalizeRole(localStorage.getItem('user_role'));
+    setCurrentRole(storedRole);
+
     const fetchMedicalRecord = async () => {
       try {
         const response = await api.get("/medical-record/get-all-records");
@@ -118,7 +155,15 @@ const MedicalRecord = () => {
   const handleViewRecordDetail = (rmId: string) => {
     router.push(`/medical-record/${rmId}`);
   };
+  const handleFilterDate = (start: Date | null, end: Date | null) => {
+    setDateRange([start, end]);
+  };
 
+  const handleFilterChange = async (type: string, label: string) => {
+    setSelectedRMValue(type);
+    setSelectedRMLabel(label);
+    setCurrentPage(1); // Otomatis balik ke page 1 setiap ganti filter
+  };
   // Search function to search for patients based on the input query
   const handleSearch = async (query: string) => {
     if (query.length < 3) return; // Minimal 3 characters to search
@@ -135,25 +180,32 @@ const MedicalRecord = () => {
       setError(msg);
     }
   };
-  // Function to handle filtering medical records by type
-  const handleFilterChange = async (type: string, label: string) => {
-    setSelectedRMValue(type);
-    setSelectedRMLabel(label);
-    setLoading(true);
-    // Call the API endpoint to filter medical records by the selected type
-    try {
-      const response = await api.get(
-        `/medical-record/filter-rm-type?type=${type}`,
-      );
-      setMedicalRecordList(response.data); // Update the medical record list state with the filtered data
-    } catch (err) {
-      // Log the error 
-      console.error("Gagal filter", err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams({
+          search: medicalSearch,
+          type: selectedRMValue,
+          start_date: formatDateToString(startDate),
+          end_date: formatDateToString(endDate),
+        });
+
+        const response = await api.get(
+          `/medical-record/filter-rm-type?${params.toString()}`,
+        );
+        setMedicalRecordList(response.data);
+        setCurrentPage(1);
+      } catch (err) {
+        console.error("Gagal mengambil data laporan rekam medis", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [medicalSearch, selectedRMValue, startDate, endDate]); 
   const getPageNumbers = () => {
     const pageNumbers = [];
 
@@ -198,17 +250,61 @@ const MedicalRecord = () => {
         pageNumbers.push(totalPages);
       }
     }
-
     return pageNumbers;
+  };
+
+  const canDownloadReport = currentRole === 'admin' || currentRole === 'midwife';
+
+  const handleDownloadExcelReport = async () => {
+    if (!canDownloadReport) return;
+
+    try {
+      setLoading(true);
+      const formattedStart = formatDateToString(startDate);
+      const formattedEnd = formatDateToString(endDate);
+
+      const response = await api.get("/medical-record/json-delivery-record", {
+        params: {
+          start_date: formattedStart,
+          end_date: formattedEnd,
+          search: medicalSearch,
+        },
+      });
+      
+      const fetchedExcelData: DynamicVisitRow[] = response.data.results;
+      await handleExportXlsxData(
+        fetchedExcelData,
+        formattedStart,
+        formattedEnd,
+      );
+      Swal.fire({
+        title: "Ekspor Berhasil",
+        text: "Berkas laporan persalinan berhasil diunduh.",
+        icon: "success",
+        confirmButtonColor: "#739072",
+        timer: 2000,
+      });
+    } catch (err) {
+      console.error("Gagal memproses unduhan Excel berkas laporan", err);
+      Swal.fire({
+        title: "Ekspor Gagal",
+        text: "Terjadi gangguan saat menyusun berkas laporan excel",
+        icon: "error",
+        confirmButtonColor: "#739072",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div>
       <div className="flex-1 flex flex-col  w-full  gap-5">
+                {loading && <LoadingOverlay />}
 
         <section className="w-full rounded-[22px] border border-[#D2D8CF] bg-white px-5 py-5 shadow-sm sm:px-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="relative min-w-0 flex-1 rounded-[50px] border border-[#D2D8CF] bg-[#FDFEF9] px-5 py-[10px] md:py-[12px] shadow-sm transition-all focus-within:border-[#739072] xl:max-w-[680px]">
+            <div className="relative min-w-0 flex-1 rounded-[50px] border border-[#D2D8CF] bg-[#FDFEF9] px-5 py-2.5 md:py-3 shadow-sm transition-all focus-within:border-[#739072] xl:max-w-170">
               <Search className="absolute left-5 top-1/2 w-3.5 md:w-4 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
@@ -228,7 +324,14 @@ const MedicalRecord = () => {
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-[10px]">
+            <div className="grid grid-cols-1 gap-1 md:grid-cols-2 sm:items-center sm:justify-between">
+              <div className="relative block  ">
+                <DateRangeFilter
+                  onFilterDate={handleFilterDate}
+                  selectedStartDate={startDate}
+                  selectedEndDate={endDate}
+                />
+              </div>
               <RMTypeFilter
                 onFilterChange={handleFilterChange}
                 currentLabel={selectedRMLabel}
@@ -237,76 +340,105 @@ const MedicalRecord = () => {
           </div>
         </section>
         {/* Medical records table */}
-        <section className="min-h-[600px] w-full overflow-hidden rounded-[22px] border border-[#D2D8CF] bg-white shadow-sm">
-          <div className="flex flex-col gap-[16px] border-b border-[#E4E8E1] px-5 py-[20px] lg:flex-row lg:items-center lg:justify-between sm:px-[26px]">
+        <section className="min-h-150 w-full overflow-hidden rounded-[22px] border border-[#D2D8CF] bg-white shadow-sm">
+          <div className="flex flex-col gap-4 border-b border-[#E4E8E1] px-5 py-5 lg:flex-row lg:items-center lg:justify-between sm:px-6.5">
             <div className="min-w-0">
               <h2 className="text-[20px] font-extrabold leading-none text-[#5F785F]">
                 Daftar Rekam Medis
               </h2>
             </div>
 
-            <div className="flex w-40 md:w-full flex-col gap-[10px] sm:flex-row sm:items-center sm:justify-between lg:w-auto lg:justify-end">
+            <div className="flex w-40 md:w-full flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between lg:w-auto lg:justify-end">
               <button
                 type="button"
                 onClick={() => setIsModalOpen(true)}
-                className="flex items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[9px] md:px-[18px] py-2 md:py-3 text-[9px] md:text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-2.25 md:px-4.5 py-2 md:py-3 text-[9px] md:text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Plus className="w-3.5 h-3.5 md:w-4 md:h-4" />
                 <span>Tambah Rekam Medis</span>
               </button>
+              {selectedRMValue === "Persalinan" && canDownloadReport && (
+                <button
+                  type="button"
+                  onClick={handleDownloadExcelReport}
+                  className="flex items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-2.25 md:px-4.5 py-2 md:py-3 text-[9px] md:text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <FileDown className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                  <span>Download</span>
+                </button>
+              )}
             </div>
           </div>
-          <div className="block lg:hidden">
-          <div className="grid grid-cols-1 gap-[12px] px-4 py-4 sm:grid-cols-2">
-            {currentItems.length === 0 ? (
-              <div className="col-span-full rounded-[14px] border border-[#E4E8E1] bg-[#F8FAF6] px-4 py-8 text-center text-[12px] text-gray-500">
-                Pasien tidak ditemukan atau data kosong.
-              </div>
-            ) : (
-              currentItems.map((item) => (
-                <button
-                  key={item.rm_id}
-                  type="button"
-                  onClick={() => handleViewRecordDetail(item.rm_id)}
-                  className="w-full rounded-[16px] border border-[#E4E8E1] bg-white px-4 py-4 text-left shadow-sm transition-all hover:border-[#86A789] hover:bg-[#F8FAF6]"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-[13px] font-bold text-black">
-                        {item.patient_name}
-                      </p>
-                      <p className="mt-[3px] text-[11px] font-medium text-[#6B6B6B]">
-                        No. RM: {item.record_number}
-                      </p>
-                    </div>
-                    <span className={`inline-flex shrink-0 justify-center rounded-full px-3 py-1 text-[10px] font-bold ${item.status === "Active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}>
-                      {item.status}
-                    </span>
-                  </div>
 
-                  <div className="mt-[14px] grid grid-cols-2 gap-x-4 gap-y-3 text-[11px]">
-                    <div>
-                      <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">Tipe RM</p>
-                      <p className="mt-[4px] font-semibold text-black truncate">{item.record_type}</p>
+          <div className="block lg:hidden">
+            <div className="grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-2">
+              {currentItems.length === 0 ? (
+                <div className="col-span-full rounded-[14px] border border-[#E4E8E1] bg-[#F8FAF6] px-4 py-8 text-center text-[12px] text-gray-500">
+                  Pasien tidak ditemukan atau data kosong.
+                </div>
+              ) : (
+                currentItems.map((item) => (
+                  <button
+                    key={item.rm_id}
+                    type="button"
+                    onClick={() => handleViewRecordDetail(item.rm_id)}
+                    className="w-full rounded-2xl border border-[#E4E8E1] bg-white px-4 py-4 text-left shadow-sm transition-all hover:border-[#86A789] hover:bg-[#F8FAF6]"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-[13px] font-bold text-black">
+                          {item.patient_name}
+                        </p>
+                        <p className="mt-0.75 text-[11px] font-medium text-[#6B6B6B]">
+                          No. RM: {item.record_number}
+                        </p>
+                      </div>
+                      <span
+                        className={`inline-flex shrink-0 justify-center rounded-full px-3 py-1 text-[10px] font-bold ${item.status === "Active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}
+                      >
+                        {item.status}
+                      </span>
                     </div>
-                    <div>
-                      <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">NIK</p>
-                      <p className="mt-[4px] font-semibold text-black truncate">{item.nik}</p>
+
+                    <div className="mt-3.5 grid grid-cols-2 gap-x-4 gap-y-3 text-[11px]">
+                      <div>
+                        <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">
+                          Tipe RM
+                        </p>
+                        <p className="mt-1 font-semibold text-black truncate">
+                          {item.record_type}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">
+                          NIK
+                        </p>
+                        <p className="mt-1 font-semibold text-black truncate">
+                          {item.nik}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">
+                          Tgl Lahir
+                        </p>
+                        <p className="mt-1 font-semibold text-black truncate">
+                          {item.birth_date}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">
+                          Diperbarui
+                        </p>
+                        <p className="mt-1 font-semibold text-gray-500 truncate">
+                          {item.updated_at.split(" ")[0]}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">Tgl Lahir</p>
-                      <p className="mt-[4px] font-semibold text-black truncate">{item.birth_date}</p>
-                    </div>
-                    <div>
-                      <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[#5F785F]">Diperbarui</p>
-                      <p className="mt-[4px] font-semibold text-gray-500 truncate">{item.updated_at.split(' ')[0]}</p>
-                    </div>
-                  </div>
-                </button>
-              ))
-            )}
+                  </button>
+                ))
+              )}
+            </div>
           </div>
-        </div>
           <div className="hidden w-full overflow-x-auto lg:block">
             <table className="w-full border-separate border-spacing-0 text-[12px]">
               <thead className="bg-[#FDFEF9] text-[#5F785F] uppercase text-[10px] font-bold">
@@ -317,7 +449,9 @@ const MedicalRecord = () => {
                     Nama Pasien
                   </th>
                   <th className="px-6 py-4 text-center font-bold">NIK</th>
-                  <th className="px-6 py-4 text-center font-bold">Tanggal Lahir</th>
+                  <th className="px-6 py-4 text-center font-bold">
+                    Tanggal Lahir
+                  </th>
                   <th className="px-6 py-4 text-center font-bold">Status</th>
                   <th className="px-6 py-4 text-center font-bold">
                     Waktu Dibuat
@@ -331,8 +465,9 @@ const MedicalRecord = () => {
                 {currentItems.map((item, index) => (
                   <tr
                     key={item.rm_id}
-                    className={`cursor-pointer text-center text-black transition-all hover:bg-[#EEF3E9] ${index % 2 === 0 ? "bg-white" : "bg-[#FBFCF8]"
-                      }`}
+                    className={`cursor-pointer text-center text-black transition-all hover:bg-[#EEF3E9] ${
+                      index % 2 === 0 ? "bg-white" : "bg-[#FBFCF8]"
+                    }`}
                     onClick={() => handleViewRecordDetail(item.rm_id)}
                   >
                     <td className="px-6 py-4">{item.record_number}</td>
@@ -382,7 +517,6 @@ const MedicalRecord = () => {
               <span>Sebelumnya</span>
             </button>
             {getPageNumbers().map((page, index) => {
-              // Jika item adalah titik-titik "...", render sebagai span biasa (tidak bisa diklik)
               if (page === "...") {
                 return (
                   <span
@@ -394,15 +528,15 @@ const MedicalRecord = () => {
                 );
               }
 
-              // Jika item adalah angka, render sebagai bubble button seperti biasa
               return (
                 <button
                   key={`page-${page}`}
                   onClick={() => setCurrentPage(Number(page))}
-                  className={`w-8 h-8 text-[12px] font-bold rounded-full flex items-center justify-center transition-all ${currentPage === page
-                    ? "bg-[#739072] text-white shadow-md scale-105" // Bubble Aktif
-                    : "text-gray-600 bg-transparent hover:bg-[#EEF3E9] hover:text-[#4F6F52]" // Bubble Inaktif
-                    }`}
+                  className={`w-8 h-8 text-[12px] font-bold rounded-full flex items-center justify-center transition-all ${
+                    currentPage === page
+                      ? "bg-[#739072] text-white shadow-md scale-105" // Bubble Aktif
+                      : "text-gray-600 bg-transparent hover:bg-[#EEF3E9] hover:text-[#4F6F52]" // Bubble Inaktif
+                  }`}
                 >
                   {page}
                 </button>
@@ -493,10 +627,11 @@ const MedicalRecord = () => {
                 <button
                   type="submit"
                   disabled={selectedType === "Select a type"}
-                  className={`px-8 py-2 text-white rounded-full shadow-lg transition font-bold ${selectedType === "Select a type"
+                  className={`px-8 py-2 text-white rounded-full shadow-lg transition font-bold ${
+                    selectedType === "Select a type"
                       ? "bg-gray-300 cursor-not-allowed opacity-60 shadow-none"
                       : "bg-[#739072] hover:bg-[#4F6F52]"
-                    }`}
+                  }`}
                 >
                   Pilih Rekam Medis
                 </button>

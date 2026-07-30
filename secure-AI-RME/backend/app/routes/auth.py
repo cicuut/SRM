@@ -1,10 +1,13 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
+import threading
+from flask_mail import Message
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from app.models import db, User, Clinic
 from app.utils import write_audit_log
 from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import text
 from .. import limiter
+
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -80,10 +83,31 @@ def parse_bool(value, default=True):
     if isinstance(value, str):
         normalized = value.strip().lower()
 
-        if normalized in ["true", "1", "yes", "active", "aktif"]:
+        if normalized in [
+            "true",
+            "1",
+            "yes",
+            "active",
+            "aktif",
+            "enabled",
+            "enable",
+        ]:
             return True
 
-        if normalized in ["false", "0", "no", "inactive", "tidak aktif"]:
+        if normalized in [
+            "false",
+            "0",
+            "no",
+            "inactive",
+            "tidak aktif",
+            "tidak_aktif",
+            "nonaktif",
+            "non-aktif",
+            "deactive",
+            "deactivated",
+            "disabled",
+            "disable",
+        ]:
             return False
 
     return bool(value)
@@ -312,6 +336,65 @@ def user_old_values(user, module="User Access"):
     }
 
 
+def get_manageable_employee(manager, employee_id):
+    manager_role = role_to_text(manager.user_role)
+
+    if manager_role == ADMIN_ROLE:
+        return User.query.filter(
+            User.user_id == str(employee_id),
+            User.user_role == MIDWIFE_ROLE,
+        ).first()
+
+    if manager_role == MIDWIFE_ROLE:
+        if not manager.clinic_id:
+            return None
+
+        return User.query.filter(
+            User.user_id == str(employee_id),
+            User.clinic_id == manager.clinic_id,
+            User.user_role == ASSISTANT_ROLE,
+        ).first()
+
+    return None
+
+
+def detach_user_references_before_delete(user_id):
+    user_id = str(user_id)
+
+    db.session.execute(
+        text(
+            """
+            UPDATE public.visit_master
+            SET user_id = NULL
+            WHERE user_id = CAST(:user_id AS uuid)
+            """
+        ),
+        {"user_id": user_id},
+    )
+
+    db.session.execute(
+        text(
+            """
+            UPDATE public.financial
+            SET user_id = NULL
+            WHERE user_id = CAST(:user_id AS uuid)
+            """
+        ),
+        {"user_id": user_id},
+    )
+
+    db.session.execute(
+        text(
+            """
+            UPDATE public.audit
+            SET user_id = NULL
+            WHERE user_id = CAST(:user_id AS uuid)
+            """
+        ),
+        {"user_id": user_id},
+    )
+
+
 def get_management_payload(manager):
     manager_role = role_to_text(manager.user_role)
 
@@ -382,6 +465,31 @@ def get_management_payload(manager):
         "can_create_assistant": True,
     }
 
+def send_security_alert_in_background(app_context, email, ip_address, user_agent):
+    with app_context: 
+        try:
+            mail_extension = current_app.extensions.get('mail')
+            msg = Message(
+                subject="Notifikasi Keamanan Sistem Intenal Rekam Medis",
+                recipients=[email]
+            )
+            
+            msg.body = (
+                f"Halo,\n\n"
+                f"Sistem keamanan kami mendeteksi adanya 5 kali percobaan login yang GAGAL berturut-turut pada akun Anda.\n\n"
+                f"Demi menjaga keamanan data medis pasien, akun Anda telah DIKUNCI SEMENTARA selama 15 menit.\n\n"
+                f"Detail Aktivitas:\n"
+                f"- Waktu: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} WIB\n"
+                f"- Alamat IP: {ip_address}\n"
+                f"- Perangkat/Browser: {user_agent}\n\n"
+                f"Jika ini bukan tindakan Anda, mohon segera reply email ini atau hubungi admin.\n\n"
+                f"Terima kasih atas perhatian Anda.\n"
+            )
+            
+            mail_extension.send(msg)
+
+        except Exception as e:
+            print(f"Gagal mengirim email keamanan: {str(e)}")
 
 @auth_bp.route("/roles", methods=["GET"])
 def get_roles():
@@ -642,7 +750,7 @@ def create_or_update_clinic():
             db.session.execute(
                 text(
                     """
-                    UPDATE public.audit 
+                    UPDATE public.audit
                     SET clinic_id = CAST(:clinic_id AS uuid)
                     WHERE user_id = CAST(:user_id AS uuid) AND clinic_id IS NULL
                     """
@@ -697,15 +805,18 @@ def create_or_update_clinic():
 
 
 @auth_bp.route("/login", methods=["POST"])
-@limiter.limit("5 per minute", error_message="Terlalu banyak percobaan login dari perangkat ini. Silakan tunggu 1 menit.")
+@limiter.limit(
+    "5 per minute",
+    error_message="Terlalu banyak percobaan login dari perangkat ini. Silakan tunggu 1 menit.",
+)
 def login():
     data = request.get_json() or {}
-
     email = (data.get("email") or "").strip().lower()
     password = data.get("password")
-    
     current_time = datetime.now()
-    
+    user_ip = request.remote_addr
+    user_agent = request.headers.get('User-Agent', 'Unknown Device')
+  
     if not email or not password:
         return jsonify({"msg": "Email dan password wajib diisi."}), 400
 
@@ -717,27 +828,49 @@ def login():
     if user.locked_until and user.locked_until > current_time:
         time_left = user.locked_until - current_time
         minutes_left = int(time_left.total_seconds() / 60) + 1
+
+        time_elapsed_since_lock = timedelta(minutes=15) - time_left
+        seconds_since_lock = time_elapsed_since_lock.total_seconds()
         
-        return jsonify({
-                "msg": f"Akun dikunci sementara. Silakan coba lagi dalam {minutes_left} menit."
-            }), 403
-        
+        if 295 < seconds_since_lock < 305 or 595 < seconds_since_lock < 605:
+            app_context = current_app._get_current_object().app_context()
+            email_thread = threading.Thread(
+                target=send_security_alert_in_background,
+                args=(app_context, user.email, user_ip, user_agent)
+            )
+            email_thread.start()
+        return (
+            jsonify(
+                {
+                    "msg": f"Akun dikunci sementara. Silakan coba lagi dalam {minutes_left} menit."
+                }
+            ),
+            403,
+        )
+
     if not user.is_active:
         return jsonify({"msg": "Akun Anda sedang tidak aktif."}), 403
 
     if not user.check_password(password):
         user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
-        
+
         if user.failed_login_attempts >= 5:
             user.locked_until = current_time + timedelta(minutes=15)
             db.session.commit()
+            app_context = current_app._get_current_object().app_context()
+            email_thread = threading.Thread(
+                target=send_security_alert_in_background,
+                args=(app_context, user.email, user_ip, user_agent)
+            )
+            email_thread.start()
+
             return jsonify({
                 "msg": "Akun Anda diblokir sementara selama 15 menit."
             }), 403
             
         db.session.commit()
-        sisa_mencoba = 5 - user.failed_login_attempts
-        return jsonify({"msg": f"Email atau password salah. Sisa kesempatan: {sisa_mencoba} kali."}), 401
+        try_left = 5 - user.failed_login_attempts
+        return jsonify({"msg": f"Email atau password salah. Sisa kesempatan: {try_left} kali."}), 401
     try:
         old_values = {
             "module": "Authentication",
@@ -747,8 +880,8 @@ def login():
 
         user.failed_login_attempts = 0
         user.locked_until = None
-        user.last_login =  datetime.now()
-        
+        user.last_login = datetime.now()
+
         write_audit_log(
             user_id=user.user_id,
             action="LOGIN",
@@ -1364,29 +1497,19 @@ def update_management_employee(employee_id):
 
     manager_role = role_to_text(manager.user_role)
 
-    if manager_role == ADMIN_ROLE:
-        employee = User.query.filter(
-            User.user_id == str(employee_id),
-            User.user_role == MIDWIFE_ROLE,
-        ).first()
-    else:
-        if not manager.clinic_id:
-            return (
-                jsonify(
-                    {
-                        "msg": "Akun bidan belum terhubung dengan klinik.",
-                        "requires_clinic_setup": True,
-                        "redirect_path": "/register-clinic",
-                    }
-                ),
-                400,
-            )
+    if manager_role == MIDWIFE_ROLE and not manager.clinic_id:
+        return (
+            jsonify(
+                {
+                    "msg": "Akun bidan belum terhubung dengan klinik.",
+                    "requires_clinic_setup": True,
+                    "redirect_path": "/register-clinic",
+                }
+            ),
+            400,
+        )
 
-        employee = User.query.filter(
-            User.user_id == str(employee_id),
-            User.clinic_id == manager.clinic_id,
-            User.user_role == ASSISTANT_ROLE,
-        ).first()
+    employee = get_manageable_employee(manager, employee_id)
 
     if not employee:
         return jsonify({"msg": "User tidak ditemukan atau tidak dapat dikelola."}), 404
@@ -1427,9 +1550,14 @@ def update_management_employee(employee_id):
         employee.user_role = new_role
         employee.is_active = new_is_active
 
+        action_name = "UPDATE_USER_ACCESS"
+
+        if active_was_changed and not role_was_changed:
+            action_name = "ACTIVATE_ACCOUNT" if new_is_active else "DEACTIVATE_ACCOUNT"
+
         write_audit_log(
             user_id=manager.user_id,
-            action="UPDATE_USER_ACCESS",
+            action=action_name,
             old_values=old_values,
             new_values=user_old_values(employee, module="User Access"),
         )
@@ -1452,9 +1580,9 @@ def update_management_employee(employee_id):
         return jsonify({"msg": f"Gagal memperbarui user: {str(e)}"}), 500
 
 
-@auth_bp.route("/management/employees/<employee_id>", methods=["DELETE"])
+@auth_bp.route("/management/employees/<employee_id>/status", methods=["PATCH"])
 @jwt_required()
-def unlink_management_employee(employee_id):
+def update_management_employee_status(employee_id):
     manager, error_response = require_management_access(require_clinic=False)
 
     if error_response:
@@ -1462,29 +1590,94 @@ def unlink_management_employee(employee_id):
 
     manager_role = role_to_text(manager.user_role)
 
-    if manager_role == ADMIN_ROLE:
-        employee = User.query.filter(
-            User.user_id == str(employee_id),
-            User.user_role == MIDWIFE_ROLE,
-        ).first()
-    else:
-        if not manager.clinic_id:
-            return (
-                jsonify(
-                    {
-                        "msg": "Akun bidan belum terhubung dengan klinik.",
-                        "requires_clinic_setup": True,
-                        "redirect_path": "/register-clinic",
-                    }
-                ),
-                400,
-            )
+    if manager_role == MIDWIFE_ROLE and not manager.clinic_id:
+        return (
+            jsonify(
+                {
+                    "msg": "Akun bidan belum terhubung dengan klinik.",
+                    "requires_clinic_setup": True,
+                    "redirect_path": "/register-clinic",
+                }
+            ),
+            400,
+        )
 
-        employee = User.query.filter(
-            User.user_id == str(employee_id),
-            User.clinic_id == manager.clinic_id,
-            User.user_role == ASSISTANT_ROLE,
-        ).first()
+    employee = get_manageable_employee(manager, employee_id)
+
+    if not employee:
+        return jsonify({"msg": "User tidak ditemukan atau tidak dapat dikelola."}), 404
+
+    if str(employee.user_id) == str(manager.user_id):
+        return jsonify({"msg": "Anda tidak dapat mengubah status akun sendiri."}), 400
+
+    data = request.get_json() or {}
+
+    if "is_active" not in data and "status" not in data:
+        return jsonify({"msg": "Status akun wajib dikirim."}), 400
+
+    status_value = data.get("is_active") if "is_active" in data else data.get("status")
+    new_is_active = parse_bool(status_value, default=employee.is_active)
+
+    try:
+        old_values = user_old_values(employee, module="User Access")
+
+        employee.is_active = new_is_active
+
+        action_name = "ACTIVATE_ACCOUNT" if new_is_active else "DEACTIVATE_ACCOUNT"
+
+        write_audit_log(
+            user_id=manager.user_id,
+            action=action_name,
+            old_values=old_values,
+            new_values={
+                **user_old_values(employee, module="User Access"),
+                "status_changed_only": True,
+            },
+        )
+
+        db.session.commit()
+        db.session.refresh(employee)
+
+        return (
+            jsonify(
+                {
+                    "msg": "Akun berhasil diaktifkan."
+                    if new_is_active
+                    else "Akun berhasil dinonaktifkan.",
+                    "employee": serialize_user(employee, manager.user_id),
+                }
+            ),
+            200,
+        )
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": f"Gagal mengubah status user: {str(e)}"}), 500
+
+
+@auth_bp.route("/management/employees/<employee_id>", methods=["DELETE"])
+@jwt_required()
+def delete_management_employee(employee_id):
+    manager, error_response = require_management_access(require_clinic=False)
+
+    if error_response:
+        return error_response
+
+    manager_role = role_to_text(manager.user_role)
+
+    if manager_role == MIDWIFE_ROLE and not manager.clinic_id:
+        return (
+            jsonify(
+                {
+                    "msg": "Akun bidan belum terhubung dengan klinik.",
+                    "requires_clinic_setup": True,
+                    "redirect_path": "/register-clinic",
+                }
+            ),
+            400,
+        )
+
+    employee = get_manageable_employee(manager, employee_id)
 
     if not employee:
         return jsonify({"msg": "User tidak ditemukan atau tidak dapat dikelola."}), 404
@@ -1494,29 +1687,32 @@ def unlink_management_employee(employee_id):
 
     try:
         old_values = user_old_values(employee, module="User Access")
+        deleted_employee_id = str(employee.user_id)
 
-        employee.clinic_id = None
-        employee.is_active = False
-
-        db.session.flush()
+        detach_user_references_before_delete(employee.user_id)
 
         write_audit_log(
             user_id=manager.user_id,
-            action="REMOVE_USER_FROM_CLINIC",
+            action="DELETE_USER_ACCOUNT",
             old_values=old_values,
             new_values={
-                **user_old_values(employee, module="User Access"),
-                "removed_from_clinic": True,
+                "module": "User Access",
+                "user_id": deleted_employee_id,
+                "deleted_permanently": True,
+                "deleted_from_database": True,
+                "deleted_at": get_jakarta_now().isoformat(),
             },
         )
 
+        db.session.delete(employee)
         db.session.commit()
 
         return (
             jsonify(
                 {
-                    "msg": "User berhasil dihapus dari akses klinik.",
-                    "removed_employee_id": str(employee_id),
+                    "msg": "User berhasil dihapus permanen dari database.",
+                    "deleted_employee_id": deleted_employee_id,
+                    "deleted_permanently": True,
                 }
             ),
             200,

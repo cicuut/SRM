@@ -1,6 +1,8 @@
 "use client";
 import React from "react";
 import { useSearchParams } from "next/navigation";
+import api from "@/utils/app";
+import Swal from "sweetalert2";
 
 interface PatientInformationProps {
   patient_name?: string;
@@ -16,6 +18,7 @@ interface PatientInformationProps {
   primary_health_facility?: string;
   record_type?: string;
   onDataChange: (data: any) => void;
+  onFamilyAutoFill?: (familyData: any) => void;
 }
 
 const PatientInformation = (props: PatientInformationProps) => {
@@ -37,6 +40,77 @@ const PatientInformation = (props: PatientInformationProps) => {
     record_type: props.record_type || recordType || "",
   });
 
+  const handleNikCheck = async (nik: string) => {
+    const cleanNik = nik.trim();
+    if (cleanNik.length !== 16) return;
+
+    try {
+      const response = await api.get(`medical-record/check-nik/${cleanNik}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const result = response.data;
+
+      if (result && result.exists) {
+        await Swal.fire({
+          title: "Warning",
+          text: result.msg,
+          icon: "warning",
+          confirmButtonColor: "#739072",
+        });
+        setFormData((prev) => ({
+          ...prev,
+          patient_name: result.patient_data.patient_name || "",
+          birth_date: result.patient_data.birth_date || "",
+          gender: result.patient_data.gender || "perempuan",
+          address: result.patient_data.address || "",
+          patient_number: result.patient_data.patient_number || "",
+          education_level: result.patient_data.education_level || "",
+          occupation: result.patient_data.occupation || "",
+          insurance_number: result.patient_data.insurance_number || "",
+          primary_health_facility:
+            result.patient_data.primary_health_facility || "",
+          age: result.patient_data.birth_date
+            ? calculateAge(result.patient_data.birth_date)
+            : "",
+        }));
+
+        if (props.onFamilyAutoFill && result.family_data) {
+          props.onFamilyAutoFill(result.family_data);
+        }
+      }
+    } catch (error) {
+      console.error("Gagal memuat auto-fill data pasien:", error);
+    }
+  };
+  const calculateAge = (birthDateStr: string) => {
+    if (!birthDateStr) return "";
+
+    const birth = new Date(birthDateStr);
+    const today = new Date();
+
+    let year = today.getFullYear() - birth.getFullYear();
+    let month = today.getMonth() - birth.getMonth();
+    let day = today.getDate() - birth.getDate();
+
+    if (day < 0) {
+      month--;
+    }
+
+    if (month < 0) {
+      year--;
+      month += 12;
+    }
+
+    if (year < 0) {
+      return "Invalid Date";
+    }
+
+    return `${year} tahun ${month} bulan`;
+  };
   const handleInputChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
@@ -50,16 +124,7 @@ const PatientInformation = (props: PatientInformationProps) => {
       };
 
       if (name === "birth_date" && value) {
-        const birth = new Date(value);
-        const today = new Date();
-        let year = today.getFullYear() - birth.getFullYear();
-        let month = today.getMonth() - birth.getMonth();
-
-        if (month < 0 || (month === 0 && today.getDate() < birth.getDate())) {
-          year--;
-        }
-
-        updatedData.age = year >= 0 ? `${year} years old` : "Invalid Date";
+        updatedData.age = calculateAge(value);
       } else if (name === "birth_date" && !value) {
         updatedData.age = "";
       }
@@ -105,12 +170,13 @@ const PatientInformation = (props: PatientInformationProps) => {
             required
             value={formData.national_id}
             onChange={handleInputChange}
-            className="p-2 p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
+            onBlur={(e) => handleNikCheck(e.target.value)}
+            className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
           />
         </label>
         <div className="grid grid-cols-2 gap-4 md:col-span-2 md:grid-cols-4">
           <label className="block">
-            <p  className="text-md font-medium text-gray-700 md:text-sm">
+            <p className="text-md font-medium text-gray-700 md:text-sm">
               Tanggal Lahir<span className="text-red-500">*</span>
             </p>
             <input
@@ -124,7 +190,7 @@ const PatientInformation = (props: PatientInformationProps) => {
           </label>
           <label className="block">
             {" "}
-            <p  className="text-md font-medium text-gray-700 md:text-sm">Umur</p>
+            <p className="text-md font-medium text-gray-700 md:text-sm">Umur</p>
             <input
               type="text"
               name="age"
@@ -136,7 +202,7 @@ const PatientInformation = (props: PatientInformationProps) => {
           </label>
           <label className="block">
             {" "}
-            <p  className="text-md font-medium text-gray-700 md:text-sm">
+            <p className="text-md font-medium text-gray-700 md:text-sm">
               Jenis Kelamin<span className="text-red-500">*</span>
             </p>
             <select
@@ -149,13 +215,13 @@ const PatientInformation = (props: PatientInformationProps) => {
               <option value="" disabled>
                 Pilih Jenis Kelamin
               </option>
-              <option value="perempuan">Wanita</option>
-              <option value="laki-laki">Pria</option>
+              <option value="perempuan">Perempuan</option>
+              <option value="laki-laki">Laki-Laki</option>
             </select>
           </label>
           <label className="block">
             {" "}
-            <p  className="text-md font-medium text-gray-700 md:text-sm">
+            <p className="text-md font-medium text-gray-700 md:text-sm">
               Tipe Rekam Medis
             </p>
             <input
@@ -170,7 +236,7 @@ const PatientInformation = (props: PatientInformationProps) => {
         </div>
         <label className="block">
           {" "}
-          <p  className="text-md font-medium text-gray-700 md:text-sm">
+          <p className="text-md font-medium text-gray-700 md:text-sm">
             {" "}
             No. Telepon <span className="text-red-500">*</span>
           </p>
@@ -182,11 +248,11 @@ const PatientInformation = (props: PatientInformationProps) => {
             id="phone"
             value={formData.patient_number}
             onChange={handleInputChange}
-            className="p-2 p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
+            className=" p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
           />
         </label>
         <label className="block">
-          <p  className="text-md font-medium text-gray-700 md:text-sm">
+          <p className="text-md font-medium text-gray-700 md:text-sm">
             Alamat<span className="text-red-500">*</span>
           </p>
           <textarea
@@ -198,8 +264,8 @@ const PatientInformation = (props: PatientInformationProps) => {
           />
         </label>
         <label className="block">
-          <p  className="text-md font-medium text-gray-700 md:text-sm">
-            Pendidikan<span className="text-red-500">*</span>
+          <p className="text-md font-medium text-gray-700 md:text-sm">
+            Pendidikan
           </p>
           <input
             type="text"
@@ -211,8 +277,8 @@ const PatientInformation = (props: PatientInformationProps) => {
           />
         </label>
         <label className="block">
-          <p  className="text-md font-medium text-gray-700 md:text-sm">
-            Pekerjaan<span className="text-red-500">*</span>
+          <p className="text-md font-medium text-gray-700 md:text-sm">
+            Pekerjaan
           </p>
           <input
             type="text"
@@ -224,7 +290,7 @@ const PatientInformation = (props: PatientInformationProps) => {
           />
         </label>
         <label className="block">
-          <p  className="text-md font-medium text-gray-700 md:text-sm">
+          <p className="text-md font-medium text-gray-700 md:text-sm">
             Nomor BPJS
           </p>
           <input
@@ -237,7 +303,7 @@ const PatientInformation = (props: PatientInformationProps) => {
           />
         </label>
         <label className="block">
-          <p  className="text-md font-medium text-gray-700 md:text-sm">
+          <p className="text-md font-medium text-gray-700 md:text-sm">
             Faskes Tingkat 1
           </p>
           <input

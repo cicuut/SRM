@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 import PatientInformation from "@/components/add-records/patientInformation";
@@ -32,7 +32,7 @@ const PregnancyRecord = () => {
   const recordType = searchParams.get("type");
   const [patientData, setPatientData] = useState({});
   const [familyData, setFamilyData] = useState({});
-
+  const [familyAutoFillData, setFamilyAutoFillData] = useState(null);
   const handlePatientUpdate = (data: any) => setPatientData(data);
   const handleFamilyUpdate = (data: any) => setFamilyData(data);
 
@@ -185,8 +185,9 @@ const PregnancyRecord = () => {
       <PatientInformation
         record_type={recordType || "Kehamilan"}
         onDataChange={handlePatientUpdate}
+        onFamilyAutoFill={(data) => setFamilyAutoFillData(data)}
       />
-      <FamilyInformation onDataChange={handleFamilyUpdate} />
+      <FamilyInformation onDataChange={handleFamilyUpdate} autoFillData={familyAutoFillData} />
       <div className="flex flex-col gap-0">
         <h2 className="text-md text-[#4F6F52]  underline leading-none font-lexend!">
           Riwayat Obstetri Sebelumnya
@@ -259,7 +260,9 @@ const PregnancyRecord = () => {
           </div>
           <div className="grid grid-cols-1 gap-4 col-span-full mt-2">
             <div className="flex flex-col flex-1 text-md font-medium text-gray-700">
-              <p className="text-md font-medium text-gray-700 md:text-sm">Berapa kali hamil sebelumnya?</p>
+              <p className="text-md font-medium text-gray-700 md:text-sm">
+                Berapa kali hamil sebelumnya?
+              </p>
               <select
                 value={previousPregnancy}
                 onChange={(e) => handlePregnancyCountChange(e.target.value)}
@@ -357,7 +360,9 @@ const PregnancyRecord = () => {
 
                   <div className="grid grid-cols-2 gap-4">
                     <label className="block">
-                      <p className="text-md font-medium text-gray-700 md:text-sm">Berat Badan Bayi (kg)</p>
+                      <p className="text-md font-medium text-gray-700 md:text-sm">
+                        Berat Badan Bayi (kg)
+                      </p>
                       <input
                         type="number"
                         value={item.baby_weight}
@@ -373,7 +378,9 @@ const PregnancyRecord = () => {
                       />
                     </label>
                     <label className="block">
-                      <p className="text-md font-medium text-gray-700 md:text-sm">Panjang Badan Bayi (cm)</p>
+                      <p className="text-md font-medium text-gray-700 md:text-sm">
+                        Panjang Badan Bayi (cm)
+                      </p>
                       <input
                         type="number"
                         placeholder="Tanpa satuan"
@@ -391,7 +398,9 @@ const PregnancyRecord = () => {
                   </div>
 
                   <label className="block">
-                    <p className="text-md font-medium text-gray-700 md:text-sm">Masa Nifas</p>
+                    <p className="text-md font-medium text-gray-700 md:text-sm">
+                      Masa Nifas
+                    </p>
                     <select
                       value={item.postpartum_status}
                       onChange={(e) =>
@@ -410,7 +419,11 @@ const PregnancyRecord = () => {
                       <option value="komplikasi">Komplikasi</option>
                     </select>
                   </label>
-                  <label className="block">                       <p className="text-md font-medium text-gray-700 md:text-sm">Komplikasi Bayi</p>
+                  <label className="block">
+                    {" "}
+                    <p className="text-md font-medium text-gray-700 md:text-sm">
+                      Komplikasi Bayi
+                    </p>
                     <textarea
                       value={item.baby_complications}
                       onChange={(e) =>
@@ -424,7 +437,9 @@ const PregnancyRecord = () => {
                     />
                   </label>
                   <label className="block">
-                    <p className="text-md font-medium text-gray-700 md:text-sm">Komplikasi Nifas</p>
+                    <p className="text-md font-medium text-gray-700 md:text-sm">
+                      Komplikasi Nifas
+                    </p>
                     <textarea
                       value={item.postpartum_complications}
                       onChange={(e) =>
@@ -496,7 +511,8 @@ const PregnancyRecord = () => {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <label className="block">
             <p className="text-md font-medium text-gray-700 md:text-sm">
-              Tanggal dan Hari Registrasi </p>
+              Tanggal dan Hari Registrasi{" "}
+            </p>
             <input
               type="date"
               value={date}
@@ -534,7 +550,7 @@ const PregnancyRecord = () => {
               className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
             />
           </label>
-          <label className="block">              
+          <label className="block">
             <p className="text-md font-medium text-gray-700 md:text-sm">
               TT Screening
             </p>
@@ -557,9 +573,9 @@ const PregnancyRecord = () => {
               <option value="TT 5"> TT 5</option>
             </select>
           </label>
-          <label className="block">              
+          <label className="block">
             <p className="text-md font-medium text-gray-700 md:text-sm">
-               Lingkar Lengan Atas (cm)
+              Lingkar Lengan Atas (cm)
             </p>
             <input
               type="number"
@@ -571,11 +587,11 @@ const PregnancyRecord = () => {
               className="p-2 w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
             />
           </label>
-           <label className="block">              
+          <label className="block">
             <p className="text-md font-medium text-gray-700 md:text-sm">
-               Hasil Lab
+              Hasil Lab
             </p>
-             <textarea
+            <textarea
               value={labResult}
               onChange={(e) => setLabResult(e.target.value)}
               name="laboratoryResults"
@@ -587,23 +603,35 @@ const PregnancyRecord = () => {
       </div>
       <div className="flex justify-center gap-4">
         <button
-                    type="submit"
-                    onClick={handleSubmit}
-                    disabled={loading}
-                    className="px-8 py-2 bg-[#739072] text-white rounded-full hover:bg-[#4F6F52] shadow-lg transition font-bold cursor-pointer"
-                >
-                    {loading ? (
-                        <div className="flex items-center gap-2">
-                            <div className="spinner"></div>
-                            <span>Memproses...</span>
-                        </div>
-                    ) : (
-                        "Simpan"
-                    )}
-                </button>
+          type="submit"
+          onClick={handleSubmit}
+          disabled={loading}
+          className="px-8 py-2 bg-[#739072] text-white rounded-full hover:bg-[#4F6F52] shadow-lg transition font-bold cursor-pointer"
+        >
+          {loading ? (
+            <div className="flex items-center gap-2">
+              <div className="spinner"></div>
+              <span>Memproses...</span>
+            </div>
+          ) : (
+            "Simpan"
+          )}
+        </button>
       </div>
     </div>
   );
 };
 
-export default PregnancyRecord;
+export default function PregnancyRecordPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex items-center justify-center min-h-screen bg-[#F8FAF6]">
+                <p className="text-[#739072] animate-pulse font-medium text-sm">
+                    Memuat Form Kehamilan...
+                </p>
+            </div>
+        }>
+            <PregnancyRecord />
+        </Suspense>
+    );
+}

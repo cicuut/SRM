@@ -1,11 +1,7 @@
 'use client';
 import React from "react";
-import { useState, useEffect } from "react";
-import { emit } from "process";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import axios from "axios";
-import { request } from "http";
-import Cookies from 'js-cookie';
 import Swal from 'sweetalert2';
 import PatientInformation from "@/components/add-records/patientInformation";
 import FamilyInformation from "@/components/add-records/familyInformation";
@@ -164,8 +160,8 @@ const DeliveryRecord = () => {
                         Jenis Kelamin </p>
                     <select name="newbornGender" id="newbornGender" value={newbornGender} onChange={(e) => setNewbornGender(e.target.value)} className="w-full h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2 p-2">
                         <option value="" disabled>Pilih Jenis Kelamin</option>
-                        <option value="perempuan">Wanita</option>
-                        <option value="laki-laki">Pria</option>
+                        <option value="perempuan">Perempuan</option>
+                        <option value="laki-laki">Laki Laki</option>
                     </select>
                 </label>
                 <label className="block">                        Berat Badan
@@ -315,4 +311,16 @@ const DeliveryRecord = () => {
     );
 
 };
-export default DeliveryRecord;
+export default function DeliveryRecordPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex items-center justify-center min-h-screen bg-[#F8FAF6]">
+                <p className="text-[#739072] animate-pulse font-medium text-sm">
+                    Memuat Form Persalinan...
+                </p>
+            </div>
+        }>
+            <DeliveryRecord />
+        </Suspense>
+    );
+}

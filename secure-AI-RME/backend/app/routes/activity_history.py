@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models import db, Audit, User
+from app.utils import decrypt_audit_values
 from datetime import datetime, time
 import json
 
@@ -55,6 +56,16 @@ FIELD_LABELS = {
     "body_temperature": "Suhu Tubuh",
     "heart_rate": "Denyut Jantung",
     "respiratory_rate": "Respiratory Rate",
+    "complaint": "Keluhan",
+    "kb_method": "Metode KB",
+    "return_visit_date": "Tanggal Kunjungan Ulang",
+    "vaccine_given": "Vaksin Diberikan",
+    "dosage_given": "Dosis Diberikan",
+    "baby_weight": "Berat Bayi",
+    "baby_height": "Tinggi Bayi",
+    "body_temp": "Suhu Tubuh",
+    "head_circumference": "Lingkar Kepala",
+    "abdominal_circumference": "Lingkar Perut",
 }
 
 DISPLAY_FIELD_ORDER = [
@@ -87,12 +98,22 @@ DISPLAY_FIELD_ORDER = [
     "assessment",
     "plan",
     "diagnosis",
+    "complaint",
+    "kb_method",
+    "return_visit_date",
+    "vaccine_given",
+    "dosage_given",
+    "baby_weight",
+    "baby_height",
     "weight_kg",
     "height_cm",
     "blood_pressure",
     "body_temperature",
+    "body_temp",
     "heart_rate",
     "respiratory_rate",
+    "head_circumference",
+    "abdominal_circumference",
     "created_at",
     "last_update",
     "last_login",
@@ -133,6 +154,9 @@ HIDDEN_DISPLAY_KEYS = {
     "access_token",
     "refresh_token",
     "profile_photo",
+    "__encrypted",
+    "payload",
+    "version",
 }
 
 
@@ -238,6 +262,53 @@ def stringify_json(value):
         return json.dumps(value, ensure_ascii=False, default=str)
     except Exception:
         return str(value)
+
+
+def normalize_audit_values(value):
+    """
+    Support tiga kondisi:
+    1. Audit baru terenkripsi dari utils.write_audit_log.
+    2. Audit lama masih plaintext JSON.
+    3. Audit lama terbaca sebagai string JSON.
+    """
+
+    if value is None:
+        return {}
+
+    normalized_value = value
+
+    if isinstance(normalized_value, str):
+        try:
+            normalized_value = json.loads(normalized_value)
+        except Exception:
+            return {"value": normalized_value}
+
+    try:
+        decrypted_value = decrypt_audit_values(normalized_value)
+    except Exception:
+        decrypted_value = normalized_value
+
+    if decrypted_value is None:
+        return {}
+
+    if isinstance(decrypted_value, dict):
+        return decrypted_value
+
+    if isinstance(decrypted_value, str):
+        try:
+            parsed_value = json.loads(decrypted_value)
+
+            if isinstance(parsed_value, dict):
+                return parsed_value
+
+            return {"value": parsed_value}
+        except Exception:
+            return {"value": decrypted_value}
+
+    try:
+        return json.loads(json.dumps(decrypted_value, default=str))
+    except Exception:
+        return {"value": str(decrypted_value)}
 
 
 def safe_parse_datetime(value):
@@ -456,6 +527,7 @@ def format_display_value_by_key(key, value):
         "last_login",
         "date_time",
         "times",
+        "return_visit_date",
     }:
         return format_date_value(value)
 
@@ -709,9 +781,21 @@ def value_list_from_dict(values, compare_values=None):
     return result
 
 
+def get_deleted_user_display_name(old_values, new_values):
+    for values in [new_values, old_values]:
+        if not isinstance(values, dict):
+            continue
+
+        for key in ["user_name", "fullname", "email"]:
+            if values.get(key):
+                return to_str(values.get(key))
+
+    return "-"
+
+
 def serialize_audit_row(audit, user):
-    old_values = audit.old_values or {}
-    new_values = audit.new_values or {}
+    old_values = normalize_audit_values(audit.old_values)
+    new_values = normalize_audit_values(audit.new_values)
 
     user_name = "-"
     user_email = "-"
@@ -719,6 +803,11 @@ def serialize_audit_row(audit, user):
     if user:
         user_name = user.fullname or "-"
         user_email = user.email or "-"
+    else:
+        fallback_user = get_deleted_user_display_name(old_values, new_values)
+
+        if fallback_user != "-":
+            user_name = fallback_user
 
     old_value_text, new_value_text = make_table_summary(
         audit.action,
@@ -741,8 +830,8 @@ def serialize_audit_row(audit, user):
 
 
 def serialize_audit_detail(audit, user):
-    old_values = audit.old_values or {}
-    new_values = audit.new_values or {}
+    old_values = normalize_audit_values(audit.old_values)
+    new_values = normalize_audit_values(audit.new_values)
 
     user_name = "-"
     user_email = "-"
@@ -752,6 +841,11 @@ def serialize_audit_detail(audit, user):
         user_name = user.fullname or "-"
         user_email = user.email or "-"
         user_role = user.user_role or "-"
+    else:
+        fallback_user = get_deleted_user_display_name(old_values, new_values)
+
+        if fallback_user != "-":
+            user_name = fallback_user
 
     old_value_text, new_value_text = friendly_old_new_value(
         audit.action,
@@ -811,7 +905,8 @@ def build_activity_query(current_user, current_role):
         .outerjoin(User, Audit.user_id == User.user_id)
     )
 
-    query = query.filter(User.clinic_id == current_user.clinic_id)
+    if current_role == "midwife":
+        query = query.filter(Audit.clinic_id == current_user.clinic_id)
 
     return query
 
@@ -921,13 +1016,7 @@ def get_activity_actions():
         query = db.session.query(Audit.action)
 
         if current_role == "midwife":
-            query = (
-                query
-                .join(User, Audit.user_id == User.user_id)
-                .filter(User.clinic_id == current_user.clinic_id)
-            )
-        else:
-            query = query.outerjoin(User, Audit.user_id == User.user_id)
+            query = query.filter(Audit.clinic_id == current_user.clinic_id)
 
         rows = (
             query

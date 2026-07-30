@@ -124,14 +124,33 @@ class Patient(db.Model):
     def age(self):
         if self.birth_date:
             today = datetime.today()
-            return (
-                today.year
-                - self.birth_date.year
-                - ((today.month, today.day) < (self.birth_date.month, self.birth_date.day))
+            
+            calc_age = today.year - self.birth_date.year
+            calc_month = today.month - self.birth_date.month
+            
+            if today.day < self.birth_date.day:
+                calc_month -= 1
+            if calc_month < 0:
+                calc_age -= 1
+                calc_month += 12
+                
+            return f"{calc_age} Tahun {calc_month} Bulan"
+        return "-"
+
+    @age.expression
+    def age(cls):
+        age_interval = func.age(cls.birth_date)
+        
+        years = func.date_part('year', age_interval)
+        months = func.date_part('month', age_interval)
+        
+        return case(
+            (cls.birth_date.is_(None), "-"),
+            else_=func.concat(
+                func.cast(years, db.Integer), " Tahun ", 
+                func.cast(months, db.Integer), " Bulan"
             )
-
-        return 0
-
+        )
 
 class MedicalRecord(db.Model):
     __tablename__ = 'medical_record'
@@ -215,7 +234,7 @@ class ObstetricHistory(db.Model):
     baby_weight = db.Column(db.Float, nullable=True)
     baby_height = db.Column(db.Float, nullable=True)
     baby_complications = db.Column(EncryptedText, nullable=True)
-    postpartum_status = db.Column(EncryptedText, nullable=True)
+    postpartum_status = db.Column(db.String(50), nullable=True)
     postpartum_complications = db.Column(EncryptedText, nullable=True)
 
 
@@ -450,7 +469,7 @@ class Audit(db.Model):
     )
     user_id = db.Column(
         UUID(as_uuid=True),
-        db.ForeignKey('users.user_id'),
+        db.ForeignKey('users.user_id', ondelete='CASCADE'),
     )
     clinic_id = db.Column(
         UUID(as_uuid=True), 
@@ -492,22 +511,22 @@ class Financial(db.Model):
     )
     visit_id = db.Column(
         UUID(as_uuid=True),
-        db.ForeignKey('visit_master.visit_id'),
+        db.ForeignKey('visit_master.visit_id', ondelete='CASCADE'),
         nullable=True,
     )
     clinic_id = db.Column(
         UUID(as_uuid=True),
-        db.ForeignKey('clinic.clinic_id'),
+        db.ForeignKey('clinic.clinic_id', ondelete='CASCADE'),
         nullable=True,
     )
     user_id = db.Column(
         UUID(as_uuid=True),
-        db.ForeignKey('users.user_id'),
+        db.ForeignKey('users.user_id', ondelete='CASCADE'),
         nullable=True,
     )
     patient_id = db.Column(
         UUID(as_uuid=True),
-        db.ForeignKey('patient.patient_id'),
+        db.ForeignKey('patient.patient_id', ondelete='CASCADE'),
         nullable=True,
     )
     transaction_number = db.Column(db.String(50), nullable=False)

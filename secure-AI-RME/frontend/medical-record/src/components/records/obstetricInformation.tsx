@@ -508,7 +508,7 @@ const PastObstecticHistoryDetail = () => {
                   
                     <button
                       type="button"
-                      onClick={() => handleRemovePastHistory(index)} // 🌟 Panggil fungsi hapus dengan melempar indeksnya
+                      onClick={() => handleRemovePastHistory(index)} 
                       className="text-red-500 hover:text-red-700 p-1.5 rounded-lg hover:bg-red-50 transition-all cursor-pointer flex items-center justify-center group"
                       title="Hapus baris ini"
                     >

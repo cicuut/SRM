@@ -30,13 +30,22 @@ type MeResponse = {
 
 type VisitReportOption = {
     visit_id: string;
-    visit_date: string;
+    visit_date: string | null;
     visit_number: string;
+    visit_display?: string;
+    record_id?: string | null;
     record_number: string;
+    patient_id?: string | null;
     patient_name: string;
-    nik: string;
+    patient_number?: string;
+    nik?: string;
     record_type: string;
-    made_by: string;
+    clinic_id?: string | null;
+    billing_transaction_id?: string | null;
+    billing_transaction_number?: string;
+    billing_status?: string;
+    billing_amount?: number;
+    billing_payment_date?: string | null;
 };
 
 type InvoiceFormData = {
@@ -125,6 +134,14 @@ const translateErrorMessage = (message?: string) => {
 
     if (normalized.includes('gagal mengambil data laporan kunjungan')) {
         return 'Gagal mengambil data laporan kunjungan.';
+    }
+
+    if (
+        normalized.includes('sudah memiliki billing') ||
+        normalized.includes('sudah terbayar') ||
+        normalized.includes('sudah lunas')
+    ) {
+        return 'Laporan kunjungan ini sudah memiliki billing terbayar. Pilih laporan kunjungan lain yang belum terbayar.';
     }
 
     if (normalized.includes('gagal menambahkan invoice')) {
@@ -219,13 +236,16 @@ const AddInvoice = () => {
         return visitReports.filter((visit) => {
             const searchableText = [
                 visit.patient_name,
+                visit.patient_number,
                 visit.nik,
                 visit.visit_number,
                 visit.record_number,
                 visit.record_type,
                 visit.visit_date,
-                visit.made_by,
+                visit.billing_status,
+                visit.billing_transaction_number,
             ]
+                .filter(Boolean)
                 .join(' ')
                 .toLowerCase();
 
@@ -342,13 +362,15 @@ const AddInvoice = () => {
                 return;
             }
 
-            const response = await api.get(`/financial/transaction-number?date=${encodeURIComponent(date)}`, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
+            const response = await api.get(
+                `/financial/transaction-number?date=${encodeURIComponent(date)}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
                 },
-            });
-
+            );
 
             const data = response.data;
 
@@ -390,7 +412,7 @@ const AddInvoice = () => {
                 return;
             }
 
-            const response = await api.get('/visit-report/get-all-visit', {
+            const response = await api.get('/financial/unpaid-visits?limit=500', {
                 headers: {
                     Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json',
@@ -411,18 +433,25 @@ const AddInvoice = () => {
 
             if (response.status !== 200) {
                 throw new Error(
-                    data?.msg || 'Gagal mengambil data laporan kunjungan.',
+                    data?.msg ||
+                        'Gagal mengambil data laporan kunjungan yang belum terbayar.',
                 );
             }
 
-            setVisitReports(Array.isArray(data) ? data : []);
-        } catch (error) {
-            const message =
-                error instanceof Error
-                    ? translateErrorMessage(error.message)
-                    : 'Terjadi kesalahan saat mengambil data laporan kunjungan.';
+            const unpaidVisits = Array.isArray(data?.data)
+                ? data.data
+                : Array.isArray(data)
+                  ? data
+                  : [];
 
-            setErrorMessage(message);
+            setVisitReports(unpaidVisits);
+        } catch (error: any) {
+            const message =
+                error?.response?.data?.msg ||
+                error?.message ||
+                'Terjadi kesalahan saat mengambil data laporan kunjungan yang belum terbayar.';
+
+            setErrorMessage(translateErrorMessage(message));
         } finally {
             setIsLoadingVisits(false);
         }
@@ -567,7 +596,6 @@ const AddInvoice = () => {
                 handleUnauthorized();
                 return;
             }
-
             const payload = {
                 payment_date: formData.payment_date,
                 visit_id: formData.visit_id || null,
@@ -607,22 +635,17 @@ if (response.status !== 200 && response.status !== 201) {
     throw new Error(data?.msg || 'Gagal menambahkan invoice.');
 }
 
-router.push('/financial-report');
+            router.push('/financial-report');
+        } catch (error) {
+            const message =
+                error instanceof Error
+                    ? translateErrorMessage(error.message)
+                    : 'Terjadi kesalahan saat menambahkan invoice.';
 
-        } catch (error: any) {
-
-    console.error('ERROR:', error?.response?.data);
-
-    const message =
-        error?.response?.data?.msg ||
-        error?.message ||
-        'Terjadi kesalahan saat menambahkan invoice.';
-
-    setErrorMessage(message);
-
-} finally {
-    setIsSubmitting(false);
-}
+            setErrorMessage(translateErrorMessage(message));
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
 if (isCheckingAccess) {
@@ -688,28 +711,28 @@ return (
                     />
                 </label>
 
-                <div className="block">
-                    <span className={labelClassName}>
-                        Laporan Kunjungan
-                        <span className="ml-1 font-medium text-[#8A8A8A]">
-                            (opsional)
-                        </span>
-                    </span>
-
-                    <div className="mt-2 flex gap-2">
-                        <button
-                            type="button"
-                            onClick={handleOpenVisitModal}
-                            disabled={isSubmitting || isLoadingVisits}
-                            className="flex min-h-[42px] min-w-0 flex-1 items-center justify-between gap-3 rounded-[10px] border border-[#D2D8CF] bg-white px-3 py-2 text-left text-[13px] text-black outline-none transition-all hover:border-[#739072] focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 disabled:cursor-not-allowed disabled:opacity-70"
-                        >
-                            <span className="min-w-0 flex-1 truncate">
-                                {selectedVisit
-                                    ? `${selectedVisit.patient_name} - ${selectedVisit.visit_number}`
-                                    : isLoadingVisits
-                                        ? 'Memuat data...'
-                                        : 'Pilih laporan kunjungan bila ada'}
+                    <div className="block">
+                        <span className={labelClassName}>
+                            Laporan Kunjungan Belum Terbayar
+                            <span className="ml-1 font-medium text-[#8A8A8A]">
+                                (opsional)
                             </span>
+                        </span>
+
+                        <div className="mt-2 flex gap-2">
+                            <button
+                                type="button"
+                                onClick={handleOpenVisitModal}
+                                disabled={isSubmitting || isLoadingVisits}
+                                className="flex min-h-[42px] min-w-0 flex-1 items-center justify-between gap-3 rounded-[10px] border border-[#D2D8CF] bg-white px-3 py-2 text-left text-[13px] text-black outline-none transition-all hover:border-[#739072] focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 disabled:cursor-not-allowed disabled:opacity-70"
+                            >
+                                <span className="min-w-0 flex-1 truncate">
+                                    {selectedVisit
+                                        ? `${selectedVisit.patient_name} - ${selectedVisit.visit_number}`
+                                        : isLoadingVisits
+                                          ? 'Memuat data...'
+                                          : 'Pilih laporan kunjungan belum terbayar'}
+                                </span>
 
                             <span className="shrink-0 rounded-full bg-[#F8FAF6] px-3 py-1 text-[11px] font-bold text-[#4F6F52]">
                                 Cari
@@ -728,11 +751,11 @@ return (
                         )}
                     </div>
 
-                    <p className="mt-1 text-[11px] text-[#8A8A8A]">
-                        Invoice dapat dibuat tanpa terhubung ke laporan
-                        kunjungan.
-                    </p>
-                </div>
+                        <p className="mt-1 text-[11px] text-[#8A8A8A]">
+                            Daftar pilihan hanya menampilkan laporan kunjungan
+                            yang belum lunas atau belum terbayar.
+                        </p>
+                    </div>
 
                 <label className="block">
                     <span className={labelClassName}>Tipe Transaksi</span>
@@ -851,19 +874,21 @@ return (
                                     : 'Tidak terhubung ke laporan kunjungan'}
                             </p>
 
-                            {selectedVisit ? (
-                                <p className="mt-1 text-[11px] text-[#6B6B6B]">
-                                    {selectedVisit.record_number} -{' '}
-                                    {selectedVisit.record_type} -{' '}
-                                    {selectedVisit.visit_date}
-                                </p>
-                            ) : (
-                                <p className="mt-1 text-[11px] text-[#6B6B6B]">
-                                    Invoice ini akan disimpan sebagai
-                                    transaksi manual.
-                                </p>
-                            )}
-                        </div>
+                                {selectedVisit ? (
+                                    <p className="mt-1 text-[11px] text-[#6B6B6B]">
+                                        {selectedVisit.record_number} -{' '}
+                                        {selectedVisit.record_type} -{' '}
+                                        {selectedVisit.visit_date || '-'} - Status:{' '}
+                                        {selectedVisit.billing_status ||
+                                            'belum terbayar'}
+                                    </p>
+                                ) : (
+                                    <p className="mt-1 text-[11px] text-[#6B6B6B]">
+                                        Invoice ini akan disimpan sebagai
+                                        transaksi manual.
+                                    </p>
+                                )}
+                            </div>
 
                         <div className="text-left sm:text-right">
                             <p className="text-[11px] font-bold text-[#6B6B6B]">
@@ -900,28 +925,30 @@ return (
             </div>
         </form>
 
-        {isVisitModalOpen && (
-            <div
-                className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 px-4 py-6"
-                onClick={handleCloseVisitModal}
-            >
+            {isVisitModalOpen && (
                 <div
-                    className="flex max-h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-[16px] bg-white shadow-2xl"
-                    onClick={(event) => event.stopPropagation()}
+                    className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 px-4 py-6"
+                    onClick={handleCloseVisitModal}
                 >
-                    <div className="flex flex-col gap-3 border-b border-[#E4E8E1] px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                            <h2 className="text-[18px] font-bold text-[#4F6F52]">
-                                Pilih Laporan Kunjungan
-                            </h2>
+                    <div
+                        className="flex max-h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-[16px] bg-white shadow-2xl"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="flex flex-col gap-3 border-b border-[#E4E8E1] px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                                <h2 className="text-[18px] font-bold text-[#4F6F52]">
+                                    Pilih Laporan Kunjungan Belum Terbayar
+                                </h2>
 
-                            <p className="mt-1 text-[12px] text-[#6B6B6B]">
-                                Laporan kunjungan bersifat opsional. Cari
-                                berdasarkan nama pasien, NIK, nomor RM,
-                                nomor kunjungan, tipe rekam medis, tanggal,
-                                atau pembuat laporan.
-                            </p>
-                        </div>
+                                <p className="mt-1 text-[12px] text-[#6B6B6B]">
+                                    Daftar ini hanya berisi laporan kunjungan
+                                    yang belum memiliki billing lunas atau
+                                    terbayar. Cari berdasarkan nama pasien,
+                                    nomor pasien, nomor RM, nomor kunjungan,
+                                    tipe rekam medis, tanggal, atau status
+                                    billing.
+                                </p>
+                            </div>
 
                         <button
                             type="button"
@@ -932,18 +959,18 @@ return (
                         </button>
                     </div>
 
-                    <div className="border-b border-[#E4E8E1] px-5 py-4">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                            <input
-                                type="text"
-                                value={searchKeyword}
-                                onChange={(event) =>
-                                    setSearchKeyword(event.target.value)
-                                }
-                                placeholder="Cari laporan kunjungan..."
-                                className="h-[42px] flex-1 rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10"
-                                autoFocus
-                            />
+                        <div className="border-b border-[#E4E8E1] px-5 py-4">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                                <input
+                                    type="text"
+                                    value={searchKeyword}
+                                    onChange={(event) =>
+                                        setSearchKeyword(event.target.value)
+                                    }
+                                    placeholder="Cari laporan kunjungan belum terbayar..."
+                                    className="h-[42px] flex-1 rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10"
+                                    autoFocus
+                                />
 
                             {searchKeyword && (
                                 <button
@@ -966,11 +993,11 @@ return (
                             )}
                         </div>
 
-                        <p className="mt-2 text-[11px] font-semibold text-[#6B6B6B]">
-                            Menampilkan {filteredVisitReports.length} dari{' '}
-                            {visitReports.length} laporan kunjungan
-                        </p>
-                    </div>
+                            <p className="mt-2 text-[11px] font-semibold text-[#6B6B6B]">
+                                Menampilkan {filteredVisitReports.length} dari{' '}
+                                {visitReports.length} laporan kunjungan belum terbayar
+                            </p>
+                        </div>
 
                     <div className="max-h-[52dvh] overflow-y-auto px-5 py-4">
                         {isLoadingVisits ? (
@@ -983,16 +1010,16 @@ return (
                                     Data tidak ditemukan
                                 </p>
 
-                                <p className="mt-1 text-[12px] text-[#6B6B6B]">
-                                    Coba gunakan kata kunci lain.
-                                </p>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 gap-3">
-                                {filteredVisitReports.map((visit) => {
-                                    const isSelected =
-                                        visit.visit_id ===
-                                        formData.visit_id;
+                                    <p className="mt-1 text-[12px] text-[#6B6B6B]">
+                                        Coba gunakan kata kunci lain atau pastikan masih ada laporan kunjungan yang belum terbayar.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 gap-3">
+                                    {filteredVisitReports.map((visit) => {
+                                        const isSelected =
+                                            visit.visit_id ===
+                                            formData.visit_id;
 
                                     return (
                                         <button
@@ -1012,13 +1039,16 @@ return (
                                                         {visit.patient_name}
                                                     </p>
 
-                                                    <p className="mt-1 text-[12px] text-[#6B6B6B]">
-                                                        NIK: {visit.nik} -
-                                                        RM:{' '}
-                                                        {
-                                                            visit.record_number
-                                                        }
-                                                    </p>
+                                                        <p className="mt-1 text-[12px] text-[#6B6B6B]">
+                                                            No. Pasien:{' '}
+                                                            {visit.patient_number ||
+                                                                visit.nik ||
+                                                                '-'}{' '}
+                                                            - RM:{' '}
+                                                            {
+                                                                visit.record_number
+                                                            }
+                                                        </p>
 
                                                     <p className="mt-1 text-[12px] text-[#6B6B6B]">
                                                         No. Kunjungan:{' '}
@@ -1028,15 +1058,16 @@ return (
                                                     </p>
                                                 </div>
 
-                                                <div className="shrink-0 text-left sm:text-right">
-                                                    <p className="text-[12px] font-bold text-[#4F6F52]">
-                                                        {visit.visit_date}
-                                                    </p>
+                                                    <div className="shrink-0 text-left sm:text-right">
+                                                        <p className="text-[12px] font-bold text-[#4F6F52]">
+                                                            {visit.visit_date || '-'}
+                                                        </p>
 
-                                                    <p className="mt-1 text-[11px] text-[#6B6B6B]">
-                                                        Dibuat oleh:{' '}
-                                                        {visit.made_by}
-                                                    </p>
+                                                        <p className="mt-1 text-[11px] text-[#6B6B6B]">
+                                                            Status:{' '}
+                                                            {visit.billing_status ||
+                                                                'belum terbayar'}
+                                                        </p>
 
                                                     {isSelected && (
                                                         <span className="mt-2 inline-flex rounded-full bg-[#739072] px-3 py-1 text-[10px] font-bold text-white">

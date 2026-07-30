@@ -5,6 +5,7 @@ from app.models import (
     db,
     Patient,
     MedicalRecord,
+    DeliveryRecord,
     VisitMaster,
     VisitPregnancy,
     VisitFamilyPlanning,
@@ -91,12 +92,12 @@ def require_visit_access():
             jsonify({"msg": "Akses ditolak. Role ini tidak dapat mengakses laporan kunjungan."}),
             403,
         )
-        if not current_user.clinic_id:
-            response = {
+    if not current_user.clinic_id:
+        response = {
                 "msg": "Akun belum terhubung dengan klinik.",
                 "requires_clinic_setup": current_role == "midwife",
                 "redirect_path": "/register-clinic" if current_role == "midwife" else "/dashboard",
-            }
+        }
         return None, current_role, (jsonify(response), 400)
 
     return current_user, current_role, None
@@ -1277,6 +1278,23 @@ def get_json_visit_report():
                     row_data["kb_method"] = familyplanning_detail.kb_method
                     row_data["return_visit_date"] = format_date(familyplanning_detail.return_visit_date) if familyplanning_detail.return_visit_date else "-"
                     row_data["complaint"] = safe_decrypt(familyplanning_detail.complaint)
+
+            delivery_detail = DeliveryRecord.query.filter_by(record_id=medical_record.record_id).first()
+            if delivery_detail and medical_record.record_type == "Persalinan":
+                row_data["visit_type"] = "Persalinan"
+                if visit_type in ["Persalinan", "Semua"]:
+                    row_data["delivery_date"] = format_date(delivery_detail.delivery_date) if delivery_detail.delivery_date else "-"
+                    row_data["delivery_type"] = delivery_detail.delivery_type or "-"
+                    row_data["deliver_complications"] = safe_decrypt(delivery_detail.deliver_complications)
+                    row_data["baby_gender"] = delivery_detail.baby_gender or "-"
+                    row_data["baby_weight"] = delivery_detail.baby_weight or 0
+                    row_data["baby_length"] = delivery_detail.baby_length or 0
+                    row_data["apgar_score"] = delivery_detail.apgar_score or "-"
+                    row_data["baby_complications"] = safe_decrypt(delivery_detail.baby_complications)
+                    row_data["vit_k_given"] = delivery_detail.vit_k_given
+                    row_data["hbo_given"] = delivery_detail.hbo_given
+                    row_data["eye_ointment"] = delivery_detail.eye_ointment
+                    row_data["imd"] = delivery_detail.imd
 
             financial_detail = get_visit_finance(visit.visit_id)
             row_data["amount"] = financial_detail.amount if financial_detail else 0

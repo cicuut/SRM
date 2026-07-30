@@ -202,7 +202,7 @@ const DeliverHistoryDetail = () => {
                 Komplikasi Persalinan
               </span>
               <textarea
-                name="delivery_complications"
+                name="deliver_complications"
                 value={formData.deliver_complications || ""}
                 onChange={handleInputChange}
                 rows={3}
@@ -233,8 +233,8 @@ const DeliverHistoryDetail = () => {
                   <option value="" disabled hidden>
                     Pilih Jenis Kelamin
                   </option>
-                  <option value="perempuan">Wanita</option>
-                  <option value="laki-laki">Pria</option>
+                  <option value="perempuan">Perempuan</option>
+                  <option value="laki-laki">Laki-laki</option>
                 </select>
               </label>
               <label className="flex flex-col text-sm gap-2">
@@ -289,7 +289,7 @@ const DeliverHistoryDetail = () => {
                       vit_k_given: boolValue,
                     }));
                   }}
-                  className="mt-1 h-[42px] w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 cursor-pointer"
+                  className="mt-1 h-10.5 w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 cursor-pointer"
                 >
                   <option value="" disabled hidden>
                     Pilih Status
@@ -311,7 +311,7 @@ const DeliverHistoryDetail = () => {
                       hbo_given: boolValue,
                     }));
                   }}
-                  className="mt-1 h-[42px] w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 cursor-pointer"
+                  className="mt-1 h-10.5 w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 cursor-pointer"
                 >
                   <option value="" disabled hidden>
                     Pilih Status
@@ -333,7 +333,7 @@ const DeliverHistoryDetail = () => {
                       eye_ointment: boolValue,
                     }));
                   }}
-                  className="mt-1 h-[42px] w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 cursor-pointer"
+                  className="mt-1 h-10.5 w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 cursor-pointer"
                 >
                   <option value="" disabled hidden>
                     Pilih Status
@@ -355,7 +355,7 @@ const DeliverHistoryDetail = () => {
                       imd: boolValue,
                     }));
                   }}
-                  className="mt-1 h-[42px] w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 cursor-pointer"
+                  className="mt-1 h-10.5 w-full rounded-[10px] border border-[#D2D8CF] bg-white px-3 text-[13px] text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10 cursor-pointer"
                 >
                   <option value="" disabled hidden>
                     Pilih Status
@@ -368,11 +368,11 @@ const DeliverHistoryDetail = () => {
             <div className="flex flex-col gap-5">
               <label className="flex flex-col text-sm gap-2">
                 <span className="text-[12px] font-bold text-[#2F3A2F]">
-                  Komplikasi Persalinan
+                  Komplikasi Bayi
                 </span>
                 <textarea
-                  name="delivery_complications"
-                  value={formData.deliver_complications || ""}
+                  name="baby_complications"
+                  value={formData.baby_complications || ""}
                   onChange={handleInputChange}
                   rows={3}
                   className="mt-1 w-full resize-y rounded-[10px] border border-[#D2D8CF] bg-white px-3 py-3 text-[13px] leading-relaxed text-black outline-none transition-all focus:border-[#739072] focus:ring-2 focus:ring-[#739072]/10"

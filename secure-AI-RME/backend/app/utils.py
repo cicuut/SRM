@@ -13,34 +13,42 @@ from . import db
 
 JAKARTA_TZ = timezone(timedelta(hours=7))
 
+AUDIT_ENCRYPTION_MARKER = "__encrypted"
+AUDIT_ENCRYPTION_VERSION = 1
+
 
 def get_jakarta_now():
     return datetime.now(JAKARTA_TZ).replace(tzinfo=None)
 
-from . import db
-from sqlalchemy import text
 
 def get_next_record_sequence_and_increment(record_type, clinic_id):
     from app.models import MedicalRecordSequence
-    
+
     current_year = get_jakarta_now().year
-    
+
     seq = MedicalRecordSequence.query.filter_by(
-        year=current_year, 
+        year=current_year,
         record_type=record_type,
-        clinic_id=uuid.UUID(str(clinic_id))
+        clinic_id=uuid.UUID(str(clinic_id)),
     ).with_for_update().first()
 
     if not seq:
-        seq = MedicalRecordSequence(year=current_year, record_type=record_type, clinic_id=uuid.UUID(str(clinic_id)), last_number=1)
+        seq = MedicalRecordSequence(
+            year=current_year,
+            record_type=record_type,
+            clinic_id=uuid.UUID(str(clinic_id)),
+            last_number=1,
+        )
         db.session.add(seq)
         next_number = 1
     else:
         seq.last_number += 1
         next_number = seq.last_number
-        
+
     db.session.flush()
+
     return next_number
+
 
 def generate_record_number(record_type, next_sequence):
     mapping = {
@@ -53,36 +61,41 @@ def generate_record_number(record_type, next_sequence):
 
     prefix = mapping.get(record_type, "RMG")
     year = get_jakarta_now().year
-    sequence = f"{next_sequence:03d}" 
+    sequence = f"{next_sequence:03d}"
 
     return f"{prefix}-{year}-{sequence}"
 
 
 def get_next_visit_sequence_and_increment(clinic_id):
     from app.models import VisitSequence
+
     current_year = get_jakarta_now().year
-    
+
     seq = VisitSequence.query.filter_by(
-        year=current_year, 
-        clinic_id=uuid.UUID(str(clinic_id))
+        year=current_year,
+        clinic_id=uuid.UUID(str(clinic_id)),
     ).with_for_update().first()
 
     if not seq:
-        seq = VisitSequence(year=current_year, clinic_id=uuid.UUID(str(clinic_id)), last_number=1)
+        seq = VisitSequence(
+            year=current_year,
+            clinic_id=uuid.UUID(str(clinic_id)),
+            last_number=1,
+        )
         db.session.add(seq)
         next_number = 1
     else:
         seq.last_number += 1
         next_number = seq.last_number
-        
+
     db.session.flush()
+
     return next_number
 
 
 def generate_visit_number(next_sequence):
     prefix = "VIS"
     year = get_jakarta_now().year
-    
     sequence = f"{next_sequence:03d}"
 
     return f"{prefix}-{year}-{sequence}"
@@ -92,8 +105,6 @@ def generate_financial_number(year, sequence_number):
     prefix = "INV"
     sequence = f"{int(sequence_number):04d}"
     current_year = get_jakarta_now().year
-
-    year = datetime.now().year
 
     return f"{prefix}-{int(current_year)}-{sequence}"
 
@@ -109,11 +120,11 @@ secret_key = raw_secret_key.encode()
 
 
 def encrypt_data(plain_text):
-    if not plain_text:
+    if plain_text is None or plain_text == "":
         return None
 
     cipher = AES.new(secret_key, AES.MODE_GCM)
-    ciphertext, tag = cipher.encrypt_and_digest(str(plain_text).encode())
+    ciphertext, tag = cipher.encrypt_and_digest(str(plain_text).encode("utf-8"))
 
     combined = cipher.nonce + tag + ciphertext
 
@@ -137,7 +148,7 @@ def decrypt_data(encrypted_text):
         return plain_text.decode("utf-8")
 
     except (ValueError, KeyError, TypeError) as e:
-        print(f"Decryption failed (likely old data or wrong key): {e}")
+        print(f"Decryption failed, likely old data or wrong key: {e}")
         return encrypted_text
 
 
@@ -180,7 +191,7 @@ def parse_date(date_str):
 def get_max_existing_sequence(year, clinic_id):
     result = db.session.execute(
         text(
-           """
+            """
             SELECT COALESCE(
                 MAX(CAST(split_part(transaction_number, '-', 3) AS INTEGER)),
                 0
@@ -190,8 +201,10 @@ def get_max_existing_sequence(year, clinic_id):
               AND clinic_id = CAST(:clinic_id AS uuid)
             """
         ),
-        {"pattern": f"^INV-{int(year)}-[0-9]+$",
-         "clinic_id": str(clinic_id)},
+        {
+            "pattern": f"^INV-{int(year)}-[0-9]+$",
+            "clinic_id": str(clinic_id),
+        },
     ).scalar()
 
     return int(result or 0)
@@ -209,8 +222,10 @@ def get_next_sequence_preview(year, clinic_id):
               AND clinic_id = CAST(:clinic_id AS uuid)
             """
         ),
-        {"year": int(year),
-         "clinic_id": str(clinic_id)},
+        {
+            "year": int(year),
+            "clinic_id": str(clinic_id),
+        },
     ).first()
 
     sequence_number = int(sequence_row[0]) if sequence_row else 0
@@ -227,7 +242,7 @@ def reserve_next_sequence(year, clinic_id):
             """
             INSERT INTO financial_sequence (year, clinic_id, last_number)
             VALUES (:year, CAST(:clinic_id AS uuid), :next_number)
-            ON CONFLICT (year, clinic_id) 
+            ON CONFLICT (year, clinic_id)
             DO UPDATE SET last_number = GREATEST(
                 financial_sequence.last_number,
                 :existing_max
@@ -255,8 +270,10 @@ def get_column_name(vaccine, dosage):
 
 def generate_next_audit_number(clinic_id=None):
     current_year = get_jakarta_now().year
+
     if not clinic_id:
         return f"AUD-{current_year}-INITIAL"
+
     try:
         next_number = db.session.execute(
             text(
@@ -271,10 +288,12 @@ def generate_next_audit_number(clinic_id=None):
             ),
             {
                 "year": current_year,
-                "clinic_id": str(clinic_id)
+                "clinic_id": str(clinic_id),
             },
         ).scalar_one()
+
         return f"AUD-{current_year}-{int(next_number):04d}"
+
     except Exception as e:
         print(f"[-] Gagal generate audit sequence database: {str(e)}")
         return f"AUD-{current_year}-TEMP"
@@ -289,12 +308,63 @@ def clean_audit_json(value):
         return {}
 
     if isinstance(value, dict):
-        return value
+        return json.loads(json.dumps(value, default=str))
 
     try:
         return json.loads(json.dumps(value, default=str))
     except Exception:
         return {"value": str(value)}
+
+
+def encrypt_audit_values(value):
+    cleaned_value = clean_audit_json(value)
+    serialized_value = json.dumps(cleaned_value, default=str, ensure_ascii=False)
+    encrypted_payload = encrypt_data(serialized_value)
+
+    if not encrypted_payload:
+        encrypted_payload = encrypt_data("{}")
+
+    return {
+        AUDIT_ENCRYPTION_MARKER: True,
+        "version": AUDIT_ENCRYPTION_VERSION,
+        "payload": encrypted_payload,
+    }
+
+
+def is_encrypted_audit_values(value):
+    return (
+        isinstance(value, dict)
+        and value.get(AUDIT_ENCRYPTION_MARKER) is True
+        and isinstance(value.get("payload"), str)
+    )
+
+
+def decrypt_audit_values(value):
+    """
+    Dipakai saat menampilkan Activity History.
+
+    Support dua format:
+    1. Audit baru:
+       {"__encrypted": true, "version": 1, "payload": "..."}
+    2. Audit lama:
+       {"field": "value"}
+    """
+
+    if value is None:
+        return {}
+
+    if not is_encrypted_audit_values(value):
+        return clean_audit_json(value)
+
+    decrypted_text = decrypt_data(value.get("payload"))
+
+    if not decrypted_text:
+        return {}
+
+    try:
+        return json.loads(decrypted_text)
+    except Exception:
+        return {"value": decrypted_text}
 
 
 def write_audit_log(user_id, action, old_values=None, new_values=None):
@@ -304,19 +374,26 @@ def write_audit_log(user_id, action, old_values=None, new_values=None):
 
     Jadi kalau proses utama gagal dan rollback,
     audit juga ikut rollback.
+
+    old_values dan new_values disimpan terenkripsi agar isi audit
+    tidak terbaca langsung dari database.
     """
 
     if not user_id:
         return None
-    
+
     from app.models import User
-    import uuid
-    
+
     db.session.info["manual_audit_written"] = True
+
     user = db.session.get(User, uuid.UUID(str(user_id)))
     clinic_id = user.clinic_id if user else None
+
     audit_log_id = str(uuid.uuid4())
     audit_number = generate_next_audit_number(clinic_id)
+
+    encrypted_old_values = encrypt_audit_values(old_values)
+    encrypted_new_values = encrypt_audit_values(new_values)
 
     db.session.execute(
         text(
@@ -350,8 +427,8 @@ def write_audit_log(user_id, action, old_values=None, new_values=None):
             "audit_number": audit_number,
             "times": get_jakarta_now(),
             "action": action,
-            "old_values": json.dumps(clean_audit_json(old_values), default=str),
-            "new_values": json.dumps(clean_audit_json(new_values), default=str),
+            "old_values": json.dumps(encrypted_old_values, default=str),
+            "new_values": json.dumps(encrypted_new_values, default=str),
         },
     )
 

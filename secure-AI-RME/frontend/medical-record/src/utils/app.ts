@@ -2,8 +2,9 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 
 const api = axios.create({
-    baseURL: 'http://localhost:5000/api',
-})
+    baseURL: process.env.NEXT_PUBLIC_API_URL, 
+  })
+
 
 api.interceptors.request.use(
   (config) => {
@@ -26,10 +27,13 @@ api.interceptors.response.use(
     if (error.response?.status === 401 || error.response?.status === 404) {
       console.warn("Sesi tidak valid, kembali ke login...");
       
-      Cookies.remove("access_token"); 
-      
-      if (typeof window !== "undefined") {
-        window.location.href = "/login";
+    if (typeof window !== "undefined") {
+        const isLoginPage = window.location.pathname === "/login";
+
+        if (!isLoginPage) {
+          Cookies.remove("access_token"); 
+          window.location.href = "/login";
+        }
       }
     }
     return Promise.reject(error);

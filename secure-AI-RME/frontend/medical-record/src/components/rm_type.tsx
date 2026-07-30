@@ -34,23 +34,24 @@ const rm_type: rm_type_filter[] = [
 interface Props {
   onFilterChange: (type: string, label: string) => void;
   currentLabel: string;
+  excludeValues?: string[];
 }
 
-const RMTypeFilter = ({ onFilterChange, currentLabel }: Props) => {
+const RMTypeFilter = ({ onFilterChange, currentLabel, excludeValues = [] }: Props) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const handleSelect = (item: rm_type_filter) => {
     setIsOpen(false);
     onFilterChange(item.value, item.label);
   };
-
+  const filteredRmType = rm_type.filter((item) => !excludeValues.includes(item.value));
   const isFiltered =
     currentLabel !== "Tipe RM" && currentLabel !== "Semua Tipe";
   return (
     <div className="relative inline-block text-left">
       <div
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center justify-center gap-1 min-w-[90px] md:min-w-[220px] text-center border p-1 md:p-2 rounded-[50px] border-gray-400 cursor-pointer${isFiltered
+        className={`flex items-center justify-center gap-1 min-w-22.5 md:min-w-55 text-center border p-1 md:p-2 rounded-[50px] border-gray-400 cursor-pointer${isFiltered
           ? "bg-[#F0F4EF] border-[#739072] text-[#4F6F52] border"
           : "bg-white border-gray-400 border text-gray-700"
           }`}
@@ -69,7 +70,7 @@ const RMTypeFilter = ({ onFilterChange, currentLabel }: Props) => {
           ></div>
 
           <ul className="absolute left-1/2 md:left-0 -translate-x-1/2 md:translate-x-0 mt-2 w-40 md:w-56 bg-white border border-gray-100 rounded-2xl shadow-xl z-20 overflow-hidden animate-in fade-in zoom-in-95 duration-150 py-1">
-            {rm_type.map((item) => (
+            {filteredRmType.map((item) => (
               <li
                 key={item.value}
                 onClick={() => handleSelect(item)}
