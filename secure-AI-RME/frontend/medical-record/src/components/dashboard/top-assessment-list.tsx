@@ -1,8 +1,7 @@
-/** Satu baris hasil ranking dari API /dashboard/top-assessments */
-interface TopAssessmentItem {
+/** Satu baris hasil ranking dari API /dashboard/top-diagnoses */
+interface TopDiagnosisItem {
   rank: number;
-  assessment: string;
-  diagnosis?: string;
+  diagnosis: string;
   count: number;
   percentage: number;
   variants?: string[];
@@ -18,8 +17,8 @@ const SOURCE_LABELS: Record<string, string> = {
   fuzzy: "Fuzzy",
 };
 
-interface TopAssessmentListProps {
-  items: TopAssessmentItem[];
+interface TopDiagnosisListProps {
+  items: TopDiagnosisItem[];
   emptyMessage?: string;
   isLoading?: boolean;
 }
@@ -29,13 +28,13 @@ const RANK_COLORS = ["#4F6F52", "#739072", "#5C7A5E", "#86A789", "#A8C5A0"];
 
 /**
  * Menampilkan daftar Top N diagnosa + bar proporsional terhadap count tertinggi.
- * Data & normalisasi dihitung di backend (assessment_service.py).
+ * Data & normalisasi dihitung di backend (diagnose.py).
  */
 export function TopAssessmentList({
   items,
   emptyMessage = "Belum ada diagnosa pada kunjungan bulan ini.",
   isLoading = false,
-}: TopAssessmentListProps) {
+}: TopDiagnosisListProps) {
   if (isLoading) {
     return <p className="mt-4 text-sm text-gray-500">Menghitung diagnosa...</p>;
   }
@@ -58,7 +57,7 @@ export function TopAssessmentList({
 
           return (
             <li
-              key={`${item.rank}-${item.assessment}`}
+              key={`${item.rank}-${item.diagnosis}`}
               className="rounded-lg border border-[#E6EDE5] bg-[#FDFEF9] px-4 py-3"
               style={{ borderLeftWidth: 4, borderLeftColor: accent }}
             >
@@ -66,7 +65,7 @@ export function TopAssessmentList({
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-medium text-gray-500">#{item.rank}</p>
                   <p className="text-sm font-semibold text-[#4F6F52]">
-                    {item.diagnosis ?? item.assessment}
+                    {item.diagnosis}
                   </p>
                 </div>
                 <div className="shrink-0 text-right text-xs text-gray-600">

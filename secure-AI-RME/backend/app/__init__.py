@@ -60,7 +60,6 @@ def create_app():
     from .routes.visit_report import visit_report_bp
     from .routes.financial import financial_bp
     from .routes.activity_history import activity_history_bp
-    from .routes.forecast import forecast_bp
     from .routes.dashboard import dashboard_bp
 
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
@@ -68,7 +67,6 @@ def create_app():
     app.register_blueprint(visit_report_bp, url_prefix="/api/visit-report")
     app.register_blueprint(financial_bp, url_prefix="/api/financial")
     app.register_blueprint(activity_history_bp, url_prefix="/api/activity-history")
-    app.register_blueprint(forecast_bp, url_prefix="/api/forecast")
     app.register_blueprint(dashboard_bp, url_prefix="/api/dashboard")
 
     return app
