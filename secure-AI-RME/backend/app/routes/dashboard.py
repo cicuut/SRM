@@ -1,15 +1,8 @@
-"""
-API dashboard — statistik ringkas untuk halaman utama.
-
-Endpoint:
-  GET /api/dashboard/top-assessments
-    → Top N assessment/diagnosa bulan ini.
-"""
-
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 
-from app.assessment_service import get_top_diagnoses_payload
+from app.diagnose import get_top_diagnoses_payload
+from app.forecast_service import build_forecast_payload
 from app.models import User, db
 
 
@@ -103,9 +96,9 @@ def get_limit_from_request():
         return 5
 
 
-@dashboard_bp.route("/top-assessments", methods=["GET"])
+@dashboard_bp.route("/top-diagnoses", methods=["GET"])
 @jwt_required()
-def get_top_assessments():
+def get_top_diagnoses():
     current_user, current_role, error_response = require_dashboard_access()
 
     if error_response:
@@ -114,11 +107,7 @@ def get_top_assessments():
     limit = get_limit_from_request()
 
     try:
-        payload = get_top_diagnoses_payload(
-            current_user=current_user,
-            current_role=current_role,
-            top_n=limit,
-        )
+        payload = get_top_diagnoses_payload(top_n=limit)
 
         return jsonify(payload), 200
 
@@ -126,12 +115,47 @@ def get_top_assessments():
         return (
             jsonify(
                 {
-                    "msg": "Gagal menghitung top assessment.",
+                    "msg": "Gagal menghitung top diagnosa.",
                     "error": str(exc),
-                    "top_assessments": [],
                     "top_diagnoses": [],
-                    "total_visits_with_assessment": 0,
-                    "total_assessment_fragments": 0,
+                    "total_visits_with_diagnoses": 0,
+                    "total_diagnoses_fragments": 0,
+                }
+            ),
+            500,
+        )
+
+
+@dashboard_bp.route("/visitors", methods=["GET"])
+@jwt_required()
+def get_visitor_forecast():
+    current_user, current_role, error_response = require_dashboard_access()
+
+    if error_response:
+        return error_response
+
+    try:
+        payload = build_forecast_payload()
+
+        return jsonify(payload), 200
+
+    except FileNotFoundError as exc:
+        return (
+            jsonify(
+                {
+                    "msg": "Model forecasting tidak ditemukan.",
+                    "error": str(exc),
+                }
+            ),
+            500,
+        )
+
+    except Exception as exc:
+        return (
+            jsonify(
+                {
+                    "msg": "Gagal menghitung perkiraan pengunjung.",
+                    "error": str(exc),
                 }
             ),
             500,

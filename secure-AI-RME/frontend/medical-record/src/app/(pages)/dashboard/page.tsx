@@ -114,20 +114,20 @@ interface MonthlyFinancialSummary {
     daily_expense: FinancialChartPoint[];
 }
 
-interface TopAssessmentItem {
+interface TopDiagnosisItem {
     rank: number;
-    assessment: string;
+    diagnosis: string;
     count: number;
     percentage: number;
     variants?: string[];
 }
 
-interface TopAssessmentsResponse {
+interface TopDiagnosesResponse {
     month: string;
-    total_visits_with_assessment: number;
-    total_assessment_fragments?: number;
+    total_visits_with_diagnoses: number;
+    total_diagnoses_fragments?: number;
     summary?: string;
-    top_assessments: TopAssessmentItem[];
+    top_diagnoses: TopDiagnosisItem[];
     msg?: string;
     error?: string;
 }
@@ -367,16 +367,16 @@ const Dashboard = () => {
     const [dailyExpense, setDailyExpense] = useState<FinancialChartPoint[]>([]);
     const [financialError, setFinancialError] = useState<string | null>(null);
 
-    const [topAssessments, setTopAssessments] = useState<TopAssessmentItem[]>(
+    const [topDiagnoses, setTopDiagnoses] = useState<TopDiagnosisItem[]>(
         [],
     );
-    const [assessmentMonth, setAssessmentMonth] = useState<string | null>(null);
-    const [assessmentSummary, setAssessmentSummary] = useState<string | null>(
+    const [diagnosisMonth, setDiagnosisMonth] = useState<string | null>(null);
+    const [diagnosisSummary, setDiagnosisSummary] = useState<string | null>(
         null,
     );
-    const [assessmentVisitCount, setAssessmentVisitCount] = useState(0);
-    const [assessmentLoading, setAssessmentLoading] = useState(true);
-    const [assessmentError, setAssessmentError] = useState<string | null>(null);
+    const [diagnosisVisitCount, setDiagnosisVisitCount] = useState(0);
+    const [diagnosisLoading, setDiagnosisLoading] = useState(true);
+    const [diagnosisError, setDiagnosisError] = useState<string | null>(null);
 
     const currentRole = normalizeRole(
         currentUser?.role || currentUser?.user_role || storedRole,
@@ -394,7 +394,7 @@ const Dashboard = () => {
     const netIncome = Number(monthlyIncome || 0) - Number(monthlyExpense || 0);
 
     const forecastMonthLabel = formatMonthLabel(forecastData?.month);
-    const assessmentMonthLabel = formatMonthLabel(assessmentMonth);
+    const diagnosisMonthLabel = formatMonthLabel(diagnosisMonth);
 
     const forecastServices = forecastData
         ? Object.entries(forecastData.by_service)
@@ -444,13 +444,13 @@ const Dashboard = () => {
 
             if (!token) {
                 setLoading(false);
-                setAssessmentLoading(false);
+                setDiagnosisLoading(false);
                 return;
             }
 
             try {
                 setLoading(true);
-                setAssessmentLoading(true);
+                setDiagnosisLoading(true);
 
                 let activeRole = normalizeRole(
                     typeof window !== 'undefined'
@@ -504,7 +504,7 @@ const Dashboard = () => {
 
                 try {
                     const forecastResponse =
-                        await api.get<ForecastResponse>('/forecast/visitors');
+                        await api.get<ForecastResponse>('/dashboard/visitors');
 
                     if (!cancelled) {
                         setForecastData(forecastResponse.data);
@@ -574,39 +574,39 @@ const Dashboard = () => {
                 }
 
                 try {
-                    const assessmentResponse =
-                        await api.get<TopAssessmentsResponse>(
-                            '/dashboard/top-assessments',
+                    const diagnosisResponse =
+                        await api.get<TopDiagnosesResponse>(
+                            '/dashboard/top-diagnoses',
                         );
 
                     if (!cancelled) {
-                        setTopAssessments(
-                            assessmentResponse.data.top_assessments ?? [],
+                        setTopDiagnoses(
+                            diagnosisResponse.data.top_diagnoses ?? [],
                         );
-                        setAssessmentMonth(
-                            assessmentResponse.data.month ?? null,
+                        setDiagnosisMonth(
+                            diagnosisResponse.data.month ?? null,
                         );
-                        setAssessmentSummary(
-                            assessmentResponse.data.summary ?? null,
+                        setDiagnosisSummary(
+                            diagnosisResponse.data.summary ?? null,
                         );
-                        setAssessmentVisitCount(
-                            assessmentResponse.data
-                                .total_visits_with_assessment ?? 0,
+                        setDiagnosisVisitCount(
+                            diagnosisResponse.data
+                                .total_visits_with_diagnoses ?? 0,
                         );
-                        setAssessmentError(null);
+                        setDiagnosisError(null);
                     }
                 } catch (error) {
-                    console.error('Gagal memuat top assessment:', error);
+                    console.error('Gagal memuat top diagnosa:', error);
 
                     if (!cancelled) {
-                        setTopAssessments([]);
-                        setAssessmentMonth(null);
-                        setAssessmentSummary(null);
-                        setAssessmentVisitCount(0);
-                        setAssessmentError(
+                        setTopDiagnoses([]);
+                        setDiagnosisMonth(null);
+                        setDiagnosisSummary(null);
+                        setDiagnosisVisitCount(0);
+                        setDiagnosisError(
                             getApiErrorMessage(
                                 error,
-                                'Gagal memuat top assessment',
+                                'Gagal memuat top diagnosa',
                             ),
                         );
                     }
@@ -614,7 +614,7 @@ const Dashboard = () => {
             } finally {
                 if (!cancelled) {
                     setLoading(false);
-                    setAssessmentLoading(false);
+                    setDiagnosisLoading(false);
                 }
             }
         };
@@ -673,8 +673,8 @@ const Dashboard = () => {
 
                             <p className="mt-2 sm:mt-3 max-w-[660px] text-[12px] sm:text-[15px] lg:text-[20px] font-medium leading-relaxed text-white/90">
                                 {canViewFinancial
-                                    ? 'Pantau aktivitas klinik, prediksi kunjungan, performa keuangan, dan assessment pasien dalam satu dashboard.'
-                                    : 'Pantau aktivitas klinik, prediksi kunjungan, dan assessment pasien dalam satu dashboard.'}
+                                    ? 'Pantau aktivitas klinik, prediksi kunjungan, performa keuangan, dan diagnosa pasien dalam satu dashboard.'
+                                    : 'Pantau aktivitas klinik, prediksi kunjungan, dan diagnosa pasien dalam satu dashboard.'}
                             </p>
 
                             <div className="mt-4 sm:mt-6 flex flex-wrap items-center gap-3">
@@ -914,23 +914,23 @@ const Dashboard = () => {
                     }`}
             >
                 <SectionCard
-                    title="Top 5 Assessment Bulanan"
+                    title="Top 5 Diagnosa Bulanan"
                     subtitle={
-                        assessmentSummary ||
-                        (assessmentMonthLabel
-                            ? `Assessment terbanyak bulan ${assessmentMonthLabel}.`
-                            : 'Assessment terbanyak bulan ini.')
+                        diagnosisSummary ||
+                        (diagnosisMonthLabel
+                            ? `Diagnosa terbanyak bulan ${diagnosisMonthLabel}.`
+                            : 'Diagnosa terbanyak bulan ini.')
                     }
                     icon={<ClipboardList className="h-5 w-5" />}
                     className="min-h-[390px]"
                 >
-                    {assessmentError ? (
-                        <ErrorNotice message={assessmentError} />
+                    {diagnosisError ? (
+                        <ErrorNotice message={diagnosisError} />
                     ) : (
                         <TopAssessmentList
-                            items={topAssessments}
-                            isLoading={assessmentLoading}
-                            emptyMessage="Belum ada assessment atau keluhan bulan ini."
+                            items={topDiagnoses}
+                            isLoading={diagnosisLoading}
+                            emptyMessage="Belum ada diagnosa pada kunjungan bulan ini."
                         />
                     )}
                 </SectionCard>

@@ -6,9 +6,8 @@ from collections import Counter, defaultdict
 from datetime import date
 from difflib import SequenceMatcher
 from typing import Dict, List, Optional, Tuple
-from uuid import UUID
 
-from sqlalchemy import and_, func
+from sqlalchemy import func
 
 from app.forecast_service import get_month_bounds
 from app.models import (
@@ -23,7 +22,7 @@ from app.models import (
 from app.utils import decrypt_data
 
 
-EMPTY_ASSESSMENT_VALUES = frozenset(
+EMPTY_VALUES = frozenset(
     {
         "",
         "-",
@@ -39,12 +38,10 @@ EMPTY_ASSESSMENT_VALUES = frozenset(
         "sehat",
         "dalam batas normal",
         "dbn",
-        "within normal limits",
-        "wnl",
     }
 )
 
-CANONICAL_ASSESSMENT_RULES: Tuple[Tuple[str, str], ...] = (
+CANONICAL_RULES: Tuple[Tuple[str, str], ...] = (
     (
         r"infeksi\s+saluran\s+(?:pernapasan|napas)\s+(?:atas|akut)|\bispa\b|\bismk\b",
         "ISPA",
@@ -94,36 +91,7 @@ DBSCAN_EPS = 0.42
 DBSCAN_MIN_SAMPLES = 2
 
 
-def normalize_role(role) -> str:
-    normalized = str(role or "").strip().lower()
-
-    role_aliases = {
-        "admin": "admin",
-        "developer": "admin",
-        "midwife": "midwife",
-        "bidan": "midwife",
-        "owner": "midwife",
-        "asisten": "asisten",
-        "assistant": "asisten",
-        "staff": "asisten",
-    }
-
-    return role_aliases.get(normalized, normalized)
-
-
-def normalize_clinic_id(clinic_id) -> Optional[str]:
-    normalized = str(clinic_id or "").strip().lower()
-
-    if not normalized:
-        return None
-
-    if normalized in {"null", "none", "undefined"}:
-        return None
-
-    return str(clinic_id)
-
-
-def _safe_decrypt(value) -> Optional[str]:
+def decrypt(value) -> Optional[str]:
     if not value:
         return None
 
@@ -134,7 +102,7 @@ def _safe_decrypt(value) -> Optional[str]:
         return str(value).strip() or None
 
 
-def normalize_assessment_text(raw: Optional[str]) -> Optional[str]:
+def normalize_text(raw: Optional[str]) -> Optional[str]:
     if raw is None:
         return None
 
@@ -146,14 +114,14 @@ def normalize_assessment_text(raw: Optional[str]) -> Optional[str]:
     text = re.sub(r"[^\w\s\-/]", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
 
-    if not text or text in EMPTY_ASSESSMENT_VALUES:
+    if not text or text in EMPTY_VALUES:
         return None
 
     return text
 
 
-def split_assessment_fragments(raw: Optional[str]) -> List[str]:
-    normalized = normalize_assessment_text(raw)
+def split_fragments(raw: Optional[str]) -> List[str]:
+    normalized = normalize_text(raw)
 
     if not normalized:
         return []
@@ -168,7 +136,7 @@ def split_assessment_fragments(raw: Optional[str]) -> List[str]:
 
 
 def apply_canonical_rules(normalized_text: str) -> Optional[str]:
-    for pattern, label in CANONICAL_ASSESSMENT_RULES:
+    for pattern, label in CANONICAL_RULES:
         if re.search(pattern, normalized_text, flags=re.IGNORECASE):
             return label
 
@@ -190,22 +158,22 @@ def to_display_label(normalized_text: str) -> str:
     return " ".join(result)
 
 
-def _similarity(left: str, right: str) -> float:
+def similarity(left: str, right: str) -> float:
     return SequenceMatcher(None, left, right).ratio()
 
 
-def _find_fuzzy_bucket(
+def find_fuzzy_bucket(
     candidate_key: str,
     bucket_labels: Dict[str, str],
 ) -> Optional[Tuple[str, str]]:
     for key, label in bucket_labels.items():
-        if _similarity(candidate_key, key) >= FUZZY_MERGE_THRESHOLD:
+        if similarity(candidate_key, key) >= FUZZY_MERGE_THRESHOLD:
             return key, label
 
     return None
 
 
-def _cluster_fragments_greedy(fragments: List[str]) -> Dict[str, int]:
+def cluster_fragments_greedy(fragments: List[str]) -> Dict[str, int]:
     cluster_ids: Dict[str, int] = {}
     clusters: List[List[str]] = []
 
@@ -216,7 +184,7 @@ def _cluster_fragments_greedy(fragments: List[str]) -> Dict[str, int]:
 
         for index, members in enumerate(clusters):
             if any(
-                _similarity(fragment, member) >= GREEDY_CLUSTER_THRESHOLD
+                similarity(fragment, member) >= GREEDY_CLUSTER_THRESHOLD
                 for member in members
             ):
                 members.append(fragment)
@@ -231,7 +199,7 @@ def _cluster_fragments_greedy(fragments: List[str]) -> Dict[str, int]:
     return cluster_ids
 
 
-def _cluster_fragments_tfidf(fragments: List[str]) -> Dict[str, int]:
+def cluster_fragments_tfidf(fragments: List[str]) -> Dict[str, int]:
     if len(fragments) < 2:
         return {fragment: 0 for fragment in fragments}
 
@@ -239,7 +207,7 @@ def _cluster_fragments_tfidf(fragments: List[str]) -> Dict[str, int]:
         from sklearn.cluster import DBSCAN
         from sklearn.feature_extraction.text import TfidfVectorizer
     except ImportError:
-        return _cluster_fragments_greedy(fragments)
+        return cluster_fragments_greedy(fragments)
 
     try:
         matrix = TfidfVectorizer(
@@ -267,7 +235,7 @@ def _cluster_fragments_tfidf(fragments: List[str]) -> Dict[str, int]:
         return cluster_ids
 
     except Exception:
-        return _cluster_fragments_greedy(fragments)
+        return cluster_fragments_greedy(fragments)
 
 
 def build_hybrid_bucket_map(
@@ -290,7 +258,7 @@ def build_hybrid_bucket_map(
     if not unmapped:
         return mapping
 
-    cluster_assignments = _cluster_fragments_tfidf(unmapped)
+    cluster_assignments = cluster_fragments_tfidf(unmapped)
 
     clusters: Dict[int, List[str]] = defaultdict(list)
 
@@ -308,7 +276,7 @@ def build_hybrid_bucket_map(
             key = label.lower()
             source = "cluster" if len(members) > 1 else "singleton"
 
-            fuzzy_match = _find_fuzzy_bucket(key, bucket_labels)
+            fuzzy_match = find_fuzzy_bucket(key, bucket_labels)
 
             if fuzzy_match:
                 key, label = fuzzy_match
@@ -336,7 +304,7 @@ def count_diagnoses(
     fragment_counts: Counter[str] = Counter()
 
     for raw in raw_notes:
-        for fragment in split_assessment_fragments(raw):
+        for fragment in split_fragments(raw):
             fragment_counts[fragment] += 1
 
     total_fragments = sum(fragment_counts.values())
@@ -372,7 +340,6 @@ def count_diagnoses(
             {
                 "rank": rank,
                 "diagnosis": label,
-                "assessment": label,
                 "count": count,
                 "percentage": round((count / grand_total) * 100, 1),
                 "variants": sorted(bucket_variants[key])[:5],
@@ -383,7 +350,7 @@ def count_diagnoses(
     return top_items, total_fragments
 
 
-def _base_assessment_query(visit_model, field_column):
+def base_query(visit_model, field_column):
     return (
         db.session.query(VisitMaster.visit_id, field_column)
         .join(VisitMaster, visit_model.visit_id == VisitMaster.visit_id)
@@ -392,53 +359,33 @@ def _base_assessment_query(visit_model, field_column):
     )
 
 
-def _apply_month_filter(query, month_start: date, month_end: date):
+def apply_month_filter(query, month_start: date, month_end: date):
     return query.filter(
         func.date(VisitMaster.visit_date) >= month_start,
         func.date(VisitMaster.visit_date) <= month_end,
     )
 
 
-def _apply_clinic_filter(query, clinic_id: Optional[str], include_all_clinics: bool):
-    if include_all_clinics:
-        return query
-
-    if clinic_id:
-        return query.filter(Patient.clinic_id == clinic_id)
-
-    return query.filter(False)
-
-
-def collect_monthly_assessments(
-    clinic_id: Optional[UUID] = None,
+def collect_monthly_diagnoses(
     month_start: Optional[date] = None,
     month_end: Optional[date] = None,
-    *,
-    include_all_clinics: bool = False,
 ) -> Tuple[List[str], int]:
     if month_start is None or month_end is None:
         month_start, month_end = get_month_bounds()
-
-    normalized_clinic_id = normalize_clinic_id(clinic_id)
 
     notes: List[str] = []
     visit_ids: set = set()
 
     for visit_model in (VisitPregnancy, VisitGeneral):
-        field_column = visit_model.assessment
+        field_column = visit_model.subjective
 
-        query = _base_assessment_query(visit_model, field_column)
-        query = _apply_month_filter(query, month_start, month_end)
-        query = _apply_clinic_filter(
-            query,
-            normalized_clinic_id,
-            include_all_clinics,
-        )
+        query = base_query(visit_model, field_column)
+        query = apply_month_filter(query, month_start, month_end)
 
         rows = query.all()
 
         for visit_id, encrypted_value in rows:
-            decrypted = _safe_decrypt(encrypted_value)
+            decrypted = decrypt(encrypted_value)
 
             if decrypted:
                 visit_ids.add(visit_id)
@@ -454,17 +401,12 @@ def collect_monthly_assessments(
         .join(Patient, MedicalRecord.patient_id == Patient.patient_id)
     )
 
-    kb_query = _apply_month_filter(kb_query, month_start, month_end)
-    kb_query = _apply_clinic_filter(
-        kb_query,
-        normalized_clinic_id,
-        include_all_clinics,
-    )
+    kb_query = apply_month_filter(kb_query, month_start, month_end)
 
     kb_rows = kb_query.all()
 
     for visit_id, encrypted_complaint in kb_rows:
-        decrypted = _safe_decrypt(encrypted_complaint)
+        decrypted = decrypt(encrypted_complaint)
 
         if decrypted:
             visit_ids.add(visit_id)
@@ -474,33 +416,16 @@ def collect_monthly_assessments(
 
 
 def get_top_diagnoses_payload(
-    clinic_id: Optional[UUID] = None,
     reference: Optional[date] = None,
     *,
     top_n: int = 5,
-    include_all_clinics: bool = False,
-    current_user=None,
-    current_role: Optional[str] = None,
 ) -> dict:
-    role = normalize_role(current_role)
-
-    if current_user is not None:
-        user_role = normalize_role(getattr(current_user, "user_role", None))
-        role = role or user_role
-
-        if not clinic_id:
-            clinic_id = getattr(current_user, "clinic_id", None)
-
-    should_include_all_clinics = include_all_clinics or role == "admin"
-
     month_start, month_end = get_month_bounds(reference)
     month_label = month_start.strftime("%Y-%m")
 
-    raw_notes, visit_count = collect_monthly_assessments(
-        clinic_id=clinic_id,
+    raw_notes, visit_count = collect_monthly_diagnoses(
         month_start=month_start,
         month_end=month_end,
-        include_all_clinics=should_include_all_clinics,
     )
 
     top_items, total_fragments = count_diagnoses(raw_notes, top_n=top_n)
@@ -508,13 +433,12 @@ def get_top_diagnoses_payload(
     return {
         "month": month_label,
         "grouping_method": "hybrid",
-        "total_visits_with_assessment": visit_count,
-        "total_assessment_fragments": total_fragments,
+        "total_visits_with_diagnoses": visit_count,
+        "total_diagnoses_fragments": total_fragments,
         "top_diagnoses": top_items,
-        "top_assessments": top_items,
         "summary": (
             f"{visit_count} kunjungan · {total_fragments} entri"
             if visit_count
-            else "Belum ada assessment atau keluhan pada kunjungan bulan ini."
+            else "Belum ada diagnosa pada kunjungan bulan ini."
         ),
     }

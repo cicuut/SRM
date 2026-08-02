@@ -121,6 +121,17 @@ const DailyReport = () => {
   };
 
   const handleVisit = (rmId: string, type: string) => {
+
+    if (type === "Persalinan" || type === "delivery") {
+      Swal.fire({
+        title: "Aksi Tidak Diizinkan",
+        text: "Anda tidak dapat menambahkan kunjungan persalinan. Rekam Medis Persalinan tidak memiliki catatan kunjungan.",
+        icon: "warning",
+        showConfirmButton: false,
+        timer: 2000,
+      });
+      return;
+    }
     const typeMap: { [key: string]: string } = {
       Kehamilan: "pregnancy",
       "Keluarga Berencana": "familyplanning",
@@ -295,6 +306,7 @@ const DailyReport = () => {
               <RMTypeFilter
                 onFilterChange={handleFilterChange}
                 currentLabel={selectedRMLabel}
+                excludeValues={["Persalinan"]}
               />
             </div>
           </div>
