@@ -109,14 +109,14 @@ def to_date_key(value) -> Optional[date]:
     except Exception:
         return None
 
-
+# calculates the total number of visits
 def sum_counts(counts: Optional[Dict[date, int]]) -> int:
     if not counts:
         return 0
 
     return sum(int(value or 0) for value in counts.values())
 
-
+# checks if the service has historical data
 def service_has_history(
     service_type: str,
     counts: Dict[date, int],
@@ -135,7 +135,7 @@ def service_has_history(
 
     return False
 
-
+# loads the model from the file system
 def load_model(service_type: str):
     if service_type not in loaded_models:
         config = SERVICE_MODELS[service_type]
@@ -148,7 +148,7 @@ def load_model(service_type: str):
 
     return loaded_models[service_type]
 
-
+# retrieves the holiday dates
 def holiday_dates(year: int) -> set:
     if year not in holiday_cache:
         if holidays is not None:
@@ -158,15 +158,15 @@ def holiday_dates(year: int) -> set:
 
     return holiday_cache[year]
 
-
+# checks if the target date is a holiday
 def is_holiday(target: date) -> int:
     return int(target in holiday_dates(target.year))
 
-
+# retrieves the historical value for specified date
 def series_value(series: Dict[date, float], target: date) -> float:
     return float(series.get(target, 0.0))
 
-
+# calculates the rolling mean
 def rolling_mean(series: Dict[date, float], target: date, window: int) -> float:
     values = [
         series_value(series, target - timedelta(days=offset))
@@ -175,7 +175,7 @@ def rolling_mean(series: Dict[date, float], target: date, window: int) -> float:
 
     return float(np.mean(values)) if values else 0.0
 
-
+# calculates the rolling standard deviation
 def rolling_std(series: Dict[date, float], target: date, window: int) -> float:
     values = [
         series_value(series, target - timedelta(days=offset))
@@ -184,7 +184,7 @@ def rolling_std(series: Dict[date, float], target: date, window: int) -> float:
 
     return float(np.std(values)) if values else 0.0
 
-
+# builds the features for the model
 def build_feature_row(
     service_type: str,
     series: Dict[date, float],
@@ -216,9 +216,20 @@ def build_feature_row(
     return {name: row[name] for name in feature_names}
 
 
+def apply_clinic_scope(query, clinic_id):
+    if clinic_id is None:
+        raise ValueError("clinic_id is required for forecast queries")
+
+    return query.filter(
+        Patient.clinic_id == clinic_id,
+        MedicalRecord.clinic_id == clinic_id,
+    )
+
+# retrieves the monthly visit total
 def get_monthly_visit_total(
     month_start: date,
     end_date: date,
+    clinic_id,
 ) -> int:
     query = (
         db.session.query(func.count(VisitMaster.visit_id))
@@ -229,15 +240,17 @@ def get_monthly_visit_total(
             func.date(VisitMaster.visit_date) <= end_date,
         )
     )
+    query = apply_clinic_scope(query, clinic_id)
 
     total = query.scalar()
 
     return int(total or 0)
 
-
+# retrieves the monthly counts by service
 def get_monthly_counts_by_service(
     month_start: date,
     end_date: date,
+    clinic_id,
 ) -> Dict[str, int]:
     query = (
         db.session.query(
@@ -251,16 +264,18 @@ def get_monthly_counts_by_service(
             func.date(VisitMaster.visit_date) <= end_date,
         )
     )
+    query = apply_clinic_scope(query, clinic_id)
 
     rows = query.group_by(MedicalRecord.record_type).all()
 
     return {str(record_type): int(total) for record_type, total in rows}
 
-
+# retrieves the daily visit counts
 def get_daily_visit_counts(
     record_type: str,
     start_date: date,
     end_date: date,
+    clinic_id,
 ) -> Dict[date, int]:
     query = (
         db.session.query(func.date(VisitMaster.visit_date), func.count(VisitMaster.visit_id))
@@ -272,6 +287,7 @@ def get_daily_visit_counts(
             func.date(VisitMaster.visit_date) <= end_date,
         )
     )
+    query = apply_clinic_scope(query, clinic_id)
 
     rows = query.group_by(func.date(VisitMaster.visit_date)).all()
 
@@ -287,10 +303,11 @@ def get_daily_visit_counts(
 
     return counts
 
-
+# retrieves the daily delivery counts
 def get_daily_delivery_counts(
     start_date: date,
     end_date: date,
+    clinic_id,
 ) -> Dict[date, int]:
     query = (
         db.session.query(
@@ -306,6 +323,7 @@ def get_daily_delivery_counts(
             func.date(DeliveryRecord.delivery_date) <= end_date,
         )
     )
+    query = apply_clinic_scope(query, clinic_id)
 
     rows = query.group_by(func.date(DeliveryRecord.delivery_date)).all()
 
@@ -321,10 +339,11 @@ def get_daily_delivery_counts(
 
     return counts
 
-
+# retrieves the daily hpl counts
 def get_hpl_counts_by_date(
     start_date: date,
     end_date: date,
+    clinic_id,
 ) -> Dict[date, int]:
     query = (
         db.session.query(
@@ -339,6 +358,7 @@ def get_hpl_counts_by_date(
             func.date(PregnancyRecord.expected_due_date) <= end_date,
         )
     )
+    query = apply_clinic_scope(query, clinic_id)
 
     rows = query.group_by(func.date(PregnancyRecord.expected_due_date)).all()
 
@@ -354,7 +374,7 @@ def get_hpl_counts_by_date(
 
     return counts
 
-
+# fills the series with the historical counts
 def fill_series(
     counts: Dict[date, int],
     start_date: date,
@@ -369,7 +389,7 @@ def fill_series(
 
     return series
 
-
+# predicts the number of visitors for a single day
 def predict_single_day(
     service_type: str,
     series: Dict[date, float],
@@ -379,6 +399,7 @@ def predict_single_day(
     model = load_model(service_type)
     features = build_feature_row(service_type, series, target, hpl_counts)
     model_features = getattr(model, "feature_names_in_", None)
+    
 
     feature_names = (
         list(model_features)
@@ -395,7 +416,7 @@ def predict_single_day(
 
     return max(0.0, round(prediction))
 
-
+# predicts the number of visitors for a date range
 def forecast_date_range(
     service_type: str,
     historical_counts: Dict[date, int],
@@ -405,7 +426,7 @@ def forecast_date_range(
     hpl_counts: Optional[Dict[date, int]] = None,
 ) -> Tuple[List[dict], Dict[date, float]]:
     if history_start is None:
-        history_start = forecast_start - timedelta(days=120)
+        history_start = forecast_start - timedelta(days=120) # history start from 120 days before forecast start
 
     series = fill_series(historical_counts, history_start, forecast_end)
     predictions: List[dict] = []
@@ -432,7 +453,7 @@ def forecast_date_range(
 
     return predictions, series
 
-
+# retrieves the month bounds
 def get_month_bounds(reference: Optional[date] = None) -> Tuple[date, date]:
     today = reference or get_jakarta_now().date()
     month_start = today.replace(day=1)
@@ -444,10 +465,14 @@ def get_month_bounds(reference: Optional[date] = None) -> Tuple[date, date]:
 
     return month_start, month_end
 
-
+# builds the forecast payload
 def build_forecast_payload(
+    clinic_id,
     reference: Optional[date] = None,
 ) -> dict:
+    if clinic_id is None:
+        raise ValueError("clinic_id is required for forecast payload")
+
     today = reference or get_jakarta_now().date()
     month_start, month_end = get_month_bounds(today)
     history_start = month_start - timedelta(days=120)
@@ -461,11 +486,13 @@ def build_forecast_payload(
     monthly_actual = get_monthly_visit_total(
         month_start,
         month_end_actual,
+        clinic_id,
     )
 
     monthly_counts_by_service = get_monthly_counts_by_service(
         month_start,
         month_end_actual,
+        clinic_id,
     )
 
     forecast_remaining_total = 0
@@ -473,19 +500,23 @@ def build_forecast_payload(
     hpl_counts = get_hpl_counts_by_date(
         history_start,
         month_end,
+        clinic_id,
     )
 
     for service_type in SERVICE_MODELS:
+
         if service_type == "Persalinan":
             counts = get_daily_delivery_counts(
                 history_start,
                 today,
+                clinic_id,
             )
 
             forecast_history_counts = get_daily_visit_counts(
                 "Kehamilan",
                 history_start,
                 today,
+                clinic_id,
             )
         else:
             forecast_history_counts = None
@@ -494,6 +525,7 @@ def build_forecast_payload(
                 service_type,
                 history_start,
                 today,
+                clinic_id,
             )
 
         actual_this_month = sum(
@@ -511,7 +543,7 @@ def build_forecast_payload(
             counts=counts,
             forecast_history_counts=forecast_history_counts,
             hpl_counts=hpl_counts,
-        )
+        )   
 
         if forecast_start <= month_end and has_service_history:
             service_forecast, _ = forecast_date_range(
@@ -582,6 +614,7 @@ def build_forecast_payload(
 
     return {
         "month": month_start.strftime("%Y-%m"),
+        "clinic_id": str(clinic_id),
         "monthly_actual": monthly_actual,
         "monthly_forecast": monthly_forecast,
         "history": aggregated_history,
@@ -589,7 +622,7 @@ def build_forecast_payload(
         "by_service": by_service,
     }
 
-
+# retrieve the daily counts for a range of dates
 def daily_points_for_range(
     counts: Dict[date, int],
     start_date: date,
@@ -613,7 +646,7 @@ def daily_points_for_range(
 
     return points
 
-
+# aggregates the daily points for a range (find the total visit for each day)
 def aggregate_daily_points_for_range(
     points: List[dict],
     start_date: date,

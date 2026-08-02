@@ -1,3 +1,5 @@
+import uuid
+
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 
@@ -87,7 +89,6 @@ def require_dashboard_access():
 
     return current_user, current_role, None
 
-
 def get_limit_from_request():
     try:
         limit = int(request.args.get("limit", 5))
@@ -95,7 +96,28 @@ def get_limit_from_request():
     except (TypeError, ValueError):
         return 5
 
+def resolve_dashboard_clinic_id(current_user, current_role):
+    clinic_id = current_user.clinic_id
 
+    if current_role == "admin" and request.args.get("clinic_id"):
+        try:
+            clinic_id = uuid.UUID(str(request.args.get("clinic_id")).strip())
+        except (TypeError, ValueError, AttributeError):
+            return None, (jsonify({"msg": "clinic_id tidak valid."}), 400)
+
+    if not clinic_id:
+        return None, (
+            jsonify(
+                {
+                    "msg": "Data dashboard membutuhkan klinik. Hubungkan akun ke klinik atau kirim clinic_id.",
+                }
+            ),
+            400,
+        )
+
+    return clinic_id, None
+
+# retrieve the top diagnoses
 @dashboard_bp.route("/top-diagnoses", methods=["GET"])
 @jwt_required()
 def get_top_diagnoses():
@@ -104,10 +126,18 @@ def get_top_diagnoses():
     if error_response:
         return error_response
 
+    clinic_id, clinic_error = resolve_dashboard_clinic_id(
+        current_user,
+        current_role,
+    )
+
+    if clinic_error:
+        return clinic_error
+
     limit = get_limit_from_request()
 
     try:
-        payload = get_top_diagnoses_payload(top_n=limit)
+        payload = get_top_diagnoses_payload(clinic_id=clinic_id, top_n=limit)
 
         return jsonify(payload), 200
 
@@ -125,7 +155,7 @@ def get_top_diagnoses():
             500,
         )
 
-
+# retrieve the visitor forecast
 @dashboard_bp.route("/visitors", methods=["GET"])
 @jwt_required()
 def get_visitor_forecast():
@@ -134,8 +164,16 @@ def get_visitor_forecast():
     if error_response:
         return error_response
 
+    clinic_id, clinic_error = resolve_dashboard_clinic_id(
+        current_user,
+        current_role,
+    )
+
+    if clinic_error:
+        return clinic_error
+
     try:
-        payload = build_forecast_payload()
+        payload = build_forecast_payload(clinic_id=clinic_id)
 
         return jsonify(payload), 200
 
