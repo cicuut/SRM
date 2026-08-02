@@ -188,6 +188,7 @@ const AddInvoice = () => {
     const router = useRouter();
 
     const [transactionNumber, setTransactionNumber] = useState('');
+    const [currentClinicId, setCurrentClinicId] = useState('');
     const [visitReports, setVisitReports] = useState<VisitReportOption[]>([]);
 
     const [formData, setFormData] = useState<InvoiceFormData>({
@@ -337,6 +338,10 @@ const AddInvoice = () => {
                 );
             }
 
+            setCurrentClinicId(
+                data.user.clinic_id || data.clinic?.id || '',
+            );
+
             setIsForbidden(false);
             setHasAccess(true);
         } catch (error) {
@@ -351,9 +356,13 @@ const AddInvoice = () => {
         }
     };
 
-    const fetchTransactionNumber = async (date: string) => {
+    const fetchTransactionNumber = async (
+        date: string,
+        clinicId?: string | null,
+    ) => {
         try {
             setIsLoadingTransactionNumber(true);
+            setTransactionNumber('');
 
             const token = getToken();
 
@@ -362,8 +371,16 @@ const AddInvoice = () => {
                 return;
             }
 
+            const params = new URLSearchParams({
+                date,
+            });
+
+            if (clinicId) {
+                params.set('clinic_id', clinicId);
+            }
+
             const response = await api.get(
-                `/financial/transaction-number?date=${encodeURIComponent(date)}`,
+                `/financial/transaction-number?${params.toString()}`,
                 {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -390,11 +407,36 @@ const AddInvoice = () => {
                 );
             }
 
-            setTransactionNumber(data.transaction_number || '');
-        } catch {
-            const year = date.split('-')[0] || new Date().getFullYear();
+            const generatedNumber = String(
+                data?.transaction_number || '',
+            ).trim();
 
-            setTransactionNumber(`INV-${year}----`);
+            if (!generatedNumber) {
+                throw new Error(
+                    'Backend tidak mengirim nomor invoice.',
+                );
+            }
+
+            setTransactionNumber(generatedNumber);
+        } catch (error: any) {
+            const status = error?.response?.status;
+            const backendMessage =
+                error?.response?.data?.msg ||
+                error?.message ||
+                'Gagal mengambil nomor invoice.';
+
+            if (status === 401 || status === 422) {
+                handleUnauthorized();
+                return;
+            }
+
+            if (status === 403) {
+                handleForbidden();
+                return;
+            }
+
+            setTransactionNumber('');
+            setErrorMessage(translateErrorMessage(backendMessage));
         } finally {
             setIsLoadingTransactionNumber(false);
         }
@@ -472,9 +514,20 @@ const AddInvoice = () => {
     useEffect(() => {
         if (!hasAccess) return;
 
-        fetchTransactionNumber(formData.payment_date);
+        const invoiceClinicId =
+            selectedVisit?.clinic_id || currentClinicId;
+
+        fetchTransactionNumber(
+            formData.payment_date,
+            invoiceClinicId,
+        );
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [hasAccess, formData.payment_date]);
+    }, [
+        hasAccess,
+        formData.payment_date,
+        currentClinicId,
+        selectedVisit?.clinic_id,
+    ]);
 
     const handleChange = (
         event:
@@ -539,6 +592,10 @@ const AddInvoice = () => {
     };
 
     const validateForm = () => {
+        if (!transactionNumber) {
+            return 'Nomor invoice belum berhasil dibuat. Periksa koneksi backend atau klinik pengguna.';
+        }
+
         if (!formData.payment_date) {
             return 'Tanggal wajib diisi.';
         }
@@ -681,7 +738,9 @@ return (
                 </p>
 
                 <p className="mt-1 text-[14px] font-bold text-[#2F3A2F]">
-                    {transactionNumber || 'INV-----'}
+                    {isLoadingTransactionNumber
+                        ? 'Memuat nomor...'
+                        : transactionNumber}
                 </p>
             </div>
         </div>
@@ -917,7 +976,11 @@ return (
 
                 <button
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={
+                        isSubmitting ||
+                        isLoadingTransactionNumber ||
+                        !transactionNumber
+                    }
                     className="h-[38px] rounded-[30px] bg-[#739072] px-5 text-[12px] font-bold text-white hover:bg-[#5F785F] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                     {isSubmitting ? 'Menyimpan...' : 'Simpan Invoice'}
