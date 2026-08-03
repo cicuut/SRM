@@ -8,7 +8,6 @@ import {
     CalendarDays,
     ChevronLeft,
     ChevronRight,
-    FileDown,
     Filter,
     Search,
 } from 'lucide-react';
@@ -172,17 +171,7 @@ const toInputDateValue = (date: Date) => {
     return clonedDate.toISOString().split('T')[0];
 };
 
-const readJson = async (response: Response) => {
-    try {
-        return await response.json();
-    } catch {
-        return {};
-    }
-};
 
-const escapeCsvValue = (value: string | number | null | undefined) => {
-    return `"${String(value ?? '').replace(/"/g, '""')}"`;
-};
 
 const formatDisplayDate = (dateString: string) => {
     if (!dateString) return 'Semua Tanggal';
@@ -856,52 +845,6 @@ const ActivityHistory = () => {
         router.push(`/activity-history/${auditId}`);
     };
 
-    const handleDownload = () => {
-        const headerRow = tableHeaders
-            .map((header) => escapeCsvValue(header.label))
-            .join(',');
-
-        const dataRows = filteredAuditLogs.map((log) =>
-            tableHeaders
-                .map((header) => {
-                    const value =
-                        header.key === 'date_time'
-                            ? formatDateTime(log.date_time)
-                            : log[header.key];
-
-                    return escapeCsvValue(value);
-                })
-                .join(','),
-        );
-
-        const summaryRows = [
-            '',
-            [
-                escapeCsvValue('Tanggal Terpilih'),
-                escapeCsvValue(formattedSelectedDate),
-            ].join(','),
-            [
-                escapeCsvValue('Total Data'),
-                escapeCsvValue(filteredAuditLogs.length),
-            ].join(','),
-        ];
-
-        const csvContent = [headerRow, ...dataRows, ...summaryRows].join('\n');
-
-        const blob = new Blob([`\uFEFF${csvContent}`], {
-            type: 'text/csv;charset=utf-8;',
-        });
-
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-
-        link.href = url;
-        link.download = `riwayat-aktivitas-${selectedDate || 'semua-tanggal'}.csv`;
-        link.click();
-
-        URL.revokeObjectURL(url);
-    };
-
     const renderTableValue = (log: AuditLog, key: TableKey) => {
         if (key === 'date_time') {
             return formatDateTime(log.date_time);
@@ -1175,22 +1118,13 @@ const ActivityHistory = () => {
             )}
 
             <section className="min-h-[600px] w-full overflow-hidden rounded-[22px] border border-[#D2D8CF] bg-white shadow-sm">
-                <div className="flex flex-col gap-[16px] border-b border-[#E4E8E1] px-5 py-[20px] sm:px-[26px] lg:flex-row lg:items-center lg:justify-between">
+                <div className="border-b border-[#E4E8E1] px-5 py-[20px] sm:px-[26px]">
                     <div className="min-w-0">
                         <h2 className="text-[20px] font-extrabold leading-none text-[#5F785F]">
                             Audit Log
                         </h2>
                     </div>
 
-                    <button
-                        type="button"
-                        onClick={handleDownload}
-                        disabled={isLoading || filteredAuditLogs.length === 0}
-                        className="flex min-h-[38px] items-center justify-center gap-x-2 rounded-[50px] bg-[#86A789] px-[18px] text-[12px] font-bold text-white shadow-sm transition-all hover:bg-[#739072] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                        <FileDown className="w-4" />
-                        <span>Download</span>
-                    </button>
                 </div>
 
                 <div className="block lg:hidden">

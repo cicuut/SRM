@@ -720,7 +720,7 @@ const AccountSetting = () => {
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                 <div>
                                     <h2 className="text-[16px] leading-none font-bold text-black">
-                                        Personal Information
+                                        Informasi Pribadi
                                     </h2>
 
                                     <p className="mt-[8px] text-[10px] leading-snug text-black">
@@ -733,7 +733,7 @@ const AccountSetting = () => {
                                     onClick={openPasswordModal}
                                     className="h-[34px] rounded-[50px] border border-[#BFC7BB] bg-white px-[18px] text-[12px] font-bold text-[#4B4B4B] shadow-sm transition-all hover:border-[#739072] hover:bg-[#F8FAF6]"
                                 >
-                                    Change Password
+                                    Ubah Password
                                 </button>
                             </div>
 
@@ -777,7 +777,7 @@ const AccountSetting = () => {
                         <section className="mt-[26px] box-border w-full max-w-full rounded-[8px] border border-[#D2D8CF] bg-white px-4 py-[28px] shadow-sm sm:px-[30px]">
                             <div>
                                 <h2 className="text-[16px] leading-none font-bold text-black">
-                                    Clinic Information
+                                    Informasi Klinik
                                 </h2>
 
                                 <p className="mt-[8px] text-[10px] leading-snug text-black">
@@ -834,7 +834,7 @@ const AccountSetting = () => {
 
                         <div className="border-b border-[#E4E8E1] px-[26px] py-[22px]">
                             <h2 className="text-[22px] font-bold leading-tight text-[#4F6F52]">
-                                Change Password
+                                Ubah Password
                             </h2>
 
                             <p className="mt-1 text-[12px] text-[#6B6B6B]">
