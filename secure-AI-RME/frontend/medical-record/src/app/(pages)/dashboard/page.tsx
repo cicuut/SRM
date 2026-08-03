@@ -391,6 +391,7 @@ const Dashboard = () => {
             : '';
     const initials = getInitials(displayName);
 
+    // calculate balance
     const netIncome = Number(monthlyIncome || 0) - Number(monthlyExpense || 0);
 
     const forecastMonthLabel = formatMonthLabel(forecastData?.month);
