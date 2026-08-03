@@ -1,15 +1,8 @@
 'use client';
 
-/**
- * FinancialChart — grafik pemasukan vs pengeluaran harian untuk bulan berjalan.
- * Mendukung tiga mode tampilan: area, line, dan bar (SVG custom, tanpa library chart).
- * Tooltip menampilkan nilai per kategori plus saldo (pemasukan − pengeluaran) per hari.
- */
-
 import { useMemo, useState } from 'react';
 import { fillAmountPoints, getDaysInMonth } from '@/utils/chart-month-days';
 
-/** Satu titik data: tanggal (YYYY-MM-DD) dan nominal (Rupiah) */
 export interface FinancialChartPoint {
     date: string;
     amount: number;

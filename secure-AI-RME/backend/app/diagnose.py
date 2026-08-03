@@ -21,7 +21,7 @@ from app.models import (
 )
 from app.utils import decrypt_data
 
-
+# values ignored during the normalization process
 EMPTY_VALUES = frozenset(
     {
         "",
@@ -41,6 +41,7 @@ EMPTY_VALUES = frozenset(
     }
 )
 
+# variations into a single diagnosis label.
 CANONICAL_RULES: Tuple[Tuple[str, str], ...] = (
     (
         r"infeksi\s+saluran\s+(?:pernapasan|napas)\s+(?:atas|akut)|\bispa\b|\bismk\b",
@@ -80,14 +81,16 @@ CANONICAL_RULES: Tuple[Tuple[str, str], ...] = (
     (r"riwayat\s+operasi|post\s*op", "Pasca Operasi"),
 )
 
+# split the diagnosis fragments
 FRAGMENT_SPLIT_PATTERN = re.compile(
     r"[,;\n\r]+|\s+dan\s+|\s+serta\s+|\s+&\s+",
     flags=re.IGNORECASE,
 )
 
-FUZZY_MERGE_THRESHOLD = 0.88
-GREEDY_CLUSTER_THRESHOLD = 0.82
-DBSCAN_EPS = 0.42
+# parameter
+FUZZY_MERGE_THRESHOLD = 0.85
+GREEDY_CLUSTER_THRESHOLD = 0.80
+DBSCAN_EPS = 0.40
 DBSCAN_MIN_SAMPLES = 2
 
 
@@ -101,7 +104,7 @@ def decrypt(value) -> Optional[str]:
     except Exception:
         return str(value).strip() or None
 
-
+# clean the text
 def normalize_text(raw: Optional[str]) -> Optional[str]:
     if raw is None:
         return None
@@ -119,7 +122,7 @@ def normalize_text(raw: Optional[str]) -> Optional[str]:
 
     return text
 
-
+# split the text into fragments
 def split_fragments(raw: Optional[str]) -> List[str]:
     normalized = normalize_text(raw)
 
@@ -134,7 +137,7 @@ def split_fragments(raw: Optional[str]) -> List[str]:
 
     return parts or [normalized]
 
-
+# apply the canonical rules
 def apply_canonical_rules(normalized_text: str) -> Optional[str]:
     for pattern, label in CANONICAL_RULES:
         if re.search(pattern, normalized_text, flags=re.IGNORECASE):
@@ -142,7 +145,7 @@ def apply_canonical_rules(normalized_text: str) -> Optional[str]:
 
     return None
 
-
+# convert the normalized text to a display label
 def to_display_label(normalized_text: str) -> str:
     words = normalized_text.split()
     result = []
@@ -157,11 +160,11 @@ def to_display_label(normalized_text: str) -> str:
 
     return " ".join(result)
 
-
+# calculate the similarity using SequenceMatcher
 def similarity(left: str, right: str) -> float:
     return SequenceMatcher(None, left, right).ratio()
 
-
+# find bucket diagnosis that already exists
 def find_fuzzy_bucket(
     candidate_key: str,
     bucket_labels: Dict[str, str],
@@ -172,7 +175,7 @@ def find_fuzzy_bucket(
 
     return None
 
-
+# similarity-based clustering using greedy
 def cluster_fragments_greedy(fragments: List[str]) -> Dict[str, int]:
     cluster_ids: Dict[str, int] = {}
     clusters: List[List[str]] = []
@@ -198,7 +201,7 @@ def cluster_fragments_greedy(fragments: List[str]) -> Dict[str, int]:
 
     return cluster_ids
 
-
+# groups similar diagnosis fragments using TF-IDF and DBSCAN
 def cluster_fragments_tfidf(fragments: List[str]) -> Dict[str, int]:
     if len(fragments) < 2:
         return {fragment: 0 for fragment in fragments}
@@ -223,7 +226,7 @@ def cluster_fragments_tfidf(fragments: List[str]) -> Dict[str, int]:
         ).fit_predict(matrix)
 
         cluster_ids: Dict[str, int] = {}
-        next_singleton_id = int(labels.max()) + 1
+        next_singleton_id = int(labels.max()) + 1 # to create unique id cluster
 
         for fragment, label in zip(fragments, labels):
             if label == -1:
@@ -237,7 +240,7 @@ def cluster_fragments_tfidf(fragments: List[str]) -> Dict[str, int]:
     except Exception:
         return cluster_fragments_greedy(fragments)
 
-
+# builds the hybrid diagnosis mapping pipeline
 def build_hybrid_bucket_map(
     fragment_counts: Counter[str],
 ) -> Dict[str, Tuple[str, str, str]]:
@@ -263,7 +266,7 @@ def build_hybrid_bucket_map(
     clusters: Dict[int, List[str]] = defaultdict(list)
 
     for fragment in unmapped:
-        clusters[cluster_assignments[fragment]].append(fragment)
+        clusters[cluster_assignments[fragment]].append(fragment) # groups diagnoes based on dbscan result
 
     for members in clusters.values():
         representative = max(members, key=lambda item: fragment_counts[item])
@@ -282,7 +285,7 @@ def build_hybrid_bucket_map(
                 key, label = fuzzy_match
                 source = "fuzzy"
             else:
-                bucket_labels[key] = label
+                bucket_labels[key] = label # create new label
 
         for member in members:
             member_rule = apply_canonical_rules(member)
@@ -295,7 +298,7 @@ def build_hybrid_bucket_map(
 
     return mapping
 
-
+# counts diagnosis frequencies
 def count_diagnoses(
     raw_notes: List[str],
     *,
@@ -349,7 +352,7 @@ def count_diagnoses(
 
     return top_items, total_fragments
 
-
+# retrieve diagnosis data
 def base_query(visit_model, field_column):
     return (
         db.session.query(VisitMaster.visit_id, field_column)
@@ -358,28 +361,44 @@ def base_query(visit_model, field_column):
         .join(Patient, MedicalRecord.patient_id == Patient.patient_id)
     )
 
+# Filter the query to records belonging to the specified clinic
+def apply_clinic_scope(query, clinic_id):
+    if clinic_id is None:
+        raise ValueError("clinic_id is required for diagnosis queries")
 
+    return query.filter(
+        Patient.clinic_id == clinic_id,
+        MedicalRecord.clinic_id == clinic_id,
+    )
+
+# filters records based on the monthly date range.
 def apply_month_filter(query, month_start: date, month_end: date):
     return query.filter(
         func.date(VisitMaster.visit_date) >= month_start,
         func.date(VisitMaster.visit_date) <= month_end,
     )
 
-
+# collects monthly diagnoses
 def collect_monthly_diagnoses(
+    clinic_id,
     month_start: Optional[date] = None,
     month_end: Optional[date] = None,
 ) -> Tuple[List[str], int]:
+    if clinic_id is None:
+        raise ValueError("clinic_id is required for diagnosis collection")
+
     if month_start is None or month_end is None:
         month_start, month_end = get_month_bounds()
 
     notes: List[str] = []
     visit_ids: set = set()
-
+    
+    # get subjective for pregnancy and general
     for visit_model in (VisitPregnancy, VisitGeneral):
         field_column = visit_model.subjective
-
+        
         query = base_query(visit_model, field_column)
+        query = apply_clinic_scope(query, clinic_id)
         query = apply_month_filter(query, month_start, month_end)
 
         rows = query.all()
@@ -391,6 +410,7 @@ def collect_monthly_diagnoses(
                 visit_ids.add(visit_id)
                 notes.append(decrypted)
 
+    # get complaint for family planning
     kb_query = (
         db.session.query(VisitMaster.visit_id, VisitFamilyPlanning.complaint)
         .join(
@@ -401,6 +421,7 @@ def collect_monthly_diagnoses(
         .join(Patient, MedicalRecord.patient_id == Patient.patient_id)
     )
 
+    kb_query = apply_clinic_scope(kb_query, clinic_id)
     kb_query = apply_month_filter(kb_query, month_start, month_end)
 
     kb_rows = kb_query.all()
@@ -414,16 +435,21 @@ def collect_monthly_diagnoses(
 
     return notes, len(visit_ids)
 
-
+# function used to generate the monthly Top-5 diagnosis report
 def get_top_diagnoses_payload(
+    clinic_id,
     reference: Optional[date] = None,
     *,
     top_n: int = 5,
 ) -> dict:
+    if clinic_id is None:
+        raise ValueError("clinic_id is required for top diagnoses payload")
+
     month_start, month_end = get_month_bounds(reference)
     month_label = month_start.strftime("%Y-%m")
 
     raw_notes, visit_count = collect_monthly_diagnoses(
+        clinic_id,
         month_start=month_start,
         month_end=month_end,
     )
@@ -432,6 +458,7 @@ def get_top_diagnoses_payload(
 
     return {
         "month": month_label,
+        "clinic_id": str(clinic_id),
         "grouping_method": "hybrid",
         "total_visits_with_diagnoses": visit_count,
         "total_diagnoses_fragments": total_fragments,

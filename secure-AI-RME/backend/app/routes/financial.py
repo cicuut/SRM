@@ -921,6 +921,7 @@ def get_monthly_summary():
             params,
         ).mappings().all()
 
+        # calculate monthly income and expense
         monthly_income = 0.0
         monthly_expense = 0.0
 

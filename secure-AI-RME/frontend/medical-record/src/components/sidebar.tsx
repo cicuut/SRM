@@ -54,16 +54,17 @@ const navItems: NavItem[] = [
         icon: House,
         roles: ['admin', 'midwife', 'asisten'],
     },
-    {
-        label: 'Laporan Harian',
-        href: '/daily-report',
-        icon: UsersRound,
-        roles: ['admin', 'midwife', 'asisten'],
-    },
+
     {
         label: 'Rekam Medis',
         href: '/medical-record',
         icon: HeartPulse,
+        roles: ['admin', 'midwife', 'asisten'],
+    },
+    {
+        label: 'Laporan Harian',
+        href: '/daily-report',
+        icon: UsersRound,
         roles: ['admin', 'midwife', 'asisten'],
     },
     {
@@ -258,7 +259,7 @@ const Sidebar = () => {
                                     className={`flex w-full items-center gap-4 rounded-4xl px-5 py-3.5 transition-all ${active
                                         ? 'bg-[#739072] text-white'
                                         : 'text-black hover:bg-[#D2E3C8]'
-                                    }`}
+                                        }`}
                                 >
                                     <Icon
                                         size={18}
