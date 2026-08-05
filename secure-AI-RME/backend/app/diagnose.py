@@ -21,7 +21,7 @@ from app.models import (
 )
 from app.utils import decrypt_data
 
-# values ignored during the normalization process
+# empty values ignored during the normalization process
 EMPTY_VALUES = frozenset(
     {
         "",
@@ -41,7 +41,7 @@ EMPTY_VALUES = frozenset(
     }
 )
 
-# variations into a single diagnosis label.
+# diagnosis synonim
 CANONICAL_RULES: Tuple[Tuple[str, str], ...] = (
     (
         r"infeksi\s+saluran\s+(?:pernapasan|napas)\s+(?:atas|akut)|\bispa\b|\bismk\b",

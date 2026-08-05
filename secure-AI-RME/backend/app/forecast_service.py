@@ -243,7 +243,7 @@ def get_monthly_delivery_total(
 
     return int(total or 0)
 
-# retrieves the monthly visit total (includes delivery visitors)
+# retrieves the monthly visit total
 def get_monthly_visit_total(
     month_start: date,
     end_date: date,
