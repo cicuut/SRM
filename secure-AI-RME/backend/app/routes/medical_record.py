@@ -110,7 +110,7 @@ def require_medical_record_access(require_clinic=True):
             
         except Exception as e:
             db.session.rollback()
-            print(f"⚠️ [Auto-Update Status RM] Gagal mendeteksi data usang: {str(e)}")
+            print(f"Gagal mendeteksi data: {str(e)}")
 
     return current_user, current_role, None
 
@@ -432,7 +432,7 @@ def check_duplicate_nik(nik_query):
                     'family_data': family_data
                 }), 200
                 
-        # Jika NIK belum pernah terdaftar sama sekali
+        
         return jsonify({'exists': False, 'msg': 'NIK belum terdaftar. Silakan input data baru.'}), 200
 
     except Exception as e:

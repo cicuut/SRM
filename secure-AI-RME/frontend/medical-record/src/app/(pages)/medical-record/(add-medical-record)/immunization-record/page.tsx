@@ -18,6 +18,7 @@ const ImmunizationRecord = () => {
     const recordType = searchParams.get("type");
     const [patientData, setPatientData] = useState({});
     const [familyData, setFamilyData] = useState({});
+    const [familyAutoFillData, setFamilyAutoFillData] = useState(null);
     const handlePatientUpdate = (data: any) => setPatientData(data);
     const handleFamilyUpdate = (data: any) => setFamilyData(data);
 
@@ -97,9 +98,10 @@ const ImmunizationRecord = () => {
             <PatientInformation
                 record_type={recordType || "Kehamilan"}
                 onDataChange={handlePatientUpdate}
+                onFamilyAutoFill={(data) => setFamilyAutoFillData(data)}
             />
             <FamilyInformation
-                onDataChange={handleFamilyUpdate}
+                onDataChange={handleFamilyUpdate} autoFillData={familyAutoFillData}
             />
 
             <div className="flex justify-center gap-4">

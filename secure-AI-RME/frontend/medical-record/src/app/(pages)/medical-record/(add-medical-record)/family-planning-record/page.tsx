@@ -21,6 +21,7 @@ const FamilyPlanningRecord = () => {
     const recordType = searchParams.get("type");
     const [patientData, setPatientData] = useState({});
     const [familyData, setFamilyData] = useState({});
+    const [familyAutoFillData, setFamilyAutoFillData] = useState(null);
 
     const handlePatientUpdate = (data: any) => setPatientData(data);
     const handleFamilyUpdate = (data: any) => setFamilyData(data);
@@ -105,9 +106,12 @@ const FamilyPlanningRecord = () => {
             <PatientInformation
                 record_type={recordType || "Keluarga Berencana"}
                 onDataChange={handlePatientUpdate}
+                                onFamilyAutoFill={(data) => setFamilyAutoFillData(data)}
+
             />
             <FamilyInformation
                 onDataChange={handleFamilyUpdate}
+                autoFillData={familyAutoFillData}
             />
             <div className="flex flex-col gap-0">
                 <h2 className="text-md text-[#4F6F52] underline leading-none font-lexend!">Riwayat Kehamilan</h2>

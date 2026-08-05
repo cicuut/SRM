@@ -28,6 +28,7 @@ const DeliveryRecord = () => {
     const [newbornComplication, setNewbornComplication] = useState("");
     const [eyeOintment, setEyeOintment] = useState(false);
     const [imd, setImd] = useState(false);
+    const [familyAutoFillData, setFamilyAutoFillData] = useState(null);
     const handlePatientUpdate = (data: any) => setPatientData(data);
     const handleFamilyUpdate = (data: any) => setFamilyData(data);
 
@@ -122,9 +123,11 @@ const DeliveryRecord = () => {
             <PatientInformation
                 record_type={recordType || "Persalinan"}
                 onDataChange={handlePatientUpdate}
+                onFamilyAutoFill={(data) => setFamilyAutoFillData(data)}
+
             />
             <FamilyInformation
-                onDataChange={handleFamilyUpdate}
+                onDataChange={handleFamilyUpdate} autoFillData={familyAutoFillData}
             />
             <div className="flex flex-col gap-0">
                 <h2 className="text-md text-[#4F6F52] underline leading-none font-lexend!">Riwayat Persalinan</h2>

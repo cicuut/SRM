@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useEffect } from "react"; 
 
 interface BillingFormProps {
   total: string;
@@ -19,6 +19,13 @@ const BillingForm = ({
   setPaymentStatus,
 }: BillingFormProps) => {
   const isUnpaid = paymentStatus === "unpaid";
+
+  useEffect(() => {
+    if (isUnpaid) {
+      setTotal("");
+      setPaymentMethod("");
+    }
+  }, [paymentStatus, setTotal, setPaymentMethod, isUnpaid]);
   return (
     <>
       <div className="border-b-2 text-[#D9D9D9] font-bold">
