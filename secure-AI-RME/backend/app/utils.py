@@ -368,16 +368,6 @@ def decrypt_audit_values(value):
 
 
 def write_audit_log(user_id, action, old_values=None, new_values=None):
-    """
-    Jangan commit di helper ini.
-    Commit tetap di route utama.
-
-    Jadi kalau proses utama gagal dan rollback,
-    audit juga ikut rollback.
-
-    old_values dan new_values disimpan terenkripsi agar isi audit
-    tidak terbaca langsung dari database.
-    """
 
     if not user_id:
         return None
