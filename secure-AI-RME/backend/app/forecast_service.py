@@ -120,18 +120,13 @@ def sum_counts(counts: Optional[Dict[date, int]]) -> int:
 def service_has_history(
     service_type: str,
     counts: Dict[date, int],
-    forecast_history_counts: Optional[Dict[date, int]] = None,
     hpl_counts: Optional[Dict[date, int]] = None,
 ) -> bool:
     if sum_counts(counts) > 0:
         return True
 
-    if service_type == "Persalinan":
-        if sum_counts(forecast_history_counts) > 0:
-            return True
-
-        if sum_counts(hpl_counts) > 0:
-            return True
+    if service_type == "Persalinan" and sum_counts(hpl_counts) > 0:
+        return True
 
     return False
 
@@ -225,6 +220,29 @@ def apply_clinic_scope(query, clinic_id):
         MedicalRecord.clinic_id == clinic_id,
     )
 
+# retrieves the monthly delivery total
+def get_monthly_delivery_total(
+    month_start: date,
+    end_date: date,
+    clinic_id,
+) -> int:
+    query = (
+        db.session.query(func.count(DeliveryRecord.dr_id))
+        .join(MedicalRecord, DeliveryRecord.record_id == MedicalRecord.record_id)
+        .join(Patient, MedicalRecord.patient_id == Patient.patient_id)
+        .filter(
+            MedicalRecord.record_type == "Persalinan",
+            DeliveryRecord.delivery_date.isnot(None),
+            func.date(DeliveryRecord.delivery_date) >= month_start,
+            func.date(DeliveryRecord.delivery_date) <= end_date,
+        )
+    )
+    query = apply_clinic_scope(query, clinic_id)
+
+    total = query.scalar()
+
+    return int(total or 0)
+
 # retrieves the monthly visit total
 def get_monthly_visit_total(
     month_start: date,
@@ -242,9 +260,10 @@ def get_monthly_visit_total(
     )
     query = apply_clinic_scope(query, clinic_id)
 
-    total = query.scalar()
+    visit_total = int(query.scalar() or 0)
+    delivery_total = get_monthly_delivery_total(month_start, end_date, clinic_id)
 
-    return int(total or 0)
+    return visit_total + delivery_total
 
 # retrieves the monthly counts by service
 def get_monthly_counts_by_service(
@@ -511,16 +530,7 @@ def build_forecast_payload(
                 today,
                 clinic_id,
             )
-
-            forecast_history_counts = get_daily_visit_counts(
-                "Kehamilan",
-                history_start,
-                today,
-                clinic_id,
-            )
         else:
-            forecast_history_counts = None
-
             counts = get_daily_visit_counts(
                 service_type,
                 history_start,
@@ -541,16 +551,13 @@ def build_forecast_payload(
         has_service_history = service_has_history(
             service_type=service_type,
             counts=counts,
-            forecast_history_counts=forecast_history_counts,
-            hpl_counts=hpl_counts,
-        )   
+            hpl_counts=hpl_counts if service_type == "Persalinan" else None,
+        )
 
         if forecast_start <= month_end and has_service_history:
             service_forecast, _ = forecast_date_range(
                 service_type,
-                forecast_history_counts
-                if service_type == "Persalinan"
-                else counts,
+                counts,
                 forecast_start,
                 month_end,
                 history_start=history_start,
