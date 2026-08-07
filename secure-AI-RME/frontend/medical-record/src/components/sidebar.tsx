@@ -54,42 +54,41 @@ const navItems: NavItem[] = [
         icon: House,
         roles: ['admin', 'midwife', 'asisten'],
     },
-
-    {
-        label: 'Rekam Medis',
-        href: '/medical-record',
-        icon: HeartPulse,
-        roles: ['admin', 'midwife', 'asisten'],
-    },
     {
         label: 'Laporan Harian',
         href: '/daily-report',
         icon: UsersRound,
-        roles: ['admin', 'midwife', 'asisten'],
+        roles: ['midwife', 'asisten'],
+    },
+    {
+        label: 'Rekam Medis',
+        href: '/medical-record',
+        icon: HeartPulse,
+        roles: ['midwife', 'asisten'],
     },
     {
         label: 'Laporan Keuangan',
         href: '/financial-report',
         icon: Wallet,
-        roles: ['admin', 'midwife'],
+        roles: ['midwife'],
     },
     {
         label: 'Kelola Manajemen',
         href: '/management-setting',
         icon: UserCog,
-        roles: ['admin', 'midwife'],
+        roles: ['midwife'],
     },
     {
         label: 'Pengaturan Akun',
         href: '/account-setting',
         icon: Settings,
-        roles: ['admin', 'midwife', 'asisten'],
+        roles: ['midwife', 'asisten'],
     },
     {
         label: 'Riwayat Aktivitas',
         href: '/activity-history',
         icon: History,
-        roles: ['admin', 'midwife'],
+        roles: ['midwife'],
     },
 ];
 
@@ -259,7 +258,7 @@ const Sidebar = () => {
                                     className={`flex w-full items-center gap-4 rounded-4xl px-5 py-3.5 transition-all ${active
                                         ? 'bg-[#739072] text-white'
                                         : 'text-black hover:bg-[#D2E3C8]'
-                                        }`}
+                                    }`}
                                 >
                                     <Icon
                                         size={18}

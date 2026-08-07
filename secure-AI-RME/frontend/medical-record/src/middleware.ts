@@ -124,6 +124,15 @@ export function middleware(request: NextRequest) {
         return redirectTo(request, '/login');
     }
 
+    if (
+        hasToken &&
+        role === 'admin' &&
+        isProtectedPath(pathname) &&
+        !isPathStartsWith(pathname, ['/dashboard', '/regist'])
+    ) {
+        return redirectTo(request, '/dashboard');
+    }
+
     if (authPaths.includes(pathname) && hasToken) {
         if (isMidwifeWithoutClinic) {
             return redirectTo(request, '/register-clinic');

@@ -9,9 +9,10 @@ from app.utils import (
     get_next_sequence_preview,
 )
 from datetime import date, datetime, timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
+from zoneinfo import ZoneInfo
 import uuid
 
 
@@ -21,7 +22,7 @@ ADMIN_ROLE = "admin"
 MIDWIFE_ROLE = "midwife"
 ASSISTANT_ROLE = "asisten"
 
-FINANCIAL_ALLOWED_ROLES = [ADMIN_ROLE, MIDWIFE_ROLE]
+FINANCIAL_ALLOWED_ROLES = [MIDWIFE_ROLE]
 
 
 # -----------------------------------------------------------------------------
@@ -122,7 +123,7 @@ def require_financial_access():
         return None, (
             jsonify(
                 {
-                    "msg": "Akses ditolak. Hanya admin dan bidan yang dapat mengakses laporan keuangan."
+                    "msg": "Akses ditolak. Hanya bidan yang dapat mengakses laporan keuangan."
                 }
             ),
             403,
@@ -158,6 +159,10 @@ def parse_payment_date(value):
         raise ValueError("Format tanggal tidak valid. Gunakan format YYYY-MM-DD.")
 
 
+def get_today_jakarta():
+    return datetime.now(ZoneInfo("Asia/Jakarta")).date()
+
+
 def format_date(value):
     if not value:
         return None
@@ -190,6 +195,48 @@ def parse_amount(value, allow_zero=False):
             raise ValueError("Nominal harus lebih besar dari 0.")
 
     return amount
+
+
+def normalize_billing_items(value):
+    if not isinstance(value, list) or not value:
+        raise ValueError("Minimal satu rincian biaya wajib diisi.")
+
+    normalized_items = []
+    total = Decimal("0.00")
+
+    for index, item in enumerate(value, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(f"Rincian biaya ke-{index} tidak valid.")
+
+        item_name = str(item.get("item_name") or "").strip()
+
+        if not item_name:
+            raise ValueError(f"Nama layanan/item ke-{index} wajib diisi.")
+
+        if len(item_name) > 255:
+            raise ValueError(f"Nama layanan/item ke-{index} terlalu panjang.")
+
+        quantity = parse_amount(item.get("quantity"))
+        unit_cost = parse_amount(item.get("unit_cost"), allow_zero=True)
+        subtotal = (quantity * unit_cost).quantize(
+            Decimal("0.01"),
+            rounding=ROUND_HALF_UP,
+        )
+
+        normalized_items.append(
+            {
+                "item_name": item_name,
+                "quantity": quantity,
+                "unit_cost": unit_cost,
+                "subtotal": subtotal,
+            }
+        )
+        total += subtotal
+
+    if total <= 0:
+        raise ValueError("Total invoice harus lebih besar dari 0.")
+
+    return normalized_items, total.quantize(Decimal("0.01"))
 
 
 def is_income_type(trans_type):
@@ -389,6 +436,13 @@ def normalize_financial_input(data, include_required=True):
 
     payment_date = parse_payment_date(data.get("payment_date"))
 
+    if payment_date > get_today_jakarta():
+        raise ValueError("Tanggal invoice tidak boleh lebih dari hari ini.")
+
+    due_date = payment_date
+
+    billing_items, total_amount = normalize_billing_items(data.get("billing_items"))
+
     trans_type = normalize_column_enum_value(
         "financial",
         "trans_type",
@@ -408,20 +462,17 @@ def normalize_financial_input(data, include_required=True):
     if str(status).lower() == "unpaid":
         return {
             "payment_date": payment_date,
+            "due_date": due_date,
             "trans_type": trans_type,
-            "amount": Decimal("0"),
+            "amount": total_amount,
             "payment_method": None,
             "status": status,
             "description": description,
+            "billing_items": billing_items,
         }
-
-    if data.get("amount") is None or data.get("amount") == "":
-        raise ValueError("Nominal wajib diisi jika status pembayaran dibayar.")
 
     if data.get("payment_method") is None or data.get("payment_method") == "":
         raise ValueError("Metode pembayaran wajib diisi jika status pembayaran dibayar.")
-
-    amount = parse_amount(data.get("amount"))
 
     payment_method = normalize_column_enum_value(
         "financial",
@@ -432,12 +483,53 @@ def normalize_financial_input(data, include_required=True):
 
     return {
         "payment_date": payment_date,
+        "due_date": due_date,
         "trans_type": trans_type,
-        "amount": amount,
+        "amount": total_amount,
         "payment_method": payment_method,
         "status": status,
         "description": description,
+        "billing_items": billing_items,
     }
+
+
+def replace_financial_items(transaction_id, billing_items):
+    db.session.execute(
+        text(
+            "DELETE FROM financial_item "
+            "WHERE transaction_id = CAST(:transaction_id AS uuid)"
+        ),
+        {"transaction_id": str(transaction_id)},
+    )
+
+    for item in billing_items:
+        db.session.execute(
+            text(
+                """
+                INSERT INTO financial_item (
+                    item_id,
+                    transaction_id,
+                    item_name,
+                    quantity,
+                    unit_cost,
+                    subtotal
+                )
+                VALUES (
+                    CAST(:item_id AS uuid),
+                    CAST(:transaction_id AS uuid),
+                    :item_name,
+                    :quantity,
+                    :unit_cost,
+                    :subtotal
+                )
+                """
+            ),
+            {
+                "item_id": str(uuid.uuid4()),
+                "transaction_id": str(transaction_id),
+                **item,
+            },
+        )
 
 
 # -----------------------------------------------------------------------------
@@ -577,6 +669,45 @@ def has_paid_financial_for_visit(visit_id, clinic_id=None, exclude_transaction_i
     return row is not None
 
 
+def get_unpaid_financial_for_visit(visit_id, clinic_id=None, lock_row=False):
+    if not visit_id:
+        return None
+
+    conditions = [
+        "f.visit_id::text = :visit_id",
+        "LOWER(TRIM(f.status::text)) = ANY(:unpaid_statuses)",
+    ]
+
+    params = {
+        "visit_id": str(visit_id),
+        "unpaid_statuses": list(UNPAID_STATUS_ALIASES),
+    }
+
+    if clinic_id:
+        conditions.append("f.clinic_id::text = :clinic_id")
+        params["clinic_id"] = str(clinic_id)
+
+    lock_clause = "FOR UPDATE" if lock_row else ""
+
+    return db.session.execute(
+        text(
+            f"""
+            SELECT
+                f.transaction_id::text AS transaction_id,
+                f.transaction_number
+            FROM financial f
+            WHERE {' AND '.join(conditions)}
+            ORDER BY
+                f.payment_date DESC NULLS LAST,
+                f.transaction_number DESC
+            LIMIT 1
+            {lock_clause}
+            """
+        ),
+        params,
+    ).mappings().first()
+
+
 def serialize_unpaid_visit_row(row):
     if not row:
         return {}
@@ -643,7 +774,26 @@ FINANCIAL_SELECT_QUERY = """
         f.payment_method::text AS payment_method,
         f.status::text AS status,
         f.payment_date,
+        f.due_date,
         f.description,
+
+        COALESCE(
+            (
+                SELECT jsonb_agg(
+                    jsonb_build_object(
+                        'item_id', fi.item_id::text,
+                        'item_name', fi.item_name,
+                        'quantity', fi.quantity,
+                        'unit_cost', fi.unit_cost,
+                        'subtotal', fi.subtotal
+                    )
+                    ORDER BY fi.item_id
+                )
+                FROM financial_item fi
+                WHERE fi.transaction_id = f.transaction_id
+            ),
+            '[]'::jsonb
+        ) AS billing_items,
 
         vm.visit_number,
         vm.visit_date,
@@ -700,6 +850,7 @@ def serialize_financial_row(row):
         "transaction_number": row.get("transaction_number"),
         "trans_id": payment_date,
         "payment_date": payment_date,
+        "due_date": format_date(row.get("due_date")),
         "trans_type": row.get("trans_type"),
         "amount": float(row.get("amount") or 0),
         "payment_method": payment_method or "",
@@ -714,6 +865,16 @@ def serialize_financial_row(row):
         "patient_name": patient_name or "-",
         "patient_number": patient_number or "-",
         "user_name": row.get("user_name") or "-",
+        "billing_items": [
+            {
+                "item_id": item.get("item_id"),
+                "item_name": item.get("item_name") or "",
+                "quantity": float(item.get("quantity") or 0),
+                "unit_cost": float(item.get("unit_cost") or 0),
+                "subtotal": float(item.get("subtotal") or 0),
+            }
+            for item in (row.get("billing_items") or [])
+        ],
     }
 
 
@@ -756,6 +917,7 @@ def build_daily_financial_series(clinic_id, month_start, month_end):
     conditions = [
         "CAST(f.payment_date AS date) >= :month_start",
         "CAST(f.payment_date AS date) <= :month_end",
+        "LOWER(f.status::text) IN ('paid', 'lunas', 'terbayar', 'dibayar')",
     ]
 
     params = {
@@ -896,6 +1058,7 @@ def get_monthly_summary():
         conditions = [
             "CAST(f.payment_date AS date) >= :month_start",
             "CAST(f.payment_date AS date) <= :month_end",
+            "LOWER(f.status::text) IN ('paid', 'lunas', 'terbayar', 'dibayar')",
         ]
 
         params = {
@@ -1261,6 +1424,15 @@ def add_financial_transaction():
         if not transaction_clinic_id:
             return jsonify({"msg": "Klinik untuk transaksi tidak ditemukan."}), 400
 
+        existing_unpaid = None
+
+        if visit_id:
+            existing_unpaid = get_unpaid_financial_for_visit(
+                visit_id,
+                transaction_clinic_id,
+                lock_row=True,
+            )
+
         if visit_id and has_paid_financial_for_visit(visit_id, transaction_clinic_id):
             return (
                 jsonify(
@@ -1271,61 +1443,122 @@ def add_financial_transaction():
                 409,
             )
 
-        year = normalized_data["payment_date"].year
-        sequence_number = reserve_next_sequence(year, transaction_clinic_id)
-        transaction_number = generate_financial_number(year, sequence_number)
-        transaction_id = str(uuid.uuid4())
-
         enum_types = get_financial_enum_type_names()
+        old_data = {}
+        audit_action = "ADD_INVOICE"
+        response_status = 201
+        response_message = "Transaksi keuangan berhasil ditambahkan."
 
-        db.session.execute(
-            text(
-                f"""
-                INSERT INTO financial (
-                    transaction_id,
-                    visit_id,
-                    user_id,
-                    patient_id,
-                    clinic_id,
-                    transaction_number,
-                    trans_type,
-                    amount,
-                    payment_method,
-                    status,
-                    payment_date,
-                    description
-                )
-                VALUES (
-                    CAST(:transaction_id AS uuid),
-                    CAST(:visit_id AS uuid),
-                    CAST(:user_id AS uuid),
-                    CAST(:patient_id AS uuid),
-                    CAST(:clinic_id AS uuid),
-                    :transaction_number,
-                    CAST(:trans_type AS {enum_types['trans_type']}),
-                    :amount,
-                    CAST(:payment_method AS {enum_types['payment_method']}),
-                    CAST(:status AS {enum_types['status']}),
-                    :payment_date,
-                    :description
-                )
-                """
-            ),
-            {
-                "transaction_id": transaction_id,
-                "visit_id": visit_id,
-                "user_id": str(current_user_id),
-                "patient_id": patient_id,
-                "clinic_id": str(transaction_clinic_id),
-                "transaction_number": transaction_number,
-                "trans_type": normalized_data["trans_type"],
-                "amount": normalized_data["amount"],
-                "payment_method": normalized_data["payment_method"],
-                "status": normalized_data["status"],
-                "payment_date": normalized_data["payment_date"],
-                "description": normalized_data["description"],
-            },
-        )
+        if existing_unpaid:
+            transaction_id = existing_unpaid["transaction_id"]
+            transaction_number = existing_unpaid["transaction_number"]
+
+            old_row = fetch_financial_by_transaction_id(
+                transaction_id,
+                transaction_clinic_id,
+            )
+            old_data = serialize_financial_row(old_row)
+
+            db.session.execute(
+                text(
+                    f"""
+                    UPDATE financial
+                    SET
+                        user_id = CAST(:user_id AS uuid),
+                        patient_id = CAST(:patient_id AS uuid),
+                        clinic_id = CAST(:clinic_id AS uuid),
+                        trans_type = CAST(:trans_type AS {enum_types['trans_type']}),
+                        amount = :amount,
+                        payment_method = CAST(:payment_method AS {enum_types['payment_method']}),
+                        status = CAST(:status AS {enum_types['status']}),
+                        payment_date = :payment_date,
+                        due_date = :due_date,
+                        description = :description
+                    WHERE transaction_id::text = :transaction_id
+                      AND visit_id::text = :visit_id
+                      AND clinic_id::text = :clinic_id
+                    """
+                ),
+                {
+                    "transaction_id": transaction_id,
+                    "visit_id": visit_id,
+                    "user_id": str(current_user_id),
+                    "patient_id": patient_id,
+                    "clinic_id": str(transaction_clinic_id),
+                    "trans_type": normalized_data["trans_type"],
+                    "amount": normalized_data["amount"],
+                    "payment_method": normalized_data["payment_method"],
+                    "status": normalized_data["status"],
+                    "payment_date": normalized_data["payment_date"],
+                    "due_date": normalized_data["due_date"],
+                    "description": normalized_data["description"],
+                },
+            )
+
+            audit_action = "UPDATE_INVOICE"
+            response_status = 200
+            response_message = (
+                f"Invoice {transaction_number} berhasil diperbarui."
+            )
+        else:
+            year = normalized_data["payment_date"].year
+            sequence_number = reserve_next_sequence(year, transaction_clinic_id)
+            transaction_number = generate_financial_number(year, sequence_number)
+            transaction_id = str(uuid.uuid4())
+
+            db.session.execute(
+                text(
+                    f"""
+                    INSERT INTO financial (
+                        transaction_id,
+                        visit_id,
+                        user_id,
+                        patient_id,
+                        clinic_id,
+                        transaction_number,
+                        trans_type,
+                        amount,
+                        payment_method,
+                        status,
+                        payment_date,
+                        due_date,
+                        description
+                    )
+                    VALUES (
+                        CAST(:transaction_id AS uuid),
+                        CAST(:visit_id AS uuid),
+                        CAST(:user_id AS uuid),
+                        CAST(:patient_id AS uuid),
+                        CAST(:clinic_id AS uuid),
+                        :transaction_number,
+                        CAST(:trans_type AS {enum_types['trans_type']}),
+                        :amount,
+                        CAST(:payment_method AS {enum_types['payment_method']}),
+                        CAST(:status AS {enum_types['status']}),
+                        :payment_date,
+                        :due_date,
+                        :description
+                    )
+                    """
+                ),
+                {
+                    "transaction_id": transaction_id,
+                    "visit_id": visit_id,
+                    "user_id": str(current_user_id),
+                    "patient_id": patient_id,
+                    "clinic_id": str(transaction_clinic_id),
+                    "transaction_number": transaction_number,
+                    "trans_type": normalized_data["trans_type"],
+                    "amount": normalized_data["amount"],
+                    "payment_method": normalized_data["payment_method"],
+                    "status": normalized_data["status"],
+                    "payment_date": normalized_data["payment_date"],
+                    "due_date": normalized_data["due_date"],
+                    "description": normalized_data["description"],
+                },
+            )
+
+        replace_financial_items(transaction_id, normalized_data["billing_items"])
 
         fetch_scope_clinic_id = None if is_admin_user(current_user) else transaction_clinic_id
         saved_row = fetch_financial_by_transaction_id(
@@ -1344,12 +1577,18 @@ def add_financial_transaction():
 
         write_audit_log(
             user_id=current_user_id,
-            action="ADD_INVOICE",
-            old_values={},
+            action=audit_action,
+            old_values={
+                "module": "Financial",
+                **old_data,
+            }
+            if old_data
+            else {},
             new_values={
                 "module": "Financial",
                 **saved_data,
                 "manual_transaction": not bool(reference_id),
+                "reused_unpaid_invoice": bool(existing_unpaid),
             },
         )
 
@@ -1358,11 +1597,12 @@ def add_financial_transaction():
         return (
             jsonify(
                 {
-                    "msg": "Transaksi keuangan berhasil ditambahkan.",
+                    "msg": response_message,
                     "data": saved_data,
+                    "updated_existing_invoice": bool(existing_unpaid),
                 }
             ),
-            201,
+            response_status,
         )
 
     except ValueError as e:
@@ -1451,6 +1691,7 @@ def update_financial_detail(transaction_id):
         params = {
             "transaction_id": str(transaction_id),
             "payment_date": normalized_data["payment_date"],
+            "due_date": normalized_data["due_date"],
             "trans_type": normalized_data["trans_type"],
             "amount": normalized_data["amount"],
             "payment_method": normalized_data["payment_method"],
@@ -1468,6 +1709,7 @@ def update_financial_detail(transaction_id):
                 UPDATE financial
                 SET
                     payment_date = :payment_date,
+                    due_date = :due_date,
                     trans_type = CAST(:trans_type AS {enum_types['trans_type']}),
                     amount = :amount,
                     payment_method = CAST(:payment_method AS {enum_types['payment_method']}),
@@ -1478,6 +1720,8 @@ def update_financial_detail(transaction_id):
             ),
             params,
         )
+
+        replace_financial_items(transaction_id, normalized_data["billing_items"])
 
         updated_row = fetch_financial_by_transaction_id(
             transaction_id,
