@@ -24,7 +24,6 @@ interface MedicalForm {
   };
 }
 const VisitPregnancyDetail = () => {
-  // Local state for visit details and loading/error status
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const params = useParams();
@@ -34,6 +33,8 @@ const VisitPregnancyDetail = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const uuid = params.id;
+  const [visitStatus, setVisitStatus] = useState<string>("");
+  const [userRole, setUserRole] = useState("");
 
   const [formData, setFormData] = useState<MedicalForm>({
     subjective: "",
@@ -64,49 +65,57 @@ const VisitPregnancyDetail = () => {
   }, [formData, originalFormData]);
 
   useEffect(() => {
-    const fetchPatientData = async () => {
-      if (!uuid) return;
-      try {
-        const response = await api.get(
-          `/visit-report/get-visit-pregnancy/${uuid}`,
-        );
+    const role = localStorage.getItem("user_role") || "";
+    setUserRole(role.toLowerCase());
+  }, []);
 
-        const initialFormValues = {
-          subjective: response.data.subjective || "",
-          objective: response.data.objective || "",
-          assessment: response.data.assessment || "",
-          plan: response.data.plan || "",
-          weight: response.data.weight || "",
-          height: response.data.height || "",
-          blood_pressure: response.data.blood_pressure || "",
-          body_temperature: response.data.body_temperature || "",
-          heart_rate: response.data.heart_rate || "",
-          respiratory_rate: response.data.respiratory_rate || "",
-          finance: {
-            invoice_number:
-              response.data.finance?.invoice_number ||
-              response.data.transaction_number ||
-              "",
-            total_amount:
-              response.data.finance?.total_amount || response.data.amount || 0,
-            payment_method:
-              response.data.finance?.payment_method ||
-              response.data.payment_method ||
-              "",
-            status:
-              response.data.finance?.status || response.data.status || "unpaid",
-          },
-        };
+  const fetchPatientData = async () => {
+    if (!uuid) return;
+    try {
+      const response = await api.get(
+        `/visit-report/get-visit-pregnancy/${uuid}`,
+      );
 
-        setFormData(initialFormValues);
-        setOriginalFormData(initialFormValues);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
+      const initialFormValues = {
+        subjective: response.data.subjective || "",
+        objective: response.data.objective || "",
+        assessment: response.data.assessment || "",
+        plan: response.data.plan || "",
+        weight: response.data.weight || "",
+        height: response.data.height || "",
+        blood_pressure: response.data.blood_pressure || "",
+        body_temperature: response.data.body_temperature || "",
+        heart_rate: response.data.heart_rate || "",
+        respiratory_rate: response.data.respiratory_rate || "",
+        finance: {
+          invoice_number:
+            response.data.finance?.invoice_number ||
+            response.data.transaction_number ||
+            "",
+          total_amount:
+            response.data.finance?.total_amount || response.data.amount || 0,
+          payment_method:
+            response.data.finance?.payment_method ||
+            response.data.payment_method ||
+            "",
+          status:
+            response.data.finance?.status || response.data.status || "unpaid",
+        },
+      };
 
+      setFormData(initialFormValues);
+      setOriginalFormData(initialFormValues);
+      const statusFromApi = (response.data.status || "pending")
+        .toLowerCase()
+        .trim();
+      setVisitStatus(statusFromApi);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
     fetchPatientData();
   }, [uuid]);
 
@@ -122,6 +131,46 @@ const VisitPregnancyDetail = () => {
   const handleCancelChanges = () => {
     if (originalFormData) {
       setFormData(originalFormData);
+    }
+  };
+
+  const handleApprove = async () => {
+    const result = await Swal.fire({
+      title: "Setujui Kunjungan?",
+      text: "Data kunjungan ini akan diubah statusnya menjadi Approved.",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#739072",
+      cancelButtonColor: "#d33",
+      confirmButtonText: "Ya!",
+      cancelButtonText: "Batal",
+    });
+
+    if (result.isConfirmed) {
+      setLoading(true);
+      try {
+        await api.patch(`/visit-report/approve/${uuid}`);
+
+        setVisitStatus("approved");
+
+        Swal.fire({
+          title: "Berhasil!",
+          text: "Kunjungan telah disetujui.",
+          icon: "success",
+          timer: 1500,
+          showConfirmButton: false,
+        });
+
+        fetchPatientData();
+      } catch (err: any) {
+        Swal.fire({
+          title: "Gagal!",
+          text: err.response?.data?.msg || "Terjadi kesalahan saat approve.",
+          icon: "error",
+        });
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -206,9 +255,14 @@ const VisitPregnancyDetail = () => {
       </div>
     );
 
+  const handleVisitInfoLoaded = (visitData: any) => {
+    if (visitData?.status) {
+      setVisitStatus(visitData.status.toLowerCase().trim());
+    }
+  };
   return (
     <div className="min-h-screen mt-5 flex flex-col bg-[#FDFEF9] w-full">
-      <VisitInformation />
+      <VisitInformation onDataLoaded={handleVisitInfoLoaded} />
 
       <div className="rounded-[14px] border border-[#D2D8CF] bg-white shadow-sm mt-5">
         <div className="border-b border-[#E4E8E1] px-5 py-4">
@@ -452,6 +506,15 @@ const VisitPregnancyDetail = () => {
           >
             {isSaving ? "Menyimpan" : "Simpan Perubahan"}
           </button>
+           {visitStatus === "pending" && userRole === "midwife" && (
+            <button
+              onClick={handleApprove}
+              disabled={loading}
+              className="px-6 py-2 bg-[#739072] text-white rounded-full font-semibold hover:bg-[#4F6F52] shadow-md transition disabled:opacity-50 cursor-pointer"
+            >
+              {loading ? "Memproses..." : "Setujui Kunjungan"}
+            </button>
+          )}
         </div>
       </div>
       {showDeleteConfirm && (

@@ -39,6 +39,8 @@ const VisitFamilyPlanningDetail = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const uuid = params.id;
+    const [visitStatus, setVisitStatus] = useState<string>("");
+  const [userRole, setUserRole] = useState("");
 
   const [formData, setFormData] = useState<MedicalForm>({
     weight_kg: "",
@@ -67,8 +69,12 @@ const VisitFamilyPlanningDetail = () => {
 
     return `${year}-${month}-${day}`;
   };
-
   useEffect(() => {
+    const role = localStorage.getItem("user_role") || "";
+    setUserRole(role.toLowerCase());
+  }, []);
+
+
     const fetchVisitFamilyPlanningData = async () => {
       if (!uuid) return;
       try {
@@ -90,6 +96,10 @@ const VisitFamilyPlanningDetail = () => {
 
         setFormData(initialFormValues);
         setOriginalFormData(initialFormValues);
+         const statusFromApi = (response.data.status || "pending")
+        .toLowerCase()
+        .trim();
+      setVisitStatus(statusFromApi);
       } catch (err: any) {
         setError(
           err.response?.data?.msg || err.message || "Gagal mengambil data",
@@ -98,7 +108,7 @@ const VisitFamilyPlanningDetail = () => {
         setLoading(false);
       }
     };
-
+ useEffect(() => {
     fetchVisitFamilyPlanningData();
   }, [uuid]);
 
@@ -145,6 +155,46 @@ const VisitFamilyPlanningDetail = () => {
     }
   };
 
+   const handleApprove = async () => {
+    const result = await Swal.fire({
+      title: "Setujui Kunjungan?",
+      text: "Data kunjungan ini akan diubah statusnya menjadi Approved.",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#739072",
+      cancelButtonColor: "#d33",
+      confirmButtonText: "Ya!",
+      cancelButtonText: "Batal",
+    });
+
+    if (result.isConfirmed) {
+      setLoading(true);
+      try {
+        await api.patch(`/visit-report/approve/${uuid}`);
+
+        setVisitStatus("approved");
+
+        Swal.fire({
+          title: "Berhasil!",
+          text: "Kunjungan telah disetujui.",
+          icon: "success",
+          timer: 1500,
+          showConfirmButton: false,
+        });
+
+        fetchVisitFamilyPlanningData();
+      } catch (err: any) {
+        Swal.fire({
+          title: "Gagal!",
+          text: err.response?.data?.msg || "Terjadi kesalahan saat approve.",
+          icon: "error",
+        });
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
   const handleDelete = async () => {
     if (!uuid) return;
     try {
@@ -185,7 +235,11 @@ const VisitFamilyPlanningDetail = () => {
       setIsDeleting(false);
     }
   };
-
+  const handleVisitInfoLoaded = (visitData: any) => {
+    if (visitData?.status) {
+      setVisitStatus(visitData.status.toLowerCase().trim());
+    }
+  };
   if (loading)
     return (
       <div className="p-8 text-center text-[#739072] font-bold animate-pulse">
@@ -202,7 +256,7 @@ const VisitFamilyPlanningDetail = () => {
 
   return (
     <div className="min-h-screen mt-5 flex flex-col bg-[#FDFEF9] w-full">
-      <VisitInformation />
+      <VisitInformation onDataLoaded={handleVisitInfoLoaded} />
 
       <div className="rounded-[14px] border border-[#D2D8CF] bg-white shadow-sm mt-5">
         <div className="border-b border-[#E4E8E1] px-5 py-4">
@@ -392,6 +446,15 @@ const VisitFamilyPlanningDetail = () => {
           >
             {isSaving ? "Menyimpan" : "Simpan Perubahan"}
           </button>
+           {visitStatus === "pending" && userRole === "midwife" && (
+            <button
+              onClick={handleApprove}
+              disabled={loading}
+              className="px-6 py-2 bg-[#739072] text-white rounded-full font-semibold hover:bg-[#4F6F52] shadow-md transition disabled:opacity-50 cursor-pointer"
+            >
+              {loading ? "Memproses..." : "Setujui Kunjungan"}
+            </button>
+          )}
         </div>
       </div>
       {showDeleteConfirm && (

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useMemo } from "react";
 import VisitInformation from "@/components/visit/visit-information";
-import { useParams, useRouter } from "next/navigation"; 
+import { useParams, useRouter } from "next/navigation";
 import api from "@/utils/app";
 import Swal from "sweetalert2";
 
@@ -49,6 +49,8 @@ const VisitGeneralDetail = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [visitStatus, setVisitStatus] = useState<string>("");
+  const [userRole, setUserRole] = useState("");
 
   const isChanged = useMemo(() => {
     if (!originalFormData) return false;
@@ -56,34 +58,42 @@ const VisitGeneralDetail = () => {
   }, [formData, originalFormData]);
 
   useEffect(() => {
-    const fetchPatientData = async () => {
-      if (!uuid) return;
-      try {
-        setLoading(true);
-        const response = await api.get(
-          `/visit-report/get-visit-general/${uuid}`,
-        );
-        const data = response.data;
+    const role = localStorage.getItem("user_role") || "";
+    setUserRole(role.toLowerCase());
+  }, []);
 
-        setVisitGeneralDetail(data);
+  const fetchPatientData = async () => {
+    if (!uuid) return;
+    try {
+      setLoading(true);
+      const response = await api.get(`/visit-report/get-visit-general/${uuid}`);
+      const data = response.data;
 
-        const initialFormValues = {
-          subjective: data?.subjective || "",
-          objective: data?.objective || "",
-          assessment: data?.assessment || "",
-          plan: data?.plan || "",
-        };
+      setVisitGeneralDetail(data);
 
-        setFormData(initialFormValues);
-        setOriginalFormData(initialFormValues);
-      } catch (err: any) {
-        setError(
-          err.response?.data?.msg || err.message || "Gagal memuat rekam medis",
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
+      const initialFormValues = {
+        subjective: data?.subjective || "",
+        objective: data?.objective || "",
+        assessment: data?.assessment || "",
+        plan: data?.plan || "",
+      };
+
+      setFormData(initialFormValues);
+      setOriginalFormData(initialFormValues);
+      const statusFromApi = (response.data.status || "pending")
+        .toLowerCase()
+        .trim();
+      setVisitStatus(statusFromApi);
+    } catch (err: any) {
+      setError(
+        err.response?.data?.msg || err.message || "Gagal memuat rekam medis",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchPatientData();
   }, [uuid]);
 
@@ -95,6 +105,46 @@ const VisitGeneralDetail = () => {
   const handleCancelChanges = () => {
     if (originalFormData) {
       setFormData(originalFormData);
+    }
+  };
+
+  const handleApprove = async () => {
+    const result = await Swal.fire({
+      title: "Setujui Kunjungan?",
+      text: "Data kunjungan ini akan diubah statusnya menjadi Approved.",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#739072",
+      cancelButtonColor: "#d33",
+      confirmButtonText: "Ya!",
+      cancelButtonText: "Batal",
+    });
+
+    if (result.isConfirmed) {
+      setLoading(true);
+      try {
+        await api.patch(`/visit-report/approve/${uuid}`);
+
+        setVisitStatus("approved");
+
+        Swal.fire({
+          title: "Berhasil!",
+          text: "Kunjungan telah disetujui.",
+          icon: "success",
+          timer: 1500,
+          showConfirmButton: false,
+        });
+
+        fetchPatientData();
+      } catch (err: any) {
+        Swal.fire({
+          title: "Gagal!",
+          text: err.response?.data?.msg || "Terjadi kesalahan saat approve.",
+          icon: "error",
+        });
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -182,9 +232,14 @@ const VisitGeneralDetail = () => {
       </div>
     );
 
+  const handleVisitInfoLoaded = (visitData: any) => {
+    if (visitData?.status) {
+      setVisitStatus(visitData.status.toLowerCase().trim());
+    }
+  };
   return (
     <div className="min-h-screen mt-5 flex flex-col bg-[#FDFEF9] w-full">
-      <VisitInformation />
+      <VisitInformation onDataLoaded={handleVisitInfoLoaded} />
 
       <div className="rounded-[14px] border border-[#D2D8CF] bg-white shadow-sm mt-5">
         <div className="border-b border-[#E4E8E1] px-5 py-4">
@@ -320,7 +375,6 @@ const VisitGeneralDetail = () => {
         </div>
       </div>
 
-      {/* FOOTER NAVIGASI DAN SUBMIT PERUBAHAN GLOBAL */}
       <div className="flex flex-col-reverse gap-3 border-t  px-5 py-4 sm:flex-row sm:items-center sm:justify-between mt-6 bg-white rounded-[14px] border border-[#D2D8CF] shadow-sm">
         <button
           type="button"
@@ -332,7 +386,6 @@ const VisitGeneralDetail = () => {
         </button>
 
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          {/* Jika data berubah, tombol Kembali berubah peran menjadi tombol Batal Perubahan */}
           {isChanged ? (
             <button
               type="button"
@@ -360,6 +413,16 @@ const VisitGeneralDetail = () => {
           >
             {isSaving ? "Menyimpan..." : "Simpan Perubahan"}
           </button>
+
+          {visitStatus === "pending" && userRole === "midwife" && (
+            <button
+              onClick={handleApprove}
+              disabled={loading}
+              className="px-6 py-2 bg-[#739072] text-white rounded-full font-semibold hover:bg-[#4F6F52] shadow-md transition disabled:opacity-50 cursor-pointer"
+            >
+              {loading ? "Memproses..." : "Setujui Kunjungan"}
+            </button>
+          )}
         </div>
       </div>
       {showDeleteConfirm && (

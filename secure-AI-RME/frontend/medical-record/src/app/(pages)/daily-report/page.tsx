@@ -16,10 +16,8 @@ import api from "@/utils/app";
 import RMTypeFilter from "@/components/rm_type";
 import DateRangeFilter from "@/components/date_range";
 import LoadingOverlay from "@/components/loading";
-import {
-  handleExportXlsxData,
-  DynamicVisitRow,
-} from "@/utils/export-visit";
+import { handleExportXlsxData, DynamicVisitRow } from "@/utils/export-visit";
+import VisitStatusFilter from "@/components/visit_type";
 
 interface VisitList {
   visit_id: string;
@@ -31,30 +29,32 @@ interface VisitList {
   nik: string;
   visit_date: string;
   made_by: string;
+  status: string;
 }
 
-type Role = 'admin' | 'midwife' | 'asisten' | '';
+type Role = "admin" | "midwife" | "asisten" | "";
 
 const normalizeRole = (role?: string | null): Role => {
-  const normalizedRole = String(role || '').trim().toLowerCase();
-  if (normalizedRole === 'admin') return 'admin';
-  if (normalizedRole === 'developer') return 'admin';
-  if (normalizedRole === 'midwife') return 'midwife';
-  if (normalizedRole === 'bidan') return 'midwife';
-  if (normalizedRole === 'owner') return 'midwife';
-  if (normalizedRole === 'asisten') return 'asisten';
-  if (normalizedRole === 'assistant') return 'asisten';
-  if (normalizedRole === 'staff') return 'asisten';
+  const normalizedRole = String(role || "")
+    .trim()
+    .toLowerCase();
+  if (normalizedRole === "admin") return "admin";
+  if (normalizedRole === "developer") return "admin";
+  if (normalizedRole === "midwife") return "midwife";
+  if (normalizedRole === "bidan") return "midwife";
+  if (normalizedRole === "owner") return "midwife";
+  if (normalizedRole === "asisten") return "asisten";
+  if (normalizedRole === "assistant") return "asisten";
+  if (normalizedRole === "staff") return "asisten";
   return normalizedRole as Role;
 };
-
 
 const DailyReport = () => {
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentRole, setCurrentRole] = useState<Role>('');
+  const [currentRole, setCurrentRole] = useState<Role>("");
   const [visitReportList, setVisitReportList] = useState<VisitList[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isModalVisitOpen, setIsModalVisitOpen] = useState(false);
@@ -66,6 +66,8 @@ const DailyReport = () => {
   const [visitType, setVisitType] = useState<string>("Semua");
   const [selectedType, setSelectedType] = useState("Select a type");
   const [selectedRMLabel, setSelectedRMLabel] = useState("Tipe RM");
+  const [visitStatus, setVisitStatus] = useState<string>("Semua");
+  const [selectedStatusLabel, setSelectedStatusLabel] = useState("Status Kunjungan");
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([
     null,
     null,
@@ -97,7 +99,9 @@ const DailyReport = () => {
         router.push("/medical-record/pregnancy-record?type=Kehamilan");
         break;
       case "Rekam Medis Keluarga Berencana":
-        router.push("/medical-record/family-planning-record?type=Keluarga Berencana");
+        router.push(
+          "/medical-record/family-planning-record?type=Keluarga Berencana",
+        );
         break;
       case "Rekam Medis Poli Umum":
         router.push("/medical-record/general-record?type=Umum");
@@ -121,7 +125,6 @@ const DailyReport = () => {
   };
 
   const handleVisit = (rmId: string, type: string) => {
-
     if (type === "Persalinan" || type === "delivery") {
       Swal.fire({
         title: "Aksi Tidak Diizinkan",
@@ -151,13 +154,14 @@ const DailyReport = () => {
       );
       setFilteredResults(response.data);
     } catch (err: any) {
-      const msg = err.response?.data?.msg || err.message || "Gagal mencari pasien";
+      const msg =
+        err.response?.data?.msg || err.message || "Gagal mencari pasien";
       setError(msg);
     }
   };
 
   useEffect(() => {
-    const storedRole = normalizeRole(localStorage.getItem('user_role'));
+    const storedRole = normalizeRole(localStorage.getItem("user_role"));
     setCurrentRole(storedRole);
 
     const fetchData = async () => {
@@ -174,9 +178,12 @@ const DailyReport = () => {
           type: visitType,
           start_date: formatDateToString(start),
           end_date: formatDateToString(end),
+          status: visitStatus,
         });
 
-        const response = await api.get(`/visit-report/filter-all?${params.toString()}`);
+        const response = await api.get(
+          `/visit-report/filter-all?${params.toString()}`,
+        );
         setVisitReportList(response.data);
         setCurrentPage(1);
       } catch (err) {
@@ -195,8 +202,13 @@ const DailyReport = () => {
     } else {
       fetchData();
     }
-
-  }, [visitSearch, visitType, formatDateToString(startDate), formatDateToString(endDate)]);
+  }, [
+    visitSearch,
+    visitType,
+    visitStatus,
+    formatDateToString(startDate),
+    formatDateToString(endDate),
+  ]);
 
   const handleFilterChange = (type: string, label: string) => {
     setVisitType(type === "All" ? "Semua" : type);
@@ -205,6 +217,11 @@ const DailyReport = () => {
 
   const handleFilterDate = (start: Date | null, end: Date | null) => {
     setDateRange([start, end]);
+  };
+
+  const handleStatusFilterChange = (status: string, label: string) => {
+    setVisitStatus(status === "All" ? "Semua" : status);
+    setSelectedStatusLabel(label);
   };
 
   const handleViewRecordDetail = (visitId: string) => {
@@ -217,30 +234,46 @@ const DailyReport = () => {
       for (let i = 1; i <= totalPages; i++) pageNumbers.push(i);
     } else {
       if (currentPage <= 2) {
-        pageNumbers.push(1); pageNumbers.push(2);
+        pageNumbers.push(1);
+        pageNumbers.push(2);
         if (currentPage === 2) pageNumbers.push(3);
-        pageNumbers.push("..."); pageNumbers.push(totalPages);
+        pageNumbers.push("...");
+        pageNumbers.push(totalPages);
       } else if (currentPage === 3) {
-        pageNumbers.push(1); pageNumbers.push(2); pageNumbers.push(3); pageNumbers.push(4);
-        pageNumbers.push("..."); pageNumbers.push(totalPages);
+        pageNumbers.push(1);
+        pageNumbers.push(2);
+        pageNumbers.push(3);
+        pageNumbers.push(4);
+        pageNumbers.push("...");
+        pageNumbers.push(totalPages);
       } else if (currentPage >= totalPages - 1) {
-        pageNumbers.push(1); pageNumbers.push("...");
+        pageNumbers.push(1);
+        pageNumbers.push("...");
         if (currentPage === totalPages - 1) pageNumbers.push(totalPages - 2);
-        pageNumbers.push(totalPages - 1); pageNumbers.push(totalPages);
+        pageNumbers.push(totalPages - 1);
+        pageNumbers.push(totalPages);
       } else if (currentPage === totalPages - 2) {
-        pageNumbers.push(1); pageNumbers.push("...");
-        pageNumbers.push(totalPages - 3); pageNumbers.push(totalPages - 2); pageNumbers.push(totalPages - 1); pageNumbers.push(totalPages);
+        pageNumbers.push(1);
+        pageNumbers.push("...");
+        pageNumbers.push(totalPages - 3);
+        pageNumbers.push(totalPages - 2);
+        pageNumbers.push(totalPages - 1);
+        pageNumbers.push(totalPages);
       } else {
-        pageNumbers.push(1); pageNumbers.push("...");
-        pageNumbers.push(currentPage - 1); pageNumbers.push(currentPage); pageNumbers.push(currentPage + 1);
-        pageNumbers.push("..."); pageNumbers.push(totalPages);
+        pageNumbers.push(1);
+        pageNumbers.push("...");
+        pageNumbers.push(currentPage - 1);
+        pageNumbers.push(currentPage);
+        pageNumbers.push(currentPage + 1);
+        pageNumbers.push("...");
+        pageNumbers.push(totalPages);
       }
     }
     return pageNumbers;
   };
 
-  const canDownloadReport = currentRole === 'admin' || currentRole === 'midwife';
-
+  const canDownloadReport =
+    currentRole === "admin" || currentRole === "midwife";
 
   const handleDownloadExcelReport = async () => {
     if (!canDownloadReport) return;
@@ -259,7 +292,12 @@ const DailyReport = () => {
       });
 
       const fetchedExcelData: DynamicVisitRow[] = response.data.results;
-      await handleExportXlsxData(fetchedExcelData, visitType, formattedStart, formattedEnd);
+      await handleExportXlsxData(
+        fetchedExcelData,
+        visitType,
+        formattedStart,
+        formattedEnd,
+      );
     } catch (err) {
       console.error("Gagal memproses unduhan Excel berkas laporan", err);
       Swal.fire({
@@ -290,12 +328,12 @@ const DailyReport = () => {
                 className="w-full bg-transparent pl-8 text-[10px] md:text-[13px] text-gray-700 outline-none placeholder-gray-400"
               />
             </div>
-            <div className="grid grid-cols-1 gap-1 md:grid-cols-3 sm:items-center sm:justify-between">
+            <div className="grid grid-cols-1 gap-1 md:grid-cols-4 sm:items-center sm:justify-between">
               <div className="relative rounded-[50px] bg-[#D2E3C8] px-2.5 py-1.25 md:px-5 md:py-2.75 text-center text-[8px] md:text-[12px] font-bold text-black shadow-sm">
                 <DateLabel />
               </div>
 
-              <div className="relative block  " >
+              <div className="relative block  ">
                 <DateRangeFilter
                   onFilterDate={handleFilterDate}
                   selectedStartDate={startDate}
@@ -307,6 +345,10 @@ const DailyReport = () => {
                 onFilterChange={handleFilterChange}
                 currentLabel={selectedRMLabel}
                 excludeValues={["Persalinan"]}
+              />
+              <VisitStatusFilter
+                onFilterChange={handleStatusFilterChange}
+                currentLabel={selectedStatusLabel}
               />
             </div>
           </div>
@@ -346,7 +388,9 @@ const DailyReport = () => {
             <div className="grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-2">
               {currentItems.length === 0 ? (
                 <div className="col-span-full rounded-[14px] border border-[#E4E8E1] bg-[#F8FAF6] px-4 py-8 text-center text-[12px] text-gray-500">
-                  {visitSearch.length >= 3 ? "Kunjungan tidak ditemukan." : "Belum ada riwayat kunjungan."}
+                  {visitSearch.length >= 3
+                    ? "Kunjungan tidak ditemukan."
+                    : "Belum ada riwayat kunjungan."}
                 </div>
               ) : (
                 currentItems.map((item, index) => (
@@ -372,16 +416,38 @@ const DailyReport = () => {
 
                     <div className="mt-3.5 grid grid-cols-2 gap-x-4 gap-y-3 text-[11px]">
                       <div>
-                        <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-gray-400">Waktu Kunjungan</p>
-                        <p className="mt-1 font-semibold text-black truncate">{item.visit_date}</p>
+                        <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-gray-400">
+                          Waktu Kunjungan
+                        </p>
+                        <p className="mt-1 font-semibold text-black truncate">
+                          {item.visit_date}
+                        </p>
                       </div>
                       <div>
-                        <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-gray-400">No. Rekam Medis</p>
-                        <p className="mt-1 font-semibold text-black truncate">{item.record_number || '-'}</p>
+                        <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-gray-400">
+                          No. Rekam Medis
+                        </p>
+                        <p className="mt-1 font-semibold text-black truncate">
+                          {item.record_number || "-"}
+                        </p>
                       </div>
                       <div className="col-span-2 border-t border-gray-100 pt-2 mt-1">
-                        <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-gray-400">Dibuat Oleh</p>
-                        <p className="mt-0.5 font-medium text-gray-700 truncate">{item.made_by}</p>
+                        <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-gray-400">
+                          Dibuat Oleh
+                        </p>
+                        <p className="mt-0.5 font-medium text-gray-700 truncate">
+                          {item.made_by}
+                        </p>
+                      </div>
+                      <div className="col-span-2 border-t border-gray-100 pt-2 mt-1">
+                        <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-gray-400">
+                          Status
+                        </p>
+                        <span
+                          className={`px-3 py-1 rounded-full text-[10px] font-bold ${item.status === "approved" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}
+                        >
+                          {item.status}
+                        </span>
                       </div>
                     </div>
                   </button>
@@ -393,12 +459,25 @@ const DailyReport = () => {
             <table className="w-full border-separate border-spacing-0 text-[12px]">
               <thead className="bg-[#FDFEF9] text-[#5F785F] uppercase text-[10px] font-bold">
                 <tr className="bg-[#D2E3C8] text-gray-700">
-                  <th className="px-6 py-4 text-center font-bold">Kunjungan ID</th>
-                  <th className="px-6 py-4 border-r border-gray-200 w-50">Waktu</th>
-                  <th className="px-6 py-4 border-r border-gray-200 w-50">RM ID</th>
-                  <th className="px-6 py-4 border-r border-gray-200">Name Pasien</th>
-                  <th className="px-6 py-4 border-r border-gray-200 w-50">Tipe Kunjungan</th>
-                  <th className="px-6 py-4 text-center font-bold">Dibuat Oleh</th>
+                  <th className="px-6 py-4 text-center font-bold">
+                    Kunjungan ID
+                  </th>
+                  <th className="px-6 py-4 border-r border-gray-200 w-50">
+                    Waktu
+                  </th>
+                  <th className="px-6 py-4 border-r border-gray-200 w-50">
+                    RM ID
+                  </th>
+                  <th className="px-6 py-4 border-r border-gray-200">
+                    Name Pasien
+                  </th>
+                  <th className="px-6 py-4 border-r border-gray-200 w-50">
+                    Tipe Kunjungan
+                  </th>
+                  <th className="px-6 py-4 text-center font-bold">
+                    Dibuat Oleh
+                  </th>
+                  <th className="px-6 py-4 text-center font-bold">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -407,7 +486,9 @@ const DailyReport = () => {
                     <td colSpan={6} className="text-center py-20 text-gray-400">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <p className="text-sm">
-                          {visitSearch.length >= 3 ? "Kunjungan tidak ditemukan." : "Belum ada riwayat kunjungan."}
+                          {visitSearch.length >= 3
+                            ? "Kunjungan tidak ditemukan."
+                            : "Belum ada riwayat kunjungan."}
                         </p>
                       </div>
                     </td>
@@ -416,8 +497,9 @@ const DailyReport = () => {
                   currentItems.map((item, index) => (
                     <tr
                       key={item.visit_id || index}
-                      className={`cursor-pointer text-center text-black transition-all hover:bg-[#EEF3E9] ${index % 2 === 0 ? "bg-white" : "bg-[#FBFCF8]"
-                        }`}
+                      className={`cursor-pointer text-center text-black transition-all hover:bg-[#EEF3E9] ${
+                        index % 2 === 0 ? "bg-white" : "bg-[#FBFCF8]"
+                      }`}
                       onClick={() => handleViewRecordDetail(item.visit_id)}
                     >
                       <td className="px-4 py-4 ">{item.visit_number}</td>
@@ -426,6 +508,14 @@ const DailyReport = () => {
                       <td className="px-4 py-4 ">{item.patient_name}</td>
                       <td className="px-4 py-4 ">{item.record_type}</td>
                       <td className="px-6 py-4">{item.made_by}</td>
+                      <td className="px-6 py-4">
+                        {" "}
+                        <span
+                          className={`px-3 py-1 rounded-full text-[10px] font-bold ${item.status === "approved" ? "bg-green-100 text-green-700" : "bg-red-100 text-gray-600"}`}
+                        >
+                          {item.status}
+                        </span>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -439,7 +529,10 @@ const DailyReport = () => {
             <p className="text-[11px] text-gray-500">
               Showing <span className="font-semibold text-black">1</span> to{" "}
               <span className="font-semibold text-black">10</span> of{" "}
-              <span className="font-semibold text-black">{visitReportList.length}</span> records
+              <span className="font-semibold text-black">
+                {visitReportList.length}
+              </span>{" "}
+              records
             </p>
           </div>
 
@@ -455,7 +548,10 @@ const DailyReport = () => {
             {getPageNumbers().map((page, index) => {
               if (page === "...") {
                 return (
-                  <span key={`ellipsis-${index}`} className="w-8 h-8 flex items-center justify-center text-gray-400 text-[12px]">
+                  <span
+                    key={`ellipsis-${index}`}
+                    className="w-8 h-8 flex items-center justify-center text-gray-400 text-[12px]"
+                  >
                     ...
                   </span>
                 );
@@ -465,17 +561,20 @@ const DailyReport = () => {
                 <button
                   key={`page-${page}`}
                   onClick={() => setCurrentPage(Number(page))}
-                  className={`w-8 h-8 text-[12px] font-bold rounded-full flex items-center justify-center transition-all ${currentPage === page
-                    ? "bg-[#739072] text-white shadow-md scale-105"
-                    : "text-gray-600 bg-transparent hover:bg-[#EEF3E9] hover:text-[#4F6F52]"
-                    }`}
+                  className={`w-8 h-8 text-[12px] font-bold rounded-full flex items-center justify-center transition-all ${
+                    currentPage === page
+                      ? "bg-[#739072] text-white shadow-md scale-105"
+                      : "text-gray-600 bg-transparent hover:bg-[#EEF3E9] hover:text-[#4F6F52]"
+                  }`}
                 >
                   {page}
                 </button>
               );
             })}
             <button
-              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+              onClick={() =>
+                setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+              }
               disabled={currentPage === totalPages}
               className="flex items-center gap-x-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-[12px] font-bold text-gray-600 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -527,7 +626,9 @@ const DailyReport = () => {
                       {filteredResults.map((patient) => (
                         <div
                           key={patient.rm_id}
-                          onClick={() => handleVisit(patient.rm_id, patient.record_type)}
+                          onClick={() =>
+                            handleVisit(patient.rm_id, patient.record_type)
+                          }
                           className="p-4 border-b last:border-0 hover:bg-[#F0F4EF] cursor-pointer rounded-xl transition-all flex justify-between items-center group"
                         >
                           <div className="flex flex-col">
@@ -554,7 +655,10 @@ const DailyReport = () => {
                         Pasien Tidak Ditemukan
                       </p>
                       <p className="text-xs">
-                        Data dengan kata kunci <span className="font-bold">"{verificationInput}"</span> tidak terdaftar di sistem klinik. Silakan periksa kembali ejaan atau buat rekam medis baru di bawah.
+                        Data dengan kata kunci{" "}
+                        <span className="font-bold">"{verificationInput}"</span>{" "}
+                        tidak terdaftar di sistem klinik. Silakan periksa
+                        kembali ejaan atau buat rekam medis baru di bawah.
                       </p>
                     </div>
                   )
@@ -662,10 +766,11 @@ const DailyReport = () => {
                 <button
                   type="submit"
                   disabled={selectedType === "Select a type"}
-                  className={`px-8 py-2 text-white rounded-full shadow-lg transition font-bold ${selectedType === "Select a type"
-                    ? "bg-gray-300 cursor-not-allowed opacity-60 shadow-none"
-                    : "bg-[#739072] hover:bg-[#4F6F52]"
-                    }`}
+                  className={`px-8 py-2 text-white rounded-full shadow-lg transition font-bold ${
+                    selectedType === "Select a type"
+                      ? "bg-gray-300 cursor-not-allowed opacity-60 shadow-none"
+                      : "bg-[#739072] hover:bg-[#4F6F52]"
+                  }`}
                 >
                   Pilih Rekam Medis
                 </button>

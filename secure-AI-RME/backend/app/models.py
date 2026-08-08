@@ -353,6 +353,7 @@ class VisitMaster(db.Model):
     visit_number = db.Column(db.String(20), unique=True, nullable=False)
     visit_date = db.Column(db.Date, default=datetime.utcnow)
     visit_time = db.Column(db.DateTime(timezone=True), default=datetime.utcnow)
+    visit_status = db.Column(db.String(20), nullable=True, default='Pending')
 
 class VisitSequence(db.Model):
     __tablename__ = 'visit_sequence'
@@ -536,6 +537,7 @@ class Financial(db.Model):
     status = db.Column(db.String(20), nullable=False)
     payment_date = db.Column(db.Date, nullable=False)
     description = db.Column(EncryptedText, nullable=True)
+    visit_status = db.Column(db.String(20), nullable=True)
     
 class FinancialSequence(db.Model):
     __tablename__ = 'financial_sequence'
