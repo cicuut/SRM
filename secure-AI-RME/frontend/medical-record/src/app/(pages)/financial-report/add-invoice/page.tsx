@@ -8,7 +8,7 @@ import api from '@/utils/app';
 
 type Role = 'admin' | 'midwife' | 'asisten' | '';
 
-const FINANCIAL_ALLOWED_ROLES: Role[] = ['admin', 'midwife'];
+const FINANCIAL_ALLOWED_ROLES: Role[] = ['midwife'];
 
 type MeResponse = {
     msg?: string;
@@ -52,11 +52,24 @@ type InvoiceFormData = {
     payment_date: string;
     visit_id: string;
     trans_type: string;
-    amount: string;
     payment_method: string;
     status: string;
     description: string;
 };
+
+type BillingItemForm = {
+    id: string;
+    item_name: string;
+    quantity: string;
+    unit_cost: string;
+};
+
+const createEmptyBillingItem = (id: string): BillingItemForm => ({
+    id,
+    item_name: '',
+    quantity: '1',
+    unit_cost: '',
+});
 
 const getTodayInputValue = () => {
     const date = new Date();
@@ -151,6 +164,17 @@ const translateErrorMessage = (message?: string) => {
     return rawMessage;
 };
 
+const getRequestErrorMessage = (error: unknown, fallback: string) => {
+    if (typeof error !== 'object' || error === null) return fallback;
+
+    const requestError = error as {
+        message?: string;
+        response?: { data?: { msg?: string } };
+    };
+
+    return requestError.response?.data?.msg || requestError.message || fallback;
+};
+
 const ForbiddenView = () => {
     return (
         <div className="flex min-h-[calc(100dvh-150px)] w-full items-center justify-center px-4">
@@ -169,7 +193,7 @@ const ForbiddenView = () => {
                 </p>
 
                 <p className="mt-2 text-[12px] font-semibold text-red-600">
-                    Halaman ini hanya dapat diakses oleh admin dan bidan.
+                    Halaman ini hanya dapat diakses oleh bidan.
                 </p>
             </div>
         </div>
@@ -186,20 +210,22 @@ const labelClassName = 'text-[12px] font-bold text-[#2F3A2F]';
 
 const AddInvoice = () => {
     const router = useRouter();
+    const todayInputValue = getTodayInputValue();
 
     const [transactionNumber, setTransactionNumber] = useState('');
-    const [currentClinicId, setCurrentClinicId] = useState('');
     const [visitReports, setVisitReports] = useState<VisitReportOption[]>([]);
 
     const [formData, setFormData] = useState<InvoiceFormData>({
         payment_date: getTodayInputValue(),
         visit_id: '',
         trans_type: 'pemasukan',
-        amount: '',
         payment_method: 'Transfer',
         status: 'paid',
         description: '',
     });
+    const [billingItems, setBillingItems] = useState<BillingItemForm[]>([
+        createEmptyBillingItem('item-1'),
+    ]);
 
     const [hasAccess, setHasAccess] = useState(false);
     const [isForbidden, setIsForbidden] = useState(false);
@@ -214,6 +240,15 @@ const AddInvoice = () => {
     const [searchKeyword, setSearchKeyword] = useState('');
 
     const isUnpaid = formData.status === 'unpaid';
+    const invoiceTotal = useMemo(
+        () =>
+            billingItems.reduce(
+                (total, item) =>
+                    total + Number(item.quantity || 0) * Number(item.unit_cost || 0),
+                0,
+            ),
+        [billingItems],
+    );
 
     const showLoadingOverlay =
         isCheckingAccess ||
@@ -226,6 +261,13 @@ const AddInvoice = () => {
             (visit) => visit.visit_id === formData.visit_id,
         );
     }, [visitReports, formData.visit_id]);
+
+    const displayedTransactionNumber =
+        selectedVisit?.billing_transaction_id &&
+        selectedVisit.billing_transaction_number &&
+        selectedVisit.billing_transaction_number !== '-'
+            ? selectedVisit.billing_transaction_number
+            : transactionNumber;
 
     const normalizedSearchKeyword = searchKeyword.trim().toLowerCase();
 
@@ -338,10 +380,6 @@ const AddInvoice = () => {
                 );
             }
 
-            setCurrentClinicId(
-                data.user.clinic_id || data.clinic?.id || '',
-            );
-
             setIsForbidden(false);
             setHasAccess(true);
         } catch (error) {
@@ -356,13 +394,9 @@ const AddInvoice = () => {
         }
     };
 
-    const fetchTransactionNumber = async (
-        date: string,
-        clinicId?: string | null,
-    ) => {
+    const fetchTransactionNumber = async (date: string) => {
         try {
             setIsLoadingTransactionNumber(true);
-            setTransactionNumber('');
 
             const token = getToken();
 
@@ -371,16 +405,8 @@ const AddInvoice = () => {
                 return;
             }
 
-            const params = new URLSearchParams({
-                date,
-            });
-
-            if (clinicId) {
-                params.set('clinic_id', clinicId);
-            }
-
             const response = await api.get(
-                `/financial/transaction-number?${params.toString()}`,
+                `/financial/transaction-number?date=${encodeURIComponent(date)}`,
                 {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -407,36 +433,9 @@ const AddInvoice = () => {
                 );
             }
 
-            const generatedNumber = String(
-                data?.transaction_number || '',
-            ).trim();
-
-            if (!generatedNumber) {
-                throw new Error(
-                    'Backend tidak mengirim nomor invoice.',
-                );
-            }
-
-            setTransactionNumber(generatedNumber);
-        } catch (error: any) {
-            const status = error?.response?.status;
-            const backendMessage =
-                error?.response?.data?.msg ||
-                error?.message ||
-                'Gagal mengambil nomor invoice.';
-
-            if (status === 401 || status === 422) {
-                handleUnauthorized();
-                return;
-            }
-
-            if (status === 403) {
-                handleForbidden();
-                return;
-            }
-
+            setTransactionNumber(data.transaction_number || '');
+        } catch {
             setTransactionNumber('');
-            setErrorMessage(translateErrorMessage(backendMessage));
         } finally {
             setIsLoadingTransactionNumber(false);
         }
@@ -514,20 +513,9 @@ const AddInvoice = () => {
     useEffect(() => {
         if (!hasAccess) return;
 
-        const invoiceClinicId =
-            selectedVisit?.clinic_id || currentClinicId;
-
-        fetchTransactionNumber(
-            formData.payment_date,
-            invoiceClinicId,
-        );
+        fetchTransactionNumber(formData.payment_date);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [
-        hasAccess,
-        formData.payment_date,
-        currentClinicId,
-        selectedVisit?.clinic_id,
-    ]);
+    }, [hasAccess, formData.payment_date]);
 
     const handleChange = (
         event:
@@ -543,7 +531,6 @@ const AddInvoice = () => {
             setFormData((prevData) => ({
                 ...prevData,
                 status: value,
-                amount: value === 'unpaid' ? '' : prevData.amount,
                 payment_method:
                     value === 'unpaid'
                         ? ''
@@ -557,6 +544,34 @@ const AddInvoice = () => {
             ...prevData,
             [name]: value,
         }));
+    };
+
+    const handleBillingItemChange = (
+        itemId: string,
+        field: 'item_name' | 'quantity' | 'unit_cost',
+        value: string,
+    ) => {
+        setBillingItems((currentItems) =>
+            currentItems.map((item) =>
+                item.id === itemId ? { ...item, [field]: value } : item,
+            ),
+        );
+        setErrorMessage('');
+    };
+
+    const addBillingItem = () => {
+        setBillingItems((currentItems) => [
+            ...currentItems,
+            createEmptyBillingItem(`item-${Date.now()}`),
+        ]);
+    };
+
+    const removeBillingItem = (itemId: string) => {
+        setBillingItems((currentItems) =>
+            currentItems.length === 1
+                ? currentItems
+                : currentItems.filter((item) => item.id !== itemId),
+        );
     };
 
     const handleOpenVisitModal = () => {
@@ -592,12 +607,12 @@ const AddInvoice = () => {
     };
 
     const validateForm = () => {
-        if (!transactionNumber) {
-            return 'Nomor invoice belum berhasil dibuat. Periksa koneksi backend atau klinik pengguna.';
+        if (!formData.payment_date) {
+            return 'Tanggal invoice wajib diisi.';
         }
 
-        if (!formData.payment_date) {
-            return 'Tanggal wajib diisi.';
+        if (formData.payment_date > todayInputValue) {
+            return 'Tanggal invoice tidak boleh lebih dari hari ini.';
         }
 
         if (!formData.trans_type) {
@@ -616,10 +631,25 @@ const AddInvoice = () => {
             return 'Status pembayaran tidak valid.';
         }
 
-        if (formData.status === 'paid') {
-            if (!formData.amount || Number(formData.amount) <= 0) {
-                return 'Nominal harus lebih dari 0 untuk status dibayar.';
+        for (const [index, item] of billingItems.entries()) {
+            if (!item.item_name.trim()) {
+                return `Nama layanan/item ke-${index + 1} wajib diisi.`;
             }
+
+            if (Number(item.quantity) <= 0) {
+                return `Jumlah item ke-${index + 1} harus lebih dari 0.`;
+            }
+
+            if (Number(item.unit_cost) < 0 || item.unit_cost === '') {
+                return `Biaya item ke-${index + 1} tidak valid.`;
+            }
+        }
+
+        if (invoiceTotal <= 0) {
+            return 'Total invoice harus lebih dari 0.';
+        }
+
+        if (formData.status === 'paid') {
 
             if (!formData.payment_method) {
                 return 'Metode pembayaran wajib dipilih untuk status dibayar.';
@@ -655,15 +685,19 @@ const AddInvoice = () => {
             }
             const payload = {
                 payment_date: formData.payment_date,
+                due_date: formData.payment_date,
                 visit_id: formData.visit_id || null,
                 trans_type: formData.trans_type,
-                amount: isUnpaid ? 0 : Number(formData.amount),
+                amount: invoiceTotal,
                 payment_method: isUnpaid ? null : formData.payment_method,
                 status: formData.status,
                 description: formData.description.trim(),
+                billing_items: billingItems.map((item) => ({
+                    item_name: item.item_name.trim(),
+                    quantity: Number(item.quantity),
+                    unit_cost: Number(item.unit_cost),
+                })),
             };
-
-            console.log('PAYLOAD:', payload);
 
             const response = await api.post(
                 '/financial/add',
@@ -693,11 +727,11 @@ if (response.status !== 200 && response.status !== 201) {
 }
 
             router.push('/financial-report');
-        } catch (error) {
-            const message =
-                error instanceof Error
-                    ? translateErrorMessage(error.message)
-                    : 'Terjadi kesalahan saat menambahkan invoice.';
+        } catch (error: unknown) {
+            const message = getRequestErrorMessage(
+                error,
+                'Terjadi kesalahan saat menambahkan invoice.',
+            );
 
             setErrorMessage(translateErrorMessage(message));
         } finally {
@@ -728,7 +762,9 @@ return (
                 </h1>
 
                 <p className="mt-1 text-[12px] text-[#6B6B6B]">
-                    Isi data invoice baru untuk laporan keuangan klinik.
+                    {selectedVisit?.billing_transaction_id
+                        ? 'Lengkapi invoice kunjungan yang belum dibayar.'
+                        : 'Isi data invoice baru untuk laporan keuangan klinik.'}
                 </p>
             </div>
 
@@ -738,10 +774,14 @@ return (
                 </p>
 
                 <p className="mt-1 text-[14px] font-bold text-[#2F3A2F]">
-                    {isLoadingTransactionNumber
-                        ? 'Memuat nomor...'
-                        : transactionNumber}
+                    {displayedTransactionNumber || 'Memuat...'}
                 </p>
+
+                {selectedVisit?.billing_transaction_id && (
+                    <p className="mt-1 text-[10px] font-semibold text-[#739072]">
+                        Nomor invoice kunjungan tetap digunakan
+                    </p>
+                )}
             </div>
         </div>
 
@@ -757,13 +797,14 @@ return (
         >
             <div className="grid grid-cols-1 gap-4 px-5 py-5 md:grid-cols-2">
                 <label className="block">
-                    <span className={labelClassName}>Tanggal</span>
+                    <span className={labelClassName}>Tanggal Invoice</span>
 
                     <input
                         type="date"
                         name="payment_date"
                         value={formData.payment_date}
                         onChange={handleChange}
+                        max={todayInputValue}
                         required
                         disabled={isSubmitting}
                         className={inputClassName}
@@ -848,32 +889,120 @@ return (
                     </select>
                 </label>
 
-                <label className="block">
-                    <span className={labelClassName}>Nominal</span>
+                <div className="rounded-[12px] border border-[#D2D8CF] bg-[#FDFEF9] p-4 md:col-span-2">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h2 className="text-[14px] font-bold text-[#4F6F52]">
+                                Rincian Biaya
+                            </h2>
+                            <p className="mt-1 text-[11px] text-[#6B6B6B]">
+                                Total dihitung otomatis dari jumlah × biaya per item.
+                            </p>
+                        </div>
 
-                    <input
-                        type="number"
-                        name="amount"
-                        value={formData.amount}
-                        onChange={handleChange}
-                        min="1"
-                        required={!isUnpaid}
-                        disabled={isSubmitting || isUnpaid}
-                        placeholder={
-                            isUnpaid
-                                ? 'Nonaktif untuk status belum dibayar'
-                                : 'Masukkan nominal'
-                        }
-                        className={inputClassName}
-                    />
+                        <button
+                            type="button"
+                            onClick={addBillingItem}
+                            disabled={isSubmitting}
+                            className="h-[34px] rounded-full bg-[#86A789] px-4 text-[11px] font-bold text-white hover:bg-[#739072] disabled:opacity-60"
+                        >
+                            + Tambah Item
+                        </button>
+                    </div>
 
-                    {isUnpaid && (
-                        <p className="mt-1 text-[11px] text-[#8A8A8A]">
-                            Nominal dikosongkan karena status pembayaran
-                            belum dibayar.
-                        </p>
-                    )}
-                </label>
+                    <div className="mt-4 space-y-3">
+                        {billingItems.map((item, index) => {
+                            const subtotal =
+                                Number(item.quantity || 0) *
+                                Number(item.unit_cost || 0);
+
+                            return (
+                                <div
+                                    key={item.id}
+                                    className="grid grid-cols-1 gap-3 rounded-[10px] border border-[#E4E8E1] bg-white p-3 md:grid-cols-[1fr_120px_180px_160px_auto] md:items-end"
+                                >
+                                    <label className="block">
+                                        <span className={labelClassName}>
+                                            Layanan / Item {index + 1}
+                                        </span>
+                                        <input
+                                            type="text"
+                                            value={item.item_name}
+                                            onChange={(event) =>
+                                                handleBillingItemChange(
+                                                    item.id,
+                                                    'item_name',
+                                                    event.target.value,
+                                                )
+                                            }
+                                            required
+                                            disabled={isSubmitting}
+                                            placeholder="Contoh: Pemeriksaan"
+                                            className={inputClassName}
+                                        />
+                                    </label>
+
+                                    <label className="block">
+                                        <span className={labelClassName}>Jumlah</span>
+                                        <input
+                                            type="number"
+                                            value={item.quantity}
+                                            onChange={(event) =>
+                                                handleBillingItemChange(
+                                                    item.id,
+                                                    'quantity',
+                                                    event.target.value,
+                                                )
+                                            }
+                                            min="0.01"
+                                            step="0.01"
+                                            required
+                                            disabled={isSubmitting}
+                                            className={inputClassName}
+                                        />
+                                    </label>
+
+                                    <label className="block">
+                                        <span className={labelClassName}>Biaya per Item</span>
+                                        <input
+                                            type="number"
+                                            value={item.unit_cost}
+                                            onChange={(event) =>
+                                                handleBillingItemChange(
+                                                    item.id,
+                                                    'unit_cost',
+                                                    event.target.value,
+                                                )
+                                            }
+                                            min="0"
+                                            step="1"
+                                            required
+                                            disabled={isSubmitting}
+                                            placeholder="0"
+                                            className={inputClassName}
+                                        />
+                                    </label>
+
+                                    <div>
+                                        <span className={labelClassName}>Subtotal</span>
+                                        <div className="mt-2 flex h-[42px] items-center rounded-[10px] bg-[#F8FAF6] px-3 text-[13px] font-bold text-[#2F3A2F]">
+                                            {formatRupiah(subtotal)}
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => removeBillingItem(item.id)}
+                                        disabled={isSubmitting || billingItems.length === 1}
+                                        className="h-[42px] rounded-[10px] border border-red-200 px-3 text-[11px] font-bold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                        Hapus
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
 
                 <label className="block">
                     <span className={labelClassName}>
@@ -955,10 +1084,14 @@ return (
                             </p>
 
                             <p className="mt-1 text-[16px] font-bold text-[#2F3A2F]">
-                                {isUnpaid
-                                    ? 'Belum dibayar'
-                                    : formatRupiah(formData.amount)}
+                                {formatRupiah(invoiceTotal)}
                             </p>
+
+                            {isUnpaid && (
+                                <p className="mt-1 text-[10px] font-semibold text-red-600">
+                                    Belum dibayar
+                                </p>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -976,11 +1109,7 @@ return (
 
                 <button
                     type="submit"
-                    disabled={
-                        isSubmitting ||
-                        isLoadingTransactionNumber ||
-                        !transactionNumber
-                    }
+                    disabled={isSubmitting}
                     className="h-[38px] rounded-[30px] bg-[#739072] px-5 text-[12px] font-bold text-white hover:bg-[#5F785F] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                     {isSubmitting ? 'Menyimpan...' : 'Simpan Invoice'}

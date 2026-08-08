@@ -7,7 +7,7 @@ import LoadingOverlay from '@/components/loading';
 import api from '@/utils/app';
 
 
-const FINANCIAL_ALLOWED_ROLES = ['admin', 'midwife'] as const;
+const FINANCIAL_ALLOWED_ROLES = ['midwife'] as const;
 
 type Role = 'admin' | 'midwife' | 'asisten' | '';
 
@@ -35,6 +35,7 @@ type FinancialDetail = {
     transaction_number: string;
     trans_id?: string;
     payment_date: string;
+    due_date: string;
     trans_type: string;
     amount: number;
     payment_method: string;
@@ -48,6 +49,20 @@ type FinancialDetail = {
     patient_name: string;
     patient_number?: string;
     user_name: string;
+    billing_items?: Array<{
+        item_id?: string;
+        item_name: string;
+        quantity: number;
+        unit_cost: number;
+        subtotal: number;
+    }>;
+};
+
+type BillingItemForm = {
+    id: string;
+    item_name: string;
+    quantity: string;
+    unit_cost: string;
 };
 
 type DetailFormData = {
@@ -58,6 +73,7 @@ type DetailFormData = {
     payment_method: string;
     status: string;
     description: string;
+    billing_items: BillingItemForm[];
 };
 
 const inputClassName =
@@ -145,6 +161,17 @@ const translateMessage = (message?: string) => {
     return rawMessage;
 };
 
+const getRequestErrorMessage = (error: unknown, fallback: string) => {
+    if (typeof error !== 'object' || error === null) return fallback;
+
+    const requestError = error as {
+        message?: string;
+        response?: { data?: { msg?: string } };
+    };
+
+    return requestError.response?.data?.msg || requestError.message || fallback;
+};
+
 const ForbiddenView = () => {
     return (
         <div className="flex min-h-[calc(100dvh-150px)] w-full items-center justify-center px-4">
@@ -163,7 +190,7 @@ const ForbiddenView = () => {
                 </p>
 
                 <p className="mt-2 text-[12px] font-semibold text-red-600">
-                    Halaman ini hanya dapat diakses oleh admin dan bidan.
+                    Halaman ini hanya dapat diakses oleh bidan.
                 </p>
             </div>
         </div>
@@ -174,6 +201,13 @@ const normalizeDateInput = (value?: string | null) => {
     if (!value) return '';
 
     return value.includes('T') ? value.split('T')[0] : value;
+};
+
+const getTodayInputValue = () => {
+    const date = new Date();
+    date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+
+    return date.toISOString().split('T')[0];
 };
 
 const formatRupiah = (value: string | number) => {
@@ -230,6 +264,22 @@ const getStatusBadgeClassName = (status: string) => {
 };
 
 const createFormFromDetail = (invoice: FinancialDetail): DetailFormData => {
+    const billingItems = invoice.billing_items?.length
+        ? invoice.billing_items.map((item, index) => ({
+              id: item.item_id || `item-${index + 1}`,
+              item_name: item.item_name || '',
+              quantity: String(item.quantity || 1),
+              unit_cost: String(item.unit_cost ?? ''),
+          }))
+        : [
+              {
+                  id: 'item-1',
+                  item_name: 'Invoice',
+                  quantity: '1',
+                  unit_cost: String(invoice.amount || ''),
+              },
+          ];
+
     return {
         transaction_number: invoice.transaction_number || '',
         payment_date: normalizeDateInput(invoice.payment_date || ''),
@@ -238,12 +288,14 @@ const createFormFromDetail = (invoice: FinancialDetail): DetailFormData => {
         payment_method: invoice.payment_method || 'Transfer',
         status: invoice.status || 'paid',
         description: invoice.description || '',
+        billing_items: billingItems,
     };
 };
 
 const DetailInvoicePage = () => {
     const router = useRouter();
     const params = useParams();
+    const todayInputValue = getTodayInputValue();
 
     const transactionId = String(params.transactionId || '');
 
@@ -256,6 +308,7 @@ const DetailInvoicePage = () => {
         payment_method: 'Transfer',
         status: 'paid',
         description: '',
+        billing_items: [],
     });
 
     const [originalFormData, setOriginalFormData] =
@@ -354,7 +407,7 @@ const DetailInvoicePage = () => {
                 return;
             }
 
-            if (!FINANCIAL_ALLOWED_ROLES.includes(userRole as 'admin' | 'midwife')) {
+            if (!FINANCIAL_ALLOWED_ROLES.includes(userRole as 'midwife')) {
                 handleForbidden();
                 return;
             }
@@ -469,23 +522,99 @@ const DetailInvoicePage = () => {
         setFormData((prevData) => ({
             ...prevData,
             [name]: value,
+            ...(name === 'status'
+                ? {
+                      payment_method:
+                          value === 'unpaid'
+                              ? ''
+                              : prevData.payment_method || 'Transfer',
+                  }
+                : {}),
         }));
+    };
+
+    const updateBillingItems = (nextItems: BillingItemForm[]) => {
+        const total = nextItems.reduce(
+            (sum, item) =>
+                sum + Number(item.quantity || 0) * Number(item.unit_cost || 0),
+            0,
+        );
+
+        setFormData((previous) => ({
+            ...previous,
+            billing_items: nextItems,
+            amount: String(total || ''),
+        }));
+        setSuccessMessage('');
+    };
+
+    const handleBillingItemChange = (
+        itemId: string,
+        field: 'item_name' | 'quantity' | 'unit_cost',
+        value: string,
+    ) => {
+        updateBillingItems(
+            formData.billing_items.map((item) =>
+                item.id === itemId ? { ...item, [field]: value } : item,
+            ),
+        );
+    };
+
+    const addBillingItem = () => {
+        updateBillingItems([
+            ...formData.billing_items,
+            {
+                id: `item-${Date.now()}`,
+                item_name: '',
+                quantity: '1',
+                unit_cost: '',
+            },
+        ]);
+    };
+
+    const removeBillingItem = (itemId: string) => {
+        if (formData.billing_items.length === 1) return;
+
+        updateBillingItems(
+            formData.billing_items.filter((item) => item.id !== itemId),
+        );
     };
 
     const validateForm = () => {
         if (!formData.payment_date) {
-            return 'Tanggal pembayaran wajib diisi.';
+            return 'Tanggal invoice wajib diisi.';
+        }
+
+        if (formData.payment_date > todayInputValue) {
+            return 'Tanggal invoice tidak boleh lebih dari hari ini.';
         }
 
         if (!['pemasukan', 'pengeluaran'].includes(formData.trans_type)) {
             return 'Tipe transaksi tidak valid.';
         }
 
-        if (!formData.amount || Number(formData.amount) <= 0) {
-            return 'Nominal harus lebih dari 0.';
+        for (const [index, item] of formData.billing_items.entries()) {
+            if (!item.item_name.trim()) {
+                return `Nama layanan/item ke-${index + 1} wajib diisi.`;
+            }
+
+            if (Number(item.quantity) <= 0) {
+                return `Jumlah item ke-${index + 1} harus lebih dari 0.`;
+            }
+
+            if (item.unit_cost === '' || Number(item.unit_cost) < 0) {
+                return `Biaya item ke-${index + 1} tidak valid.`;
+            }
         }
 
-        if (!['Transfer', 'QRIS', 'Cash'].includes(formData.payment_method)) {
+        if (!formData.amount || Number(formData.amount) <= 0) {
+            return 'Total invoice harus lebih dari 0.';
+        }
+
+        if (
+            formData.status === 'paid' &&
+            !['Transfer', 'QRIS', 'Cash'].includes(formData.payment_method)
+        ) {
             return 'Metode pembayaran tidak valid.';
         }
 
@@ -523,20 +652,32 @@ const DetailInvoicePage = () => {
                 return;
             }
 
-            const response = await api.patch(`/financial/detail/${transactionId}`, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
+            const response = await api.patch(
+                `/financial/detail/${transactionId}`,
+                {
                     payment_date: formData.payment_date,
+                    due_date: formData.payment_date,
                     trans_type: formData.trans_type,
                     amount: Number(formData.amount),
-                    payment_method: formData.payment_method,
+                    payment_method:
+                        formData.status === 'unpaid'
+                            ? null
+                            : formData.payment_method,
                     status: formData.status,
                     description: formData.description.trim(),
-                }),
-            });
+                    billing_items: formData.billing_items.map((item) => ({
+                        item_name: item.item_name.trim(),
+                        quantity: Number(item.quantity),
+                        unit_cost: Number(item.unit_cost),
+                    })),
+                },
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                },
+            );
 
             const data = response.data;
 
@@ -562,11 +703,11 @@ const DetailInvoicePage = () => {
             setFormData(nextFormData);
             setOriginalFormData(nextFormData);
             setSuccessMessage('Perubahan invoice berhasil disimpan.');
-        } catch (error) {
-            const message =
-                error instanceof Error
-                    ? translateMessage(error.message)
-                    : 'Terjadi kesalahan saat menyimpan perubahan.';
+        } catch (error: unknown) {
+            const message = getRequestErrorMessage(
+                error,
+                'Terjadi kesalahan saat menyimpan perubahan.',
+            );
 
             setErrorMessage(message);
         } finally {
@@ -702,7 +843,7 @@ const DetailInvoicePage = () => {
 
                         <label className="block">
                             <span className={labelClassName}>
-                                Tanggal Pembayaran
+                                Tanggal Invoice
                             </span>
 
                             <input
@@ -710,6 +851,7 @@ const DetailInvoicePage = () => {
                                 name="payment_date"
                                 value={formData.payment_date}
                                 onChange={handleChange}
+                                max={todayInputValue}
                                 required
                                 disabled={isSaving || isDeleting}
                                 className={inputClassName}
@@ -735,18 +877,14 @@ const DetailInvoicePage = () => {
                         </label>
 
                         <label className="block">
-                            <span className={labelClassName}>Nominal</span>
+                            <span className={labelClassName}>Total Invoice</span>
 
                             <input
                                 type="number"
                                 name="amount"
                                 value={formData.amount}
-                                onChange={handleChange}
-                                min="1"
-                                required
-                                disabled={isSaving || isDeleting}
-                                placeholder="Masukkan nominal"
-                                className={inputClassName}
+                                readOnly
+                                className={readonlyClassName}
                             />
                         </label>
 
@@ -759,8 +897,12 @@ const DetailInvoicePage = () => {
                                 name="payment_method"
                                 value={formData.payment_method}
                                 onChange={handleChange}
-                                required
-                                disabled={isSaving || isDeleting}
+                                required={formData.status === 'paid'}
+                                disabled={
+                                    isSaving ||
+                                    isDeleting ||
+                                    formData.status === 'unpaid'
+                                }
                                 className={selectClassName}
                             >
                                 <option value="Transfer">Transfer</option>
@@ -824,6 +966,122 @@ const DetailInvoicePage = () => {
                                 className={textareaClassName}
                             />
                         </label>
+
+                        <div className="rounded-[12px] border border-[#D2D8CF] bg-[#FDFEF9] p-4 md:col-span-2 xl:col-span-3">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                    <h3 className="text-[14px] font-bold text-[#4F6F52]">
+                                        Rincian Biaya
+                                    </h3>
+                                    <p className="mt-1 text-[11px] text-[#6B6B6B]">
+                                        Total dihitung otomatis dari jumlah × biaya per item.
+                                    </p>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={addBillingItem}
+                                    disabled={isSaving || isDeleting}
+                                    className="h-[34px] rounded-full bg-[#86A789] px-4 text-[11px] font-bold text-white hover:bg-[#739072] disabled:opacity-60"
+                                >
+                                    + Tambah Item
+                                </button>
+                            </div>
+
+                            <div className="mt-4 space-y-3">
+                                {formData.billing_items.map((item, index) => {
+                                    const subtotal =
+                                        Number(item.quantity || 0) *
+                                        Number(item.unit_cost || 0);
+
+                                    return (
+                                        <div
+                                            key={item.id}
+                                            className="grid grid-cols-1 gap-3 rounded-[10px] border border-[#E4E8E1] bg-white p-3 md:grid-cols-[1fr_110px_170px_150px_auto] md:items-end"
+                                        >
+                                            <label className="block">
+                                                <span className={labelClassName}>
+                                                    Layanan / Item {index + 1}
+                                                </span>
+                                                <input
+                                                    type="text"
+                                                    value={item.item_name}
+                                                    onChange={(event) =>
+                                                        handleBillingItemChange(
+                                                            item.id,
+                                                            'item_name',
+                                                            event.target.value,
+                                                        )
+                                                    }
+                                                    required
+                                                    disabled={isSaving || isDeleting}
+                                                    className={inputClassName}
+                                                />
+                                            </label>
+
+                                            <label className="block">
+                                                <span className={labelClassName}>Jumlah</span>
+                                                <input
+                                                    type="number"
+                                                    value={item.quantity}
+                                                    onChange={(event) =>
+                                                        handleBillingItemChange(
+                                                            item.id,
+                                                            'quantity',
+                                                            event.target.value,
+                                                        )
+                                                    }
+                                                    min="0.01"
+                                                    step="0.01"
+                                                    required
+                                                    disabled={isSaving || isDeleting}
+                                                    className={inputClassName}
+                                                />
+                                            </label>
+
+                                            <label className="block">
+                                                <span className={labelClassName}>Biaya per Item</span>
+                                                <input
+                                                    type="number"
+                                                    value={item.unit_cost}
+                                                    onChange={(event) =>
+                                                        handleBillingItemChange(
+                                                            item.id,
+                                                            'unit_cost',
+                                                            event.target.value,
+                                                        )
+                                                    }
+                                                    min="0"
+                                                    required
+                                                    disabled={isSaving || isDeleting}
+                                                    className={inputClassName}
+                                                />
+                                            </label>
+
+                                            <div>
+                                                <span className={labelClassName}>Subtotal</span>
+                                                <div className="mt-2 flex h-[42px] items-center rounded-[10px] bg-[#F8FAF6] px-3 text-[12px] font-bold text-[#2F3A2F]">
+                                                    {formatRupiah(subtotal)}
+                                                </div>
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => removeBillingItem(item.id)}
+                                                disabled={
+                                                    isSaving ||
+                                                    isDeleting ||
+                                                    formData.billing_items.length === 1
+                                                }
+                                                className="h-[42px] rounded-[10px] border border-red-200 px-3 text-[11px] font-bold text-red-600 hover:bg-red-50 disabled:opacity-40"
+                                            >
+                                                Hapus
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
                     </div>
 
                     <div className="border-t border-[#E4E8E1] px-5 py-4">

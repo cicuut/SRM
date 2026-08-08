@@ -17,7 +17,7 @@ import api from '@/utils/app';
 
 type Role = 'admin' | 'midwife' | 'asisten' | '';
 
-const FINANCIAL_ALLOWED_ROLES: Role[] = ['admin', 'midwife'];
+const FINANCIAL_ALLOWED_ROLES: Role[] = ['midwife'];
 
 type FinancialTransaction = {
     transaction_id: string;

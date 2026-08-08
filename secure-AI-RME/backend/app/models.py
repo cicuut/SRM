@@ -60,6 +60,7 @@ class User(db.Model):
     user_role = db.Column(db.String(20), nullable=False)
     strnumber = db.Column(EncryptedText, nullable=True)
     email = db.Column(db.String(255), nullable=False)
+    phone = db.Column(EncryptedText, nullable=True)
     is_active = db.Column(db.Boolean, default=True)
     profile_photo = db.Column(db.Text, nullable=True)
 
@@ -536,8 +537,36 @@ class Financial(db.Model):
     payment_method = db.Column(db.String(20), nullable=True)
     status = db.Column(db.String(20), nullable=False)
     payment_date = db.Column(db.Date, nullable=False)
+    due_date = db.Column(db.Date, nullable=True)
     description = db.Column(EncryptedText, nullable=True)
     visit_status = db.Column(db.String(20), nullable=True)
+
+    items = db.relationship(
+        'FinancialItem',
+        backref='financial',
+        cascade='all, delete-orphan',
+        passive_deletes=True,
+    )
+
+
+class FinancialItem(db.Model):
+    __tablename__ = 'financial_item'
+
+    item_id = db.Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    transaction_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('financial.transaction_id', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+    )
+    item_name = db.Column(db.String(255), nullable=False)
+    quantity = db.Column(db.Numeric(12, 2), nullable=False)
+    unit_cost = db.Column(db.Numeric(14, 2), nullable=False)
+    subtotal = db.Column(db.Numeric(14, 2), nullable=False)
     
 class FinancialSequence(db.Model):
     __tablename__ = 'financial_sequence'

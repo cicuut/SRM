@@ -12,6 +12,7 @@ import api from '@/utils/app';
 type AccountFormData = {
     fullname: string;
     email: string;
+    phone: string;
     strnumber: string;
     role: string;
 };
@@ -26,6 +27,7 @@ type UserData = {
     id: string;
     fullname: string;
     email: string;
+    phone?: string | null;
     role?: string;
     user_role?: string;
     strnumber?: string | null;
@@ -67,6 +69,7 @@ type InfoItemProps = {
 const emptyAccountForm: AccountFormData = {
     fullname: '',
     email: '',
+    phone: '',
     strnumber: '',
     role: '',
 };
@@ -88,6 +91,12 @@ const personalFields: PersonalFieldConfig[] = [
         name: 'email',
         type: 'email',
         autoComplete: 'email',
+    },
+    {
+        label: 'Nomor Telepon / WhatsApp',
+        name: 'phone',
+        type: 'tel',
+        autoComplete: 'tel',
     },
     {
         label: 'STR Number',
@@ -143,6 +152,7 @@ const mapApiDataToForm = (data: AccountApiResponse): AccountFormData => {
     return {
         fullname: data.user?.fullname || '',
         email: data.user?.email || '',
+        phone: data.user?.phone || '',
         strnumber: data.user?.strnumber || '',
         role,
     };
@@ -218,6 +228,7 @@ const AccountSetting = () => {
         localStorage.removeItem('user_id');
         localStorage.removeItem('fullname');
         localStorage.removeItem('user_email');
+        localStorage.removeItem('user_phone');
         localStorage.removeItem('user_role');
         localStorage.removeItem('clinic_id');
         localStorage.removeItem('profile_photo');
@@ -233,6 +244,7 @@ const AccountSetting = () => {
         localStorage.setItem('user_id', data.user.id || '');
         localStorage.setItem('fullname', data.user.fullname || '');
         localStorage.setItem('user_email', data.user.email || '');
+        localStorage.setItem('user_phone', data.user.phone || '');
         localStorage.setItem('user_role', role || '');
         localStorage.setItem('clinic_id', data.user.clinic_id || '');
 
@@ -362,7 +374,25 @@ const AccountSetting = () => {
             return 'Format email tidak valid';
         }
 
-        if (!formData.strnumber.trim()) {
+        const normalizedRole = formData.role.trim().toLowerCase();
+        const phone = formData.phone.trim();
+        const compactPhone = phone.replace(/[\s().-]/g, '');
+
+        if (
+            ['asisten', 'assistant', 'staff'].includes(normalizedRole) &&
+            !phone
+        ) {
+            return 'Nomor telepon/WhatsApp wajib diisi untuk akun asisten';
+        }
+
+        if (phone && !/^\+?\d{9,15}$/.test(compactPhone)) {
+            return 'Nomor telepon/WhatsApp tidak valid. Gunakan 9 sampai 15 digit';
+        }
+
+        if (
+            ['admin', 'midwife', 'bidan', 'owner'].includes(normalizedRole) &&
+            !formData.strnumber.trim()
+        ) {
             return 'STR number wajib diisi';
         }
 
@@ -397,6 +427,7 @@ const AccountSetting = () => {
         const response = await api.patch(`/auth/me`, {
             fullname: formData.fullname.trim(),
             email: formData.email.trim(),
+            phone: formData.phone.trim(),
             strnumber: formData.strnumber.trim(),
         }, {
             headers: {
