@@ -65,6 +65,19 @@ const AddVisitPregnancy = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    const normalizedPaymentStatus = paymentStatus.trim().toLowerCase();
+
+    if (!['paid', 'unpaid'].includes(normalizedPaymentStatus)) {
+      await Swal.fire({
+        title: "Status Pembayaran Wajib Dipilih!",
+        text: "Pilih status Terbayar atau Belum Bayar sebelum menyimpan kunjungan.",
+        icon: "warning",
+        confirmButtonColor: "#739072",
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -83,7 +96,7 @@ const AddVisitPregnancy = () => {
         blood_pressure: bloodPressure,
         total: total,
         payment_method: paymentMethod,
-        payment_status: paymentStatus,
+        payment_status: normalizedPaymentStatus,
       };
       const response = await api.post(
         "/visit-report/add-visit-pregnancy",

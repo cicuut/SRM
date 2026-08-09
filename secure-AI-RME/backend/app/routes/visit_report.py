@@ -180,12 +180,32 @@ def get_patient_display_name(patient):
 
 
 def get_financial_amount(data):
-    status = str(data.get("payment_status") or "unpaid").strip().lower()
+    status = str(data.get("payment_status") or "").strip().lower()
 
     if status == "unpaid":
         return clean_float(data.get("total")) or 0
 
     return clean_float(data.get("total")) or 0
+
+
+def validate_billing_data(data):
+    payment_status = str(data.get("payment_status") or "").strip().lower()
+
+    if payment_status not in {"paid", "unpaid"}:
+        return (
+            jsonify(
+                {
+                    "msg": (
+                        "Status pembayaran wajib dipilih. "
+                        "Pilih Terbayar atau Belum Bayar."
+                    )
+                }
+            ),
+            400,
+        )
+
+    data["payment_status"] = payment_status
+    return None
 
 
 def create_financial_for_visit(
@@ -216,7 +236,7 @@ def create_financial_for_visit(
         trans_type="pemasukan",
         amount=get_financial_amount(data),
         payment_method=data.get("payment_method"),
-        status=data.get("payment_status", "unpaid"),
+        status=data["payment_status"],
         payment_date=payment_date,
         description=final_description,
         visit_status=visit_status,
@@ -419,6 +439,11 @@ def add_visit_pregnancy():
         return error_response
 
     data = request.get_json() or {}
+    billing_error = validate_billing_data(data)
+
+    if billing_error:
+        return billing_error
+
     record_id = data.get("record_id")
     now_local = datetime.now()
     visit_date = now_local.date()
@@ -608,6 +633,11 @@ def add_visit_familyplanning():
         return error_response
 
     data = request.get_json() or {}
+    billing_error = validate_billing_data(data)
+
+    if billing_error:
+        return billing_error
+
     record_id = data.get("record_id")
     now_local = datetime.now()
     visit_date = now_local.date()
@@ -780,6 +810,11 @@ def add_visit_immunization():
         return error_response
 
     data = request.get_json() or {}
+    billing_error = validate_billing_data(data)
+
+    if billing_error:
+        return billing_error
+
     record_id = data.get("record_id")
     vaccine_given = data.get("vaccine_given")
     dosage_given = data.get("dosage_given")
@@ -996,6 +1031,11 @@ def add_visit_general():
         return error_response
 
     data = request.get_json() or {}
+    billing_error = validate_billing_data(data)
+
+    if billing_error:
+        return billing_error
+
     record_id = data.get("record_id")
     now_local = datetime.now()
     visit_date = now_local.date()
@@ -1028,7 +1068,7 @@ def add_visit_general():
             visit_number=data.get("visit_number"),
             visit_date=visit_date,
             visit_time=now_local,
-            visit_visit_status=initial_status
+            visit_status=initial_status
         )
         db.session.add(new_visit)
         db.session.flush()
@@ -1052,7 +1092,7 @@ def add_visit_general():
             patient_name=get_patient_display_name(patient),
             data=data,
             payment_date=now_local,
-            visit_visit_status=initial_status,
+            visit_status=initial_status,
         )
         record.last_update = now_local
         db.session.commit()
