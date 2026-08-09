@@ -31,6 +31,7 @@ type FinancialTransaction = {
     amount: number;
     payment_method: string;
     status: string;
+    visit_status?: string | null;
     description?: string;
     visit_display?: string;
     visit_number?: string;
@@ -158,6 +159,10 @@ const readJson = async (response: Response) => {
 
 const safeLower = (value: unknown) => {
     return String(value ?? '').toLowerCase();
+};
+
+const isPendingVisitTransaction = (transaction: FinancialTransaction) => {
+    return safeLower(transaction.visit_status).trim() === 'pending';
 };
 
 const normalizeDateInput = (dateString?: string | null) => {
@@ -611,9 +616,15 @@ const FinancialReport = () => {
                 throw new Error(data?.msg || 'Gagal mengambil data keuangan.');
             }
 
-            const rawTransactions = Array.isArray(data) ? data : data?.data || [];
+            const rawTransactions: FinancialTransaction[] = Array.isArray(data)
+                ? data
+                : data?.data || [];
 
-            setTransactions(sortFinancialNewestFirst(rawTransactions));
+            const approvedTransactions = rawTransactions.filter(
+                (transaction) => !isPendingVisitTransaction(transaction),
+            );
+
+            setTransactions(sortFinancialNewestFirst(approvedTransactions));
         } catch (error) {
             const message =
                 error instanceof Error

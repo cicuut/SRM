@@ -24,6 +24,22 @@ ASSISTANT_ROLE = "asisten"
 
 FINANCIAL_ALLOWED_ROLES = [MIDWIFE_ROLE]
 
+NON_PENDING_VISIT_FINANCIAL_CONDITION = """
+    (
+        f.visit_id IS NULL
+        OR NOT EXISTS (
+            SELECT 1
+            FROM visit_master financial_visit
+            WHERE financial_visit.visit_id = f.visit_id
+              AND LOWER(
+                    TRIM(
+                        COALESCE(financial_visit.visit_status, '')
+                    )
+                  ) = 'pending'
+        )
+    )
+"""
+
 
 # -----------------------------------------------------------------------------
 # Basic helpers
@@ -554,6 +570,7 @@ def resolve_visit_or_record_reference(reference_id, clinic_id=None):
             SELECT
                 vm.visit_id::text AS visit_id,
                 vm.visit_number,
+                vm.visit_status,
                 vm.record_id::text AS record_id,
                 mr.record_number,
                 mr.record_type::text AS record_type,
@@ -612,7 +629,8 @@ def resolve_visit_or_record_reference(reference_id, clinic_id=None):
             """
             SELECT
                 vm.visit_id::text AS visit_id,
-                vm.visit_number
+                vm.visit_number,
+                vm.visit_status
             FROM visit_master vm
             WHERE vm.record_id::text = :record_id
             ORDER BY
@@ -628,6 +646,7 @@ def resolve_visit_or_record_reference(reference_id, clinic_id=None):
     if latest_visit:
         resolved_row["visit_id"] = latest_visit.get("visit_id")
         resolved_row["visit_number"] = latest_visit.get("visit_number")
+        resolved_row["visit_status"] = latest_visit.get("visit_status")
 
     return resolved_row
 
@@ -776,6 +795,7 @@ FINANCIAL_SELECT_QUERY = """
         f.payment_date,
         f.due_date,
         f.description,
+        vm.visit_status,
 
         COALESCE(
             (
@@ -856,6 +876,7 @@ def serialize_financial_row(row):
         "payment_method": payment_method or "",
         "status": row.get("status"),
         "description": safe_decrypt(description) if description else "",
+        "visit_status": row.get("visit_status"),
         "visit_display": visit_display,
         "visit_number": row.get("visit_number") or "-",
         "visit_date": format_date(row.get("visit_date")),
@@ -879,7 +900,10 @@ def serialize_financial_row(row):
 
 
 def fetch_financial_by_transaction_id(transaction_id, clinic_id=None):
-    conditions = ["f.transaction_id::text = :transaction_id"]
+    conditions = [
+        "f.transaction_id::text = :transaction_id",
+        NON_PENDING_VISIT_FINANCIAL_CONDITION,
+    ]
     params = {"transaction_id": str(transaction_id)}
 
     if clinic_id:
@@ -915,6 +939,7 @@ def get_month_bounds(reference=None):
 
 def build_daily_financial_series(clinic_id, month_start, month_end):
     conditions = [
+        NON_PENDING_VISIT_FINANCIAL_CONDITION,
         "CAST(f.payment_date AS date) >= :month_start",
         "CAST(f.payment_date AS date) <= :month_end",
         "LOWER(f.status::text) IN ('paid', 'lunas', 'terbayar', 'dibayar')",
@@ -1056,6 +1081,7 @@ def get_monthly_summary():
         month_start, month_end = get_month_bounds()
 
         conditions = [
+            NON_PENDING_VISIT_FINANCIAL_CONDITION,
             "CAST(f.payment_date AS date) >= :month_start",
             "CAST(f.payment_date AS date) <= :month_end",
             "LOWER(f.status::text) IN ('paid', 'lunas', 'terbayar', 'dibayar')",
@@ -1142,7 +1168,7 @@ def get_all_financial_transactions():
         date_filter = request.args.get("date")
         search_query = request.args.get("search", "").strip()
 
-        conditions = []
+        conditions = [NON_PENDING_VISIT_FINANCIAL_CONDITION]
         params = {}
 
         if current_clinic_id:
@@ -1230,6 +1256,7 @@ def get_unpaid_visits():
         limit = max(1, min(limit, 500))
 
         conditions = [
+            "LOWER(TRIM(COALESCE(vm.visit_status, ''))) <> 'pending'",
             """
             NOT EXISTS (
                 SELECT 1
@@ -1408,6 +1435,21 @@ def add_financial_transaction():
                 normalize_optional_uuid(resolved_reference.get("clinic_id"))
                 or normalize_optional_uuid(scope_clinic_id)
             )
+
+            if (
+                visit_id
+                and normalize_status_text(
+                    resolved_reference.get("visit_status")
+                ) == "pending"
+            ):
+                return (
+                    jsonify(
+                        {
+                            "msg": "Laporan kunjungan masih berstatus pending. Setujui laporan kunjungan terlebih dahulu sebelum mengelola invoice."
+                        }
+                    ),
+                    409,
+                )
         else:
             transaction_clinic_id = normalize_optional_uuid(current_user.clinic_id)
 
