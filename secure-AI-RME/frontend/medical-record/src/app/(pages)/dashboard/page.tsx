@@ -9,9 +9,7 @@ import {
     AlertCircle,
     ArrowUpCircle,
     CalendarDays,
-    ChartNoAxesCombined,
     ClipboardList,
-    LineChart,
     TrendingUp,
     UserCheck,
     UserPlus,
@@ -25,20 +23,9 @@ import {
     FinancialChart,
     FinancialChartPoint,
 } from '@/components/dashboard/financial-chart';
-import {
-    SERVICE_COLORS,
-    ServiceSeries,
-    VisitorChart,
-} from '@/components/dashboard/visitor-chart';
+import { VisitorForecastPanel } from '@/components/dashboard/visitor-forecast-panel';
 import { TopAssessmentList } from '@/components/dashboard/top-assessment-list';
-
-const FALLBACK_SERVICE_COLORS = [
-    '#2563EB',
-    '#DC2626',
-    '#7C3AED',
-    '#EA580C',
-    '#0891B2',
-];
+import { ForecastResponse } from '@/utils/forecast-aggregation';
 
 type Role = 'admin' | 'midwife' | 'asisten' | '';
 
@@ -85,30 +72,6 @@ type AuthMeResponse = {
     redirect_path?: string;
     user: CurrentUser;
 };
-
-interface ChartPoint {
-    date: string;
-    count: number;
-}
-
-interface ForecastResponse {
-    month: string;
-    monthly_actual: number;
-    monthly_forecast: number;
-    history: ChartPoint[];
-    forecast: ChartPoint[];
-    by_service: Record<
-        string,
-        {
-            actual_month_to_date: number;
-            forecast_remaining_month: number;
-            forecast_month_total: number;
-            history: ChartPoint[];
-            forecast: ChartPoint[];
-            has_model?: boolean;
-        }
-    >;
-}
 
 interface MonthlyFinancialSummary {
     month: string;
@@ -423,21 +386,6 @@ const Dashboard = () => {
 
     const forecastMonthLabel = formatMonthLabel(forecastData?.month);
     const diagnosisMonthLabel = formatMonthLabel(diagnosisMonth);
-
-    const forecastServices = forecastData
-        ? Object.entries(forecastData.by_service)
-        : [];
-
-    const visitorChartSeries: ServiceSeries[] = forecastData
-        ? Object.entries(forecastData.by_service)
-            .filter(([, data]) => data.has_model !== false)
-            .map(([name, data]) => ({
-                name,
-                history: data.history,
-                forecast: data.forecast,
-                color: '',
-            }))
-        : [];
 
     const loadLocalProfilePhoto = () => {
         if (typeof window === 'undefined') return;
@@ -934,7 +882,11 @@ const Dashboard = () => {
                                 ? '—'
                                 : 'Memuat...'
                     }
-                    subtitle="Estimasi total kunjungan bulan ini"
+                    subtitle={
+                        forecastMonthLabel
+                            ? `Estimasi total kunjungan ${forecastMonthLabel}`
+                            : 'Estimasi total kunjungan bulan ini'
+                    }
                     icon={<TrendingUp className="h-5 w-5" />}
                     tone="blue"
                 />
@@ -978,105 +930,11 @@ const Dashboard = () => {
                 )}
             </section>
 
-            <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1.35fr_0.9fr]">
-                <SectionCard
-                    title="Grafik Pengunjung Bulanan"
-                    subtitle="Perbandingan kunjungan aktual dan prediksi setiap layanan."
-                    icon={<LineChart className="h-5 w-5" />}
-                    className="min-h-[390px]"
-                >
-                    <VisitorChart
-                        title=""
-                        series={visitorChartSeries}
-                        emptyMessage={
-                            forecastError ||
-                            'Belum ada data kunjungan untuk layanan yang dimodelkan'
-                        }
-                    />
-                </SectionCard>
-
-                <SectionCard
-                    title="Perkiraan Pengunjung"
-                    subtitle="Ringkasan prediksi kunjungan berdasarkan layanan."
-                    icon={<ChartNoAxesCombined className="h-5 w-5" />}
-                    className="min-h-[390px]"
-                >
-                    {forecastError && <ErrorNotice message={forecastError} />}
-
-                    {!forecastError &&
-                        forecastServices.length === 0 &&
-                        !loading && (
-                            <div className="rounded-[16px] border border-[#E4E8E1] bg-[#F8FAF6] px-4 py-8 text-center text-[12px] text-gray-500">
-                                Belum ada data untuk menghitung perkiraan.
-                            </div>
-                        )}
-
-                    <div className="grid grid-cols-1 gap-3">
-                        {forecastServices.map(([service, stats], index) => {
-                            const accentColor =
-                                SERVICE_COLORS[service] ??
-                                FALLBACK_SERVICE_COLORS[
-                                index % FALLBACK_SERVICE_COLORS.length
-                                ];
-
-                            return (
-                                <div
-                                    key={service}
-                                    className="rounded-[18px] border border-[#E6EDE5] bg-[#FDFEF9] px-4 py-4 shadow-sm"
-                                    style={{
-                                        borderLeftWidth: 5,
-                                        borderLeftColor: accentColor,
-                                    }}
-                                >
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div className="min-w-0">
-                                            <p
-                                                className="truncate text-[13px] font-extrabold"
-                                                style={{ color: accentColor }}
-                                            >
-                                                {service}
-                                            </p>
-
-                                            <p className="mt-2 text-[11px] font-medium text-gray-500">
-                                                Aktual:{' '}
-                                                {formatNumber(
-                                                    stats.actual_month_to_date,
-                                                )}{' '}
-                                                kunjungan
-                                            </p>
-                                        </div>
-
-                                        <div className="text-right">
-                                            {stats.has_model === false ? (
-                                                <p className="text-[11px] font-semibold text-gray-500">
-                                                    Belum ada model
-                                                </p>
-                                            ) : (
-                                                <>
-                                                    <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-gray-400">
-                                                        Forecast
-                                                    </p>
-
-                                                    <p
-                                                        className="mt-1 text-[17px] font-extrabold"
-                                                        style={{
-                                                            color: accentColor,
-                                                        }}
-                                                    >
-                                                        {formatNumber(
-                                                            stats.forecast_month_total,
-                                                        )}
-                                                    </p>
-                                                </>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </SectionCard>
-            </section>
+            <VisitorForecastPanel
+                data={forecastData}
+                error={forecastError}
+                loading={loading}
+            />
 
             <section
                 className={`grid grid-cols-1 gap-5 ${canViewFinancial

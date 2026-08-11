@@ -115,7 +115,7 @@ function formatDayLabel(value: string) {
     });
 }
 
-/** Label sumbu X: hanya angka hari (1–31) */
+/** Label sumbu X: hari + singkat bulan (agar jelas lintas bulan) */
 function formatAxisDayLabel(value: string) {
     const parsed = new Date(`${value}T00:00:00`);
 
@@ -123,7 +123,10 @@ function formatAxisDayLabel(value: string) {
         return value;
     }
 
-    return String(parsed.getDate());
+    return parsed.toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'short',
+    });
 }
 
 /** Format angka kunjungan dengan pemisah ribuan (id-ID) */
