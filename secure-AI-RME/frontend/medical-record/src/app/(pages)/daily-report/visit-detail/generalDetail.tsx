@@ -16,6 +16,11 @@ interface VisitGeneralDetailProps {
     total_amount?: number;
     payment_method?: string;
     status?: string;
+    items?: Array<{
+      item_name: string;
+      quantity: number;
+      unit_cost: number;
+    }>;
   };
 }
 
@@ -25,6 +30,15 @@ interface SOAPFormData {
   assessment: string;
   plan: string;
 }
+
+const formatRupiah = (value: number | string | undefined | null) => {
+  const numericValue = Number(value || 0);
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+  }).format(Number.isNaN(numericValue) ? 0 : numericValue);
+};
 
 const VisitGeneralDetail = () => {
   const [visitGeneralDetail, setVisitGeneralDetail] =
@@ -51,6 +65,8 @@ const VisitGeneralDetail = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [visitStatus, setVisitStatus] = useState<string>("");
   const [userRole, setUserRole] = useState("");
+  const finance = visitGeneralDetail?.finance;
+  const billingItems = finance?.items || [];
 
   const isChanged = useMemo(() => {
     if (!originalFormData) return false;
@@ -371,6 +387,67 @@ const VisitGeneralDetail = () => {
                 className="mt-2 h-[42px] w-full cursor-not-allowed rounded-[10px] border border-[#D2D8CF] bg-[#F8FAF6] px-3 text-[13px] text-[#5F5F5F] outline-none"
               />
             </label>
+            <div className="rounded-[12px] border border-[#D2D8CF] bg-white p-4 md:col-span-2 xl:col-span-4 mt-2">
+              <h3 className="text-[14px] font-bold text-[#4F6F52]">
+                Rincian Biaya
+              </h3>
+
+              {billingItems.length === 0 ? (
+                <p className="mt-2 text-[12px] text-gray-500 italic">
+                  Tidak ada rincian biaya untuk kunjungan ini.
+                </p>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  {billingItems.map((item, index) => {
+                    const itemSubtotal =
+                      item.quantity * item.unit_cost;
+
+                    return (
+                      <div
+                        key={index}
+                        className="grid grid-cols-1 gap-2 rounded-[10px] border border-[#E4E8E1] bg-[#F8FAF6] p-3 md:grid-cols-[1fr_100px_150px_150px]"
+                      >
+                        <div>
+                          <span className="block text-[10px] font-bold text-[#777]">
+                            Layanan / Item
+                          </span>
+                          <span className="text-[13px] font-medium text-[#2F3A2F]">
+                            {item.item_name}
+                          </span>
+                        </div>
+
+                        <div>
+                          <span className="block text-[10px] font-bold text-[#777]">
+                            Jumlah
+                          </span>
+                          <span className="text-[13px] font-medium text-[#2F3A2F]">
+                            {item.quantity}
+                          </span>
+                        </div>
+
+                        <div>
+                          <span className="block text-[10px] font-bold text-[#777]">
+                            Biaya per Item
+                          </span>
+                          <span className="text-[13px] font-medium text-[#2F3A2F]">
+                            {formatRupiah(item.unit_cost)}
+                          </span>
+                        </div>
+
+                        <div>
+                          <span className="block text-[10px] font-bold text-[#777]">
+                            Subtotal
+                          </span>
+                          <span className="text-[13px] font-bold text-[#2F3A2F]">
+                            {formatRupiah(itemSubtotal)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

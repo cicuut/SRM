@@ -6,7 +6,7 @@ import { useParams, useSearchParams, useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 import api from "@/utils/app";
 import AddVisitInformation from "@/components/visit/add-visit-information";
-import BillingForm from "@/components/visit/billing";
+import BillingForm, { BillingItemFormProps } from "@/components/visit/billing";
 
 const AddVisitImmunization = () => {
   const [error, setError] = useState("");
@@ -27,6 +27,7 @@ const AddVisitImmunization = () => {
   const [paymentStatus, setPaymentStatus] = useState("");
   const uuid = params.id;
   const [data, setData] = useState(null);
+  const [billingItems, setBillingItems] = useState<BillingItemFormProps[]>([]);
 
   const fetchData = async () => {
     if (!uuid) return;
@@ -64,7 +65,7 @@ const AddVisitImmunization = () => {
 
     const normalizedPaymentStatus = paymentStatus.trim().toLowerCase();
 
-    if (!['paid', 'unpaid'].includes(normalizedPaymentStatus)) {
+    if (!["paid", "unpaid"].includes(normalizedPaymentStatus)) {
       await Swal.fire({
         title: "Status Pembayaran Wajib Dipilih!",
         text: "Pilih status Terbayar atau Belum Bayar sebelum menyimpan kunjungan.",
@@ -90,6 +91,11 @@ const AddVisitImmunization = () => {
         total: total,
         payment_method: paymentMethod,
         payment_status: normalizedPaymentStatus,
+        billing_items: billingItems.map((item) => ({
+          item_name: item.item_name.trim(),
+          quantity: Number(item.quantity),
+          unit_cost: Number(item.unit_cost),
+        })),
       };
       const response = await api.post(
         `/visit-report/add-visit-immunization`,
@@ -156,7 +162,11 @@ const AddVisitImmunization = () => {
             className="w-full p-2 h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
           />
         </label>
-        <label className="block">          <p className="text-md font-medium text-gray-700 md:text-sm">Suhu Tubuh</p>
+        <label className="block">
+          {" "}
+          <p className="text-md font-medium text-gray-700 md:text-sm">
+            Suhu Tubuh
+          </p>
           <input
             type="number"
             placeholder="Tanpa satuan"
@@ -169,9 +179,11 @@ const AddVisitImmunization = () => {
         </label>
       </div>
       <div className="grid grid-cols-1 gap-4 px-5 md:grid-cols-2">
-        <label className="block">          <p className="text-md font-medium text-gray-700 md:text-sm">
-          Lingkar Kepala
-        </p>
+        <label className="block">
+          {" "}
+          <p className="text-md font-medium text-gray-700 md:text-sm">
+            Lingkar Kepala
+          </p>
           <input
             type="number"
             placeholder="Tanpa satuan"
@@ -182,9 +194,11 @@ const AddVisitImmunization = () => {
             className="w-full p-2 h-8 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
           />
         </label>
-        <label className="block">          <p className="text-md font-medium text-gray-700 md:text-sm">
-          Lingkar Perut
-        </p>
+        <label className="block">
+          {" "}
+          <p className="text-md font-medium text-gray-700 md:text-sm">
+            Lingkar Perut
+          </p>
           <input
             type="number"
             placeholder="Tanpa satuan"
@@ -202,10 +216,11 @@ const AddVisitImmunization = () => {
         </p>
       </div>
       <div className="grid grid-cols-2 gap-4 px-5">
-        <label className="block">            <p className="text-md font-medium text-gray-700 md:text-sm">
-          Pemberian Imunisasi
-        </p>
-
+        <label className="block">
+          {" "}
+          <p className="text-md font-medium text-gray-700 md:text-sm">
+            Pemberian Imunisasi
+          </p>
           <select
             value={vaccine_given}
             onChange={(e) => {
@@ -228,7 +243,9 @@ const AddVisitImmunization = () => {
           </select>
         </label>
 
-        <label className="block">            <p className="text-md font-medium text-gray-700 md:text-sm">Dosis</p>
+        <label className="block">
+          {" "}
+          <p className="text-md font-medium text-gray-700 md:text-sm">Dosis</p>
           <select
             value={dosage_given}
             onChange={(e) => setDosageGiven(e.target.value)}
@@ -255,10 +272,12 @@ const AddVisitImmunization = () => {
           setPaymentMethod={setPaymentMethod}
           paymentStatus={paymentStatus}
           setPaymentStatus={setPaymentStatus}
+          isSubmitting={loading}
+          onItemsChange={(items) => setBillingItems(items)}
         />
       </div>
       <div className="flex justify-center gap-4 mt-10">
-       <button
+        <button
           onClick={handleSubmit}
           type="submit"
           className="px-8 py-2 bg-[#739072] text-white rounded-full hover:bg-[#4F6F52] shadow-lg transition font-bold cursor-pointer"
@@ -274,6 +293,6 @@ const AddVisitImmunization = () => {
         </button>
       </div>
     </div>
-    );
+  );
 };
 export default AddVisitImmunization;

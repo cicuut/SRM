@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 import api from "@/utils/app";
 import AddVisitInformation from "@/components/visit/add-visit-information";
-import BillingForm from "@/components/visit/billing";
+import BillingForm, { BillingItemFormProps } from "@/components/visit/billing";
 
 const AddVisitGeneral = () => {
   const [error, setError] = useState("");
@@ -23,6 +23,7 @@ const AddVisitGeneral = () => {
   const [paymentMethod, setPaymentMethod] = useState("");
   const [paymentStatus, setPaymentStatus] = useState("");
   const uuid = params.id;
+  const [billingItems, setBillingItems] = useState<BillingItemFormProps[]>([]);
   const [data, setData] = useState(null);
 
   const fetchData = async () => {
@@ -50,7 +51,7 @@ const AddVisitGeneral = () => {
 
     const normalizedPaymentStatus = paymentStatus.trim().toLowerCase();
 
-    if (!['paid', 'unpaid'].includes(normalizedPaymentStatus)) {
+    if (!["paid", "unpaid"].includes(normalizedPaymentStatus)) {
       await Swal.fire({
         title: "Status Pembayaran Wajib Dipilih!",
         text: "Pilih status Terbayar atau Belum Bayar sebelum menyimpan kunjungan.",
@@ -73,6 +74,11 @@ const AddVisitGeneral = () => {
         total: total,
         payment_method: paymentMethod,
         payment_status: normalizedPaymentStatus,
+        billing_items: billingItems.map((item) => ({
+          item_name: item.item_name.trim(),
+          quantity: Number(item.quantity),
+          unit_cost: Number(item.unit_cost),
+        })),
       };
       const response = await api.post(
         "/visit-report/add-visit-general",
@@ -111,17 +117,21 @@ const AddVisitGeneral = () => {
       </div>
       <div className="grid grid-cols-1 gap-4 px-5">
         <label className="block">
-          <p className="text-md font-medium text-gray-700 md:text-sm">Subjective</p>
+          <p className="text-md font-medium text-gray-700 md:text-sm">
+            Subjective
+          </p>
           <textarea
             name="subjective"
             value={subjective}
             onChange={(e) => setSubjective(e.target.value)}
             id="subjective"
-             className="w-full p-2 h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
+            className="w-full p-2 h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
           />
         </label>
         <label className="block">
-          <p className="text-md font-medium text-gray-700 md:text-sm">Objective</p>
+          <p className="text-md font-medium text-gray-700 md:text-sm">
+            Objective
+          </p>
           <textarea
             name="objective"
             value={objective}
@@ -131,13 +141,15 @@ const AddVisitGeneral = () => {
           />
         </label>
         <label className="block">
-          <p className="text-md font-medium text-gray-700 md:text-sm">Assessment</p>
+          <p className="text-md font-medium text-gray-700 md:text-sm">
+            Assessment
+          </p>
           <textarea
             name="assessment"
             value={assessment}
             onChange={(e) => setAssessment(e.target.value)}
             id="assessment"
-             className="w-full p-2 h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
+            className="w-full p-2 h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
           />
         </label>
         <label className="block">
@@ -147,7 +159,7 @@ const AddVisitGeneral = () => {
             value={plan}
             onChange={(e) => setPlan(e.target.value)}
             id="plan"
-             className="w-full p-2 h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
+            className="w-full p-2 h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
           />
         </label>
       </div>
@@ -159,10 +171,12 @@ const AddVisitGeneral = () => {
           setPaymentMethod={setPaymentMethod}
           paymentStatus={paymentStatus}
           setPaymentStatus={setPaymentStatus}
+          isSubmitting={loading}
+          onItemsChange={(items) => setBillingItems(items)}
         />
       </div>
       <div className="flex justify-center gap-4 mt-10">
-         <button
+        <button
           onClick={handleSubmit}
           type="submit"
           className="px-8 py-2 bg-[#739072] text-white rounded-full hover:bg-[#4F6F52] shadow-lg transition font-bold cursor-pointer"

@@ -1,5 +1,6 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
+from itsdangerous import URLSafeTimedSerializer
 from flask_jwt_extended import JWTManager
 from flask_cors import CORS
 from datetime import timedelta
@@ -46,11 +47,15 @@ def create_app():
         'SRM Security System', 
         os.environ.get('MAIL_USERNAME')
     )
+    app.config['SECRET_KEY_EMAIL'] = os.environ.get('SECRET_KEY_EMAIL')
+    app.config['FRONTEND_URL'] = os.environ.get('FRONTEND_URL')
 
     db.init_app(app)
     JWTManager(app)
     limiter.init_app(app)
     mail.init_app(app)
+
+    serializer = URLSafeTimedSerializer(app.config['SECRET_KEY_EMAIL'])
 
     from .audit_hooks import register_audit_hooks
     register_audit_hooks()

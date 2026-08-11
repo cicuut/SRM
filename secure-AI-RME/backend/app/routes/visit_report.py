@@ -15,6 +15,7 @@ from app.models import (
     VisitGeneral,
     FamilyPlanningRecord,
     Financial,
+    FinancialItem,
 )
 from app.utils import (
     generate_visit_number,
@@ -243,6 +244,27 @@ def create_financial_for_visit(
     )
 
     db.session.add(new_financial)
+    db.session.flush()
+
+    billing_items = data.get("billing_items") or []
+    if data.get("payment_status") != "unpaid" and billing_items:
+        for item in billing_items:
+            item_name = str(item.get("item_name", "")).strip()
+            quantity = clean_float(item.get("quantity")) or 1.0
+            unit_cost = clean_float(item.get("unit_cost")) or 0.0
+            subtotal = quantity * unit_cost
+
+            if item_name:
+                financial_item = FinancialItem(
+                    transaction_id=new_financial.transaction_id,
+                    item_name=item_name,
+                    quantity=quantity,
+                    unit_cost=unit_cost,
+                    subtotal=subtotal,
+                )
+                db.session.add(financial_item)
+
+    return new_financial
     return new_financial
 
 
@@ -541,6 +563,16 @@ def get_pregnancy_visit(uuid):
             return jsonify({"msg": "Data kehamilan tidak ditemukan."}), 404
 
         current_finance = get_visit_finance(uuid)
+        current_finance_items = []
+        if current_finance and current_finance.items:
+            for item in current_finance.items:
+                current_finance_items.append({
+                    "item_id": str(item.item_id),
+                    "item_name": item.item_name,
+                    "quantity": float(item.quantity) if item.quantity else 0,
+                    "unit_cost": float(item.unit_cost) if item.unit_cost else 0,
+                    "subtotal": float(item.subtotal) if item.subtotal else 0,
+                })
 
         return jsonify({
             "subjective": safe_decrypt(current_pregnancy_visit.subjective) or "-",
@@ -560,6 +592,7 @@ def get_pregnancy_visit(uuid):
                 "total_amount": current_finance.amount if current_finance else 0,
                 "status": current_finance.status if current_finance else "unpaid",
                 "payment_method": current_finance.payment_method if current_finance else "-",
+                "items": current_finance_items
             },
         }), 200
 
@@ -731,6 +764,17 @@ def get_familyplanning_visit(uuid):
 
         current_finance = get_visit_finance(uuid)
 
+        current_finance_items = []
+        if current_finance and current_finance.items:
+            for item in current_finance.items:
+                current_finance_items.append({
+                    "item_id": str(item.item_id),
+                    "item_name": item.item_name,
+                    "quantity": float(item.quantity) if item.quantity else 0,
+                    "unit_cost": float(item.unit_cost) if item.unit_cost else 0,
+                    "subtotal": float(item.subtotal) if item.subtotal else 0,
+                })
+
         return jsonify({
             "complaint": safe_decrypt(current_familyplanning_visit.complaint),
             "weight_kg": clean_float(current_familyplanning_visit.weight_kg),
@@ -743,6 +787,7 @@ def get_familyplanning_visit(uuid):
                 "total_amount": current_finance.amount if current_finance else 0,
                 "payment_method": current_finance.payment_method if current_finance else "-",
                 "status": current_finance.status if current_finance else "-",
+                "items": current_finance_items
             },
         }), 200
 
@@ -919,6 +964,16 @@ def get_immunization_visit(uuid):
             return jsonify({"msg": "Data imunisasi tidak ditemukan."}), 404
 
         current_finance = get_visit_finance(uuid)
+        current_finance_items = []
+        if current_finance and current_finance.items:
+            for item in current_finance.items:
+                current_finance_items.append({
+                    "item_id": str(item.item_id),
+                    "item_name": item.item_name,
+                    "quantity": float(item.quantity) if item.quantity else 0,
+                    "unit_cost": float(item.unit_cost) if item.unit_cost else 0,
+                    "subtotal": float(item.subtotal) if item.subtotal else 0,
+                })
 
         return jsonify({
             "weight_kg": current_immunization_visit.baby_weight or "-",
@@ -933,6 +988,7 @@ def get_immunization_visit(uuid):
                 "total_amount": current_finance.amount if current_finance else 0,
                 "payment_method": current_finance.payment_method if current_finance else "-",
                 "status": current_finance.status if current_finance else "-",
+                "items": current_finance_items,
             },
         }), 200
 
@@ -1128,6 +1184,17 @@ def get_general_visit(uuid):
 
         current_finance = get_visit_finance(uuid)
 
+        current_finance_items = []
+        if current_finance and current_finance.items:
+            for item in current_finance.items:
+                current_finance_items.append({
+                    "item_id": str(item.item_id),
+                    "item_name": item.item_name,
+                    "quantity": float(item.quantity) if item.quantity else 0,
+                    "unit_cost": float(item.unit_cost) if item.unit_cost else 0,
+                    "subtotal": float(item.subtotal) if item.subtotal else 0,
+                })
+
         return jsonify({
             "subjective": safe_decrypt(current_general_visit.subjective),
             "objective": safe_decrypt(current_general_visit.objective),
@@ -1138,6 +1205,7 @@ def get_general_visit(uuid):
                 "total_amount": current_finance.amount if current_finance else 0,
                 "payment_method": current_finance.payment_method if current_finance else "-",
                 "status": current_finance.status if current_finance else "-",
+                "items": current_finance_items
             },
         }), 200
 

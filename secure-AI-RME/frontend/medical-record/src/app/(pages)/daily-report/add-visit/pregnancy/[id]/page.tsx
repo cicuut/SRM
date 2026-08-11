@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 import api from "@/utils/app";
 import AddVisitInformation from "@/components/visit/add-visit-information";
-import BillingForm from "@/components/visit/billing";
+import BillingForm, { BillingItemFormProps } from "@/components/visit/billing";
 
 const AddVisitPregnancy = () => {
   const [error, setError] = useState("");
@@ -30,6 +30,7 @@ const AddVisitPregnancy = () => {
   const [assessment, setAssessment] = useState("");
   const [plan, setPlan] = useState("");
   const uuid = params.id;
+  const [billingItems, setBillingItems] = useState<BillingItemFormProps[]>([]);
 
   const fetchData = async () => {
     if (!uuid) return;
@@ -68,7 +69,7 @@ const AddVisitPregnancy = () => {
 
     const normalizedPaymentStatus = paymentStatus.trim().toLowerCase();
 
-    if (!['paid', 'unpaid'].includes(normalizedPaymentStatus)) {
+    if (!["paid", "unpaid"].includes(normalizedPaymentStatus)) {
       await Swal.fire({
         title: "Status Pembayaran Wajib Dipilih!",
         text: "Pilih status Terbayar atau Belum Bayar sebelum menyimpan kunjungan.",
@@ -97,6 +98,11 @@ const AddVisitPregnancy = () => {
         total: total,
         payment_method: paymentMethod,
         payment_status: normalizedPaymentStatus,
+        billing_items: billingItems.map((item) => ({
+          item_name: item.item_name.trim(),
+          quantity: Number(item.quantity),
+          unit_cost: Number(item.unit_cost),
+        })),
       };
       const response = await api.post(
         "/visit-report/add-visit-pregnancy",
@@ -137,8 +143,7 @@ const AddVisitPregnancy = () => {
       </div>
       <div className="grid grid-cols-2 gap-4 px-5 md:grid-cols-3 lg:grid-cols-4">
         <label className="block">
-          <p className="text-md font-medium text-gray-700 md:text-sm">
-            Berat</p>
+          <p className="text-md font-medium text-gray-700 md:text-sm">Berat</p>
           <input
             type="number"
             name="weight"
@@ -227,7 +232,11 @@ const AddVisitPregnancy = () => {
         </p>
       </div>
       <div className="grid grid-cols-1 gap-4 px-5">
-        <label className="block"  >           <p className="text-md font-medium text-gray-700 md:text-sm">Subjective</p>
+        <label className="block">
+          {" "}
+          <p className="text-md font-medium text-gray-700 md:text-sm">
+            Subjective
+          </p>
           <textarea
             name="subjective"
             value={subjective}
@@ -236,7 +245,11 @@ const AddVisitPregnancy = () => {
             className="p-2 w-full h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
           />
         </label>
-        <label className="block"  >          <p className="text-md font-medium text-gray-700 md:text-sm">Objective</p >
+        <label className="block">
+          {" "}
+          <p className="text-md font-medium text-gray-700 md:text-sm">
+            Objective
+          </p>
           <textarea
             name="objective"
             value={objective}
@@ -245,7 +258,11 @@ const AddVisitPregnancy = () => {
             className="p-2 w-full h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
           />
         </label>
-        <label className="block"  >          <p className="text-md font-medium text-gray-700 md:text-sm">Assessment</p>
+        <label className="block">
+          {" "}
+          <p className="text-md font-medium text-gray-700 md:text-sm">
+            Assessment
+          </p>
           <textarea
             name="assessment"
             value={assessment}
@@ -254,7 +271,7 @@ const AddVisitPregnancy = () => {
             className="p-2 w-full h-30 rounded-md bg-white drop-shadow-lg border border-gray-300 focus:outline-none focus:ring-2"
           />
         </label>
-        <label className="block"  >
+        <label className="block">
           <p className="text-md font-medium text-gray-700 md:text-sm">Plan</p>
           <textarea
             name="plan"
@@ -274,6 +291,8 @@ const AddVisitPregnancy = () => {
           setPaymentMethod={setPaymentMethod}
           paymentStatus={paymentStatus}
           setPaymentStatus={setPaymentStatus}
+          isSubmitting={loading}
+          onItemsChange={(items) => setBillingItems(items)}
         />
       </div>
 

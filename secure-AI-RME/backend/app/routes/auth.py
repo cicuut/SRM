@@ -1,13 +1,15 @@
 from flask import Blueprint, request, jsonify, current_app
 import threading
-from flask_mail import Message
+from flask_mail import Mail, Message
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from werkzeug.security import generate_password_hash
 from app.models import db, User, Clinic
 from app.utils import write_audit_log
 from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import text
 from .. import limiter
 import re
+from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature
 
 
 auth_bp = Blueprint("auth", __name__)
@@ -939,6 +941,103 @@ def login():
         200,
     )
 
+@auth_bp.route("/forgot-password", methods=["POST"])
+def forgot_password():
+    try:
+        data = request.get_json() or {}
+        email = data.get("email", "").strip().lower()
+
+        if not email:
+            return jsonify({"msg": "Email wajib diisi."}), 400
+
+        user = User.query.filter_by(email=email).first()
+
+        if not user:
+            return jsonify({"msg": "Email tidak terdaftar di sistem kami."}), 440
+
+        if hasattr(user, 'is_active') and not user.is_active:
+            return jsonify({
+                "msg": "Akun Anda sedang dinonaktifkan. Silakan hubungi administrator klinik."
+            }), 403
+
+        secret_key = current_app.config.get("SECRET_KEY_EMAIL")
+        frontend_url = current_app.config.get("FRONTEND_URL", "http://localhost:3000")
+        
+        serializer = URLSafeTimedSerializer(secret_key)
+        
+        token = serializer.dumps(user.email, salt="reset-password-salt")
+
+        reset_link = f"{frontend_url}/reset-password?token={token}"
+
+        html_content = f"""
+            <h2 style="color: #4F6F52; margin-bottom: 16px;">Permintaan Reset Kata Sandi</h2>
+            <p style="color: #333; font-size: 14px; line-height: 1.5;">Halo <b>{getattr(user, 'fullname', 'Pengguna')}</b>,</p>
+                Kami menerima permintaan untuk mengatur ulang kata sandi akun. Silakan klik tombol di bawah ini untuk membuat kata sandi baru:
+                <a href="{reset_link}" style="underline; hover:text-blue-700;">
+                    Atur Ulang Kata Sandi
+                </a>
+            <p style="color: #999; font-size: 11px;">
+                *Tautan ini hanya berlaku selama 15 menit. Jika Anda tidak merasa meminta perubahan ini, abaikan email ini.
+            </p>
+        """
+        mail_extension = current_app.extensions.get('mail')
+        # Kirim Email
+        msg = Message(
+            subject="[SRM System] Pemulihan Kata Sandi Akun",
+            recipients=[user.email],
+            html=html_content
+        )
+        mail_extension.send(msg)
+
+        return jsonify({
+            "msg": "Tautan pemulihan kata sandi berhasil dikirim ke email Anda."
+        }), 200
+
+    except Exception as e:
+        return jsonify({"msg": "Gagal mengirim email pemulihan.", "error": str(e)}), 500
+
+@auth_bp.route("/reset-password", methods=["POST"])
+def reset_password():
+    try:
+        data = request.get_json() or {}
+        token = data.get("token")
+        new_password = data.get("new_password")
+
+        if not token or not new_password:
+            return jsonify({"msg": "Token dan kata sandi baru wajib diisi."}), 400
+
+        if len(new_password) < 6:
+            return jsonify({"msg": "Kata sandi minimal harus 6 karakter."}), 400
+
+        secret_key = current_app.config.get("SECRET_KEY_EMAIL")
+        serializer = URLSafeTimedSerializer(secret_key)
+
+        try:
+            email = serializer.loads(
+                token, 
+                salt="reset-password-salt", 
+                max_age=900
+            )
+        except SignatureExpired:
+            return jsonify({"msg": "Tautan telah kedaluwarsa. Silakan ajukan kembali permintaan pemulihan."}), 400
+        except BadTimeSignature:
+            return jsonify({"msg": "Tautan tidak valid atau telah diubah."}), 400
+
+        user = User.query.filter_by(email=email).first()
+        if not user:
+            return jsonify({"msg": "Pengguna tidak ditemukan."}), 404
+        
+        user.set_password(new_password)
+
+        db.session.commit()
+
+        return jsonify({
+            "msg": "Kata sandi berhasil diperbarui! Silakan login dengan kata sandi baru Anda."
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": "Gagal memperbarui kata sandi.", "error": str(e)}), 500
 
 @auth_bp.route("/me", methods=["GET"])
 @jwt_required()
