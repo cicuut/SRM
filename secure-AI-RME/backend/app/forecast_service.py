@@ -221,6 +221,13 @@ def apply_clinic_scope(query, clinic_id):
         MedicalRecord.clinic_id == clinic_id,
     )
 
+
+def apply_approved_visit_filter(query):
+    return query.filter(
+        func.lower(func.trim(func.coalesce(VisitMaster.visit_status, "")))
+        == "approved"
+    )
+
 # retrieves the monthly delivery total
 def get_monthly_delivery_total(
     month_start: date,
@@ -260,6 +267,7 @@ def get_monthly_visit_total(
         )
     )
     query = apply_clinic_scope(query, clinic_id)
+    query = apply_approved_visit_filter(query)
 
     visit_total = int(query.scalar() or 0)
     delivery_total = get_monthly_delivery_total(month_start, end_date, clinic_id)
@@ -285,6 +293,7 @@ def get_monthly_counts_by_service(
         )
     )
     query = apply_clinic_scope(query, clinic_id)
+    query = apply_approved_visit_filter(query)
 
     rows = query.group_by(MedicalRecord.record_type).all()
 
@@ -308,6 +317,7 @@ def get_daily_visit_counts(
         )
     )
     query = apply_clinic_scope(query, clinic_id)
+    query = apply_approved_visit_filter(query)
 
     rows = query.group_by(func.date(VisitMaster.visit_date)).all()
 
