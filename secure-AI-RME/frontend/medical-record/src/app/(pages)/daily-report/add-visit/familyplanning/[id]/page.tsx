@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 import api from "@/utils/app";
 import AddVisitInformation from "@/components/visit/add-visit-information";
-import BillingForm from "@/components/visit/billing";
+import BillingForm, { BillingItemFormProps } from "@/components/visit/billing";
 
 const AddVisitFamilyPlanning = () => {
   const [error, setError] = useState("");
@@ -25,6 +25,8 @@ const AddVisitFamilyPlanning = () => {
   const [total, setTotal] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
   const [paymentStatus, setPaymentStatus] = useState("");
+  const [billingItems, setBillingItems] = useState<BillingItemFormProps[]>([]);
+
   const fetchData = async () => {
     if (!uuid) return;
     try {
@@ -46,6 +48,19 @@ const AddVisitFamilyPlanning = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    const normalizedPaymentStatus = paymentStatus.trim().toLowerCase();
+
+    if (!["paid", "unpaid"].includes(normalizedPaymentStatus)) {
+      await Swal.fire({
+        title: "Status Pembayaran Wajib Dipilih!",
+        text: "Pilih status Terbayar atau Belum Bayar sebelum menyimpan kunjungan.",
+        icon: "warning",
+        confirmButtonColor: "#739072",
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -59,7 +74,12 @@ const AddVisitFamilyPlanning = () => {
         record_id: uuid,
         total: total,
         payment_method: paymentMethod,
-        payment_status: paymentStatus,
+        payment_status: normalizedPaymentStatus,
+        billing_items: billingItems.map((item) => ({
+          item_name: item.item_name.trim(),
+          quantity: Number(item.quantity),
+          unit_cost: Number(item.unit_cost),
+        })),
       };
       const response = await api.post(
         "/visit-report/add-visit-family-planning",
@@ -99,9 +119,7 @@ const AddVisitFamilyPlanning = () => {
       </div>
       <div className="grid grid-cols-2 gap-4 px-5">
         <label className="block">
-          <p className="text-md font-medium text-gray-700 md:text-sm">
-            Berat
-          </p>
+          <p className="text-md font-medium text-gray-700 md:text-sm">Berat</p>
           <input
             type="number"
             name="weight"
@@ -132,8 +150,10 @@ const AddVisitFamilyPlanning = () => {
       </div>
       <div className="grid grid-cols-1 gap-4 px-5 ">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <label className="block"   >
-            <p className="text-md font-medium text-gray-700 md:text-sm">              Metode Kontrasepsi
+          <label className="block">
+            <p className="text-md font-medium text-gray-700 md:text-sm">
+              {" "}
+              Metode Kontrasepsi
             </p>
             <select
               value={contraceptive_method}
@@ -150,7 +170,7 @@ const AddVisitFamilyPlanning = () => {
               <option value="Inplan">Inplan</option>
             </select>
           </label>
-          <label className="block"  >
+          <label className="block">
             <p className="text-md font-medium text-gray-700 md:text-sm">
               Kunjungan Selanjutnya
             </p>
@@ -164,8 +184,10 @@ const AddVisitFamilyPlanning = () => {
             />
           </label>
         </div>
-        <label className="block"  >
-          <p className="text-md font-medium text-gray-700 md:text-sm">Keluhan</p>
+        <label className="block">
+          <p className="text-md font-medium text-gray-700 md:text-sm">
+            Keluhan
+          </p>
           <textarea
             name="complaint"
             value={complaint}
@@ -183,10 +205,12 @@ const AddVisitFamilyPlanning = () => {
           setPaymentMethod={setPaymentMethod}
           paymentStatus={paymentStatus}
           setPaymentStatus={setPaymentStatus}
+          isSubmitting={loading}
+          onItemsChange={(items) => setBillingItems(items)}
         />
       </div>
       <div className="flex justify-center gap-4">
-       <button
+        <button
           onClick={handleSubmit}
           type="submit"
           className="px-8 py-2 bg-[#739072] text-white rounded-full hover:bg-[#4F6F52] shadow-lg transition font-bold cursor-pointer"
@@ -201,7 +225,7 @@ const AddVisitFamilyPlanning = () => {
           )}
         </button>
       </div>
-    </div >
+    </div>
   );
 };
 export default AddVisitFamilyPlanning;

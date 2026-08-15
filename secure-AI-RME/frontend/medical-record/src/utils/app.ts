@@ -24,18 +24,18 @@ api.interceptors.response.use(
     return response; 
   },
   (error) => {
-    if (error.response?.status === 401 || error.response?.status === 404) {
-      console.warn("Sesi tidak valid, kembali ke login...");
+    // if (error.response?.status === 401 || error.response?.status === 404) {
+    //   console.warn("Sesi tidak valid, kembali ke login...");
       
-    if (typeof window !== "undefined") {
-        const isLoginPage = window.location.pathname === "/login";
+    // if (typeof window !== "undefined") {
+    //     const isLoginPage = window.location.pathname === "/login";
 
-        if (!isLoginPage) {
-          Cookies.remove("access_token"); 
-          window.location.href = "/login";
-        }
-      }
-    }
+    //     if (!isLoginPage) {
+    //       Cookies.remove("access_token"); 
+    //       window.location.href = "/login";
+    //     }
+    //   }
+    // }
     return Promise.reject(error);
   }
 );

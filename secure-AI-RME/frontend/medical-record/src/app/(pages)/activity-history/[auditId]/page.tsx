@@ -21,6 +21,14 @@ type ChangedField = {
     new_value: string;
 };
 
+type BillingItem = {
+    item_id?: string;
+    item_name?: string;
+    quantity?: number | string;
+    unit_cost?: number | string;
+    subtotal?: number | string;
+};
+
 type ActivityDetail = {
     audit_id: string;
     audit_number: string;
@@ -63,7 +71,7 @@ type MeResponse = {
     } | null;
 };
 
-const ACTIVITY_ALLOWED_ROLES: Role[] = ['admin', 'midwife'];
+const ACTIVITY_ALLOWED_ROLES: Role[] = ['midwife'];
 
 const readJson = async (response: Response) => {
     try {
@@ -237,19 +245,292 @@ const getActivityMode = (action: string) => {
     return 'update';
 };
 
+const isBillingItemsField = (key: string, label: string) => {
+    const normalizedKey = String(key || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[\s_-]/g, '');
+    const normalizedLabel = String(label || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[\s_-]/g, '');
+
+    return (
+        normalizedKey === 'billingitems' ||
+        normalizedLabel === 'billingitems' ||
+        normalizedLabel === 'rincianbiaya'
+    );
+};
+
+const getReadableFieldLabel = (key: string, label: string) => {
+    if (isBillingItemsField(key, label)) {
+        return 'Rincian Biaya';
+    }
+
+    return label;
+};
+
+const parseBillingItems = (value?: string | null): BillingItem[] | null => {
+    if (!value || value === '-') {
+        return [];
+    }
+
+    let parsedValue: unknown = value;
+
+    try {
+        parsedValue = JSON.parse(value);
+
+        if (typeof parsedValue === 'string') {
+            parsedValue = JSON.parse(parsedValue);
+        }
+    } catch {
+        return null;
+    }
+
+    if (!Array.isArray(parsedValue)) {
+        return null;
+    }
+
+    const items = parsedValue.filter(
+        (item): item is BillingItem =>
+            typeof item === 'object' && item !== null,
+    );
+
+    return items;
+};
+
+const toNumber = (value?: number | string) => {
+    const parsedValue = Number(value);
+
+    return Number.isFinite(parsedValue) ? parsedValue : 0;
+};
+
+const formatRupiah = (value?: number | string) => {
+    return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+    }).format(toNumber(value));
+};
+
+const formatQuantity = (value?: number | string) => {
+    return new Intl.NumberFormat('id-ID', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+    }).format(toNumber(value));
+};
+
+const getBillingItemSubtotal = (item: BillingItem) => {
+    const subtotal = toNumber(item.subtotal);
+
+    if (subtotal > 0 || toNumber(item.quantity) === 0) {
+        return subtotal;
+    }
+
+    return toNumber(item.quantity) * toNumber(item.unit_cost);
+};
+
+const BillingItemsValue = ({
+    items,
+    compact = false,
+}: {
+    items: BillingItem[];
+    compact?: boolean;
+}) => {
+    const total = items.reduce(
+        (currentTotal, item) =>
+            currentTotal + getBillingItemSubtotal(item),
+        0,
+    );
+
+    if (items.length === 0) {
+        return (
+            <div className="rounded-[10px] border border-dashed border-[#D2D8CF] bg-white px-3 py-3 text-center text-[11px] text-gray-500">
+                Tidak ada rincian biaya.
+            </div>
+        );
+    }
+
+    if (compact) {
+        return (
+            <div className="space-y-2 text-left">
+                {items.map((item, index) => {
+                    const quantity = toNumber(item.quantity);
+                    const unitCost = toNumber(item.unit_cost);
+                    const subtotal = getBillingItemSubtotal(item);
+
+                    return (
+                        <div
+                            key={item.item_id || `${item.item_name}-${index}`}
+                            className="rounded-[10px] border border-[#E1E7DD] bg-[#F8FAF6] px-3 py-2.5"
+                        >
+                            <p className="break-words text-[11px] font-bold text-[#2F3A2F]">
+                                {item.item_name || `Item ${index + 1}`}
+                            </p>
+
+                            <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[10px] text-[#5F5F5F]">
+                                <span>
+                                    {formatQuantity(quantity)} ×{' '}
+                                    {formatRupiah(unitCost)}
+                                </span>
+                                <span className="font-bold text-[#4F6F52]">
+                                    {formatRupiah(subtotal)}
+                                </span>
+                            </div>
+                        </div>
+                    );
+                })}
+
+                <div className="flex items-center justify-between border-t border-[#D2D8CF] px-1 pt-2 text-[11px]">
+                    <span className="font-semibold text-[#5F5F5F]">Total</span>
+                    <span className="font-extrabold text-[#4F6F52]">
+                        {formatRupiah(total)}
+                    </span>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="overflow-hidden rounded-[12px] border border-[#D2D8CF] bg-white">
+            <div className="hidden overflow-x-auto sm:block">
+                <table className="w-full min-w-[560px] border-separate border-spacing-0 text-left">
+                    <thead>
+                        <tr className="bg-[#EAF1E4] text-[10px] font-bold uppercase text-[#4F6F52]">
+                            <th className="px-4 py-3">Nama Layanan</th>
+                            <th className="px-4 py-3 text-center">Jumlah</th>
+                            <th className="px-4 py-3 text-right">
+                                Harga Satuan
+                            </th>
+                            <th className="px-4 py-3 text-right">Subtotal</th>
+                        </tr>
+                    </thead>
+
+                    <tbody className="divide-y divide-[#EDF0EA]">
+                        {items.map((item, index) => (
+                            <tr
+                                key={
+                                    item.item_id ||
+                                    `${item.item_name}-${index}`
+                                }
+                                className="text-[12px] text-[#4B4B4B]"
+                            >
+                                <td className="break-words px-4 py-3 font-semibold text-[#2F3A2F]">
+                                    {item.item_name || `Item ${index + 1}`}
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                    {formatQuantity(item.quantity)}
+                                </td>
+                                <td className="whitespace-nowrap px-4 py-3 text-right">
+                                    {formatRupiah(item.unit_cost)}
+                                </td>
+                                <td className="whitespace-nowrap px-4 py-3 text-right font-bold text-[#4F6F52]">
+                                    {formatRupiah(
+                                        getBillingItemSubtotal(item),
+                                    )}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+
+                    <tfoot>
+                        <tr className="border-t border-[#D2D8CF] bg-[#F8FAF6]">
+                            <td
+                                colSpan={3}
+                                className="px-4 py-3 text-right text-[11px] font-bold text-[#5F5F5F]"
+                            >
+                                Total
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3 text-right text-[13px] font-extrabold text-[#4F6F52]">
+                                {formatRupiah(total)}
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <div className="space-y-3 p-3 sm:hidden">
+                {items.map((item, index) => (
+                    <div
+                        key={item.item_id || `${item.item_name}-${index}`}
+                        className="rounded-[10px] border border-[#E4E8E1] bg-[#F8FAF6] px-3 py-3"
+                    >
+                        <p className="break-words text-[12px] font-bold text-[#2F3A2F]">
+                            {item.item_name || `Item ${index + 1}`}
+                        </p>
+                        <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-[#5F5F5F]">
+                            <span>
+                                {formatQuantity(item.quantity)} ×{' '}
+                                {formatRupiah(item.unit_cost)}
+                            </span>
+                            <span className="font-bold text-[#4F6F52]">
+                                {formatRupiah(getBillingItemSubtotal(item))}
+                            </span>
+                        </div>
+                    </div>
+                ))}
+
+                <div className="flex items-center justify-between border-t border-[#D2D8CF] px-1 pt-3 text-[12px]">
+                    <span className="font-bold text-[#5F5F5F]">Total</span>
+                    <span className="font-extrabold text-[#4F6F52]">
+                        {formatRupiah(total)}
+                    </span>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const AuditValue = ({
+    fieldKey,
+    label,
+    value,
+    compact = false,
+}: {
+    fieldKey: string;
+    label: string;
+    value?: string | null;
+    compact?: boolean;
+}) => {
+    if (isBillingItemsField(fieldKey, label)) {
+        const billingItems = parseBillingItems(value);
+
+        if (billingItems !== null) {
+            return (
+                <BillingItemsValue items={billingItems} compact={compact} />
+            );
+        }
+    }
+
+    return (
+        <p className="whitespace-pre-wrap break-words">{value || '-'}</p>
+    );
+};
+
 const DetailField = ({
+    fieldKey,
     label,
     value,
 }: {
+    fieldKey?: string;
     label: string;
     value?: string | null;
 }) => {
+    const readableLabel = getReadableFieldLabel(fieldKey || label, label);
+
     return (
         <div className="min-w-0">
-            <p className="text-[11px] font-bold text-black">{label}</p>
+            <p className="text-[11px] font-bold text-black">
+                {readableLabel}
+            </p>
 
             <div className="mt-[8px] min-h-[42px] rounded-[10px] border border-[#D2D8CF] bg-[#F8FAF6] px-4 py-3 text-[13px] font-medium text-[#4B4B4B]">
-                <p className="break-words">{value || '-'}</p>
+                <AuditValue
+                    fieldKey={fieldKey || label}
+                    label={label}
+                    value={value}
+                />
             </div>
         </div>
     );
@@ -279,13 +560,29 @@ const ValueList = ({
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        {items.map((item) => (
-                            <DetailField
-                                key={`${item.key}-${item.label}`}
-                                label={item.label}
-                                value={item.value}
-                            />
-                        ))}
+                        {items.map((item) => {
+                            const isBillingItems = isBillingItemsField(
+                                item.key,
+                                item.label,
+                            );
+
+                            return (
+                                <div
+                                    key={`${item.key}-${item.label}`}
+                                    className={
+                                        isBillingItems
+                                            ? 'md:col-span-2'
+                                            : undefined
+                                    }
+                                >
+                                    <DetailField
+                                        fieldKey={item.key}
+                                        label={item.label}
+                                        value={item.value}
+                                    />
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
             </div>
@@ -603,20 +900,43 @@ const ActivityHistoryDetail = () => {
                                                             className="text-center text-black transition-all hover:bg-[#EEF3E9]"
                                                         >
                                                             <td className="px-4 py-4 font-bold text-[#4F6F52]">
-                                                                {item.label}
+                                                                {getReadableFieldLabel(
+                                                                    item.key,
+                                                                    item.label,
+                                                                )}
                                                             </td>
 
                                                             <td className="px-4 py-4">
-                                                                <div className="mx-auto max-w-[360px] whitespace-pre-wrap break-words text-left">
-                                                                    {item.old_value ||
-                                                                        '-'}
+                                                                <div className="mx-auto max-w-[420px] text-left">
+                                                                    <AuditValue
+                                                                        fieldKey={
+                                                                            item.key
+                                                                        }
+                                                                        label={
+                                                                            item.label
+                                                                        }
+                                                                        value={
+                                                                            item.old_value
+                                                                        }
+                                                                        compact
+                                                                    />
                                                                 </div>
                                                             </td>
 
                                                             <td className="px-4 py-4">
-                                                                <div className="mx-auto max-w-[360px] whitespace-pre-wrap break-words text-left">
-                                                                    {item.new_value ||
-                                                                        '-'}
+                                                                <div className="mx-auto max-w-[420px] text-left">
+                                                                    <AuditValue
+                                                                        fieldKey={
+                                                                            item.key
+                                                                        }
+                                                                        label={
+                                                                            item.label
+                                                                        }
+                                                                        value={
+                                                                            item.new_value
+                                                                        }
+                                                                        compact
+                                                                    />
                                                                 </div>
                                                             </td>
                                                         </tr>
@@ -633,7 +953,10 @@ const ActivityHistoryDetail = () => {
                                                 className="rounded-[16px] border border-[#E4E8E1] bg-white px-4 py-4 shadow-sm"
                                             >
                                                 <p className="text-[13px] font-bold text-[#4F6F52]">
-                                                    {item.label}
+                                                    {getReadableFieldLabel(
+                                                        item.key,
+                                                        item.label,
+                                                    )}
                                                 </p>
 
                                                 <div className="mt-3 grid grid-cols-1 gap-3">
@@ -642,10 +965,20 @@ const ActivityHistoryDetail = () => {
                                                             Sebelum
                                                         </p>
 
-                                                        <p className="mt-[4px] whitespace-pre-wrap break-words rounded-[10px] bg-[#F8FAF6] px-3 py-2 text-[11px] text-[#4B4B4B]">
-                                                            {item.old_value ||
-                                                                '-'}
-                                                        </p>
+                                                        <div className="mt-[4px] rounded-[10px] bg-[#F8FAF6] px-3 py-2 text-[11px] text-[#4B4B4B]">
+                                                            <AuditValue
+                                                                fieldKey={
+                                                                    item.key
+                                                                }
+                                                                label={
+                                                                    item.label
+                                                                }
+                                                                value={
+                                                                    item.old_value
+                                                                }
+                                                                compact
+                                                            />
+                                                        </div>
                                                     </div>
 
                                                     <div>
@@ -653,10 +986,20 @@ const ActivityHistoryDetail = () => {
                                                             Sesudah
                                                         </p>
 
-                                                        <p className="mt-[4px] whitespace-pre-wrap break-words rounded-[10px] bg-[#F8FAF6] px-3 py-2 text-[11px] text-[#4B4B4B]">
-                                                            {item.new_value ||
-                                                                '-'}
-                                                        </p>
+                                                        <div className="mt-[4px] rounded-[10px] bg-[#F8FAF6] px-3 py-2 text-[11px] text-[#4B4B4B]">
+                                                            <AuditValue
+                                                                fieldKey={
+                                                                    item.key
+                                                                }
+                                                                label={
+                                                                    item.label
+                                                                }
+                                                                value={
+                                                                    item.new_value
+                                                                }
+                                                                compact
+                                                            />
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>

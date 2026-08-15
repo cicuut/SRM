@@ -69,41 +69,39 @@ const normalizeClinicId = (clinicId?: string | null) => {
 const translateLoginMessage = (message?: string) => {
   const normalized = String(message || "").toLowerCase();
 
- if (normalized.includes("diblokir") || normalized.includes("dikunci") || normalized.includes("sisa kesempatan")) {
+  if (
+    normalized.includes("diblokir") ||
+    normalized.includes("dikunci") ||
+    normalized.includes("sisa kesempatan")
+  ) {
     return message || "Akses ditolak.";
   }
 
   if (
-    normalized.includes("salah") || 
-    normalized.includes("invalid") || 
+    normalized.includes("salah") ||
+    normalized.includes("invalid") ||
     normalized.includes("wrong")
   ) {
     return message || "Email atau kata sandi tidak sesuai.";
   }
 
-  if (
-    normalized.includes("tidak aktif") || 
-    normalized.includes("inactive")
-  ) {
+  if (normalized.includes("tidak aktif") || normalized.includes("inactive")) {
     return "Akun Anda sedang tidak aktif. Silakan hubungi admin.";
   }
 
   if (
-    normalized.includes("tidak ditemukan") || 
+    normalized.includes("tidak ditemukan") ||
     normalized.includes("not found")
   ) {
     return "Akun tidak ditemukan.";
   }
 
-  if (
-    normalized.includes("wajib diisi") || 
-    normalized.includes("required")
-  ) {
+  if (normalized.includes("wajib diisi") || normalized.includes("required")) {
     return "Email dan kata sandi wajib diisi.";
   }
 
   if (
-    normalized.includes("failed to fetch") || 
+    normalized.includes("failed to fetch") ||
     normalized.includes("network error")
   ) {
     return "Tidak dapat terhubung ke server. Pastikan backend sedang berjalan.";
@@ -306,8 +304,7 @@ const Login = () => {
       }
 
       setError(message);
-      
-    } 
+    }
   };
 
   return (
@@ -404,7 +401,16 @@ const Login = () => {
                 </button>
               </div>
             </div>
-
+            <div className="flex items-center justify-center gap-2 text-sm text-gray-700">
+              <label>Lupa Kata Sandi?</label> {""}
+              <button
+                className=" cursor-pointer underline hover:text-blue-950"
+                type="button"
+                onClick={() => router.push("/forgot-password")}
+              >
+                Klik di sini
+              </button>
+            </div>
             {error && <div className={styles.errorBox}>{error}</div>}
 
             <button

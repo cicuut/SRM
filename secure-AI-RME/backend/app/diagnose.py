@@ -371,6 +371,13 @@ def apply_clinic_scope(query, clinic_id):
         MedicalRecord.clinic_id == clinic_id,
     )
 
+
+def apply_approved_visit_filter(query):
+    return query.filter(
+        func.lower(func.trim(func.coalesce(VisitMaster.visit_status, "")))
+        == "approved"
+    )
+
 # filters records based on the monthly date range.
 def apply_month_filter(query, month_start: date, month_end: date):
     return query.filter(
@@ -400,6 +407,7 @@ def collect_monthly_diagnoses(
         query = base_query(visit_model, field_column)
         query = apply_clinic_scope(query, clinic_id)
         query = apply_month_filter(query, month_start, month_end)
+        query = apply_approved_visit_filter(query)
 
         rows = query.all()
 
@@ -423,6 +431,7 @@ def collect_monthly_diagnoses(
 
     kb_query = apply_clinic_scope(kb_query, clinic_id)
     kb_query = apply_month_filter(kb_query, month_start, month_end)
+    kb_query = apply_approved_visit_filter(kb_query)
 
     kb_rows = kb_query.all()
 

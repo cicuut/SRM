@@ -2,17 +2,19 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import Cookies from 'js-cookie';
 import {
     Activity,
     AlertCircle,
     ArrowUpCircle,
     CalendarDays,
-    ChartNoAxesCombined,
     ClipboardList,
-    LineChart,
     TrendingUp,
+    UserCheck,
+    UserPlus,
     UserRound,
+    UserX,
     Wallet,
 } from 'lucide-react';
 import api from '@/utils/app';
@@ -21,20 +23,9 @@ import {
     FinancialChart,
     FinancialChartPoint,
 } from '@/components/dashboard/financial-chart';
-import {
-    SERVICE_COLORS,
-    ServiceSeries,
-    VisitorChart,
-} from '@/components/dashboard/visitor-chart';
+import { VisitorForecastPanel } from '@/components/dashboard/visitor-forecast-panel';
 import { TopAssessmentList } from '@/components/dashboard/top-assessment-list';
-
-const FALLBACK_SERVICE_COLORS = [
-    '#2563EB',
-    '#DC2626',
-    '#7C3AED',
-    '#EA580C',
-    '#0891B2',
-];
+import { ForecastResponse } from '@/utils/forecast-aggregation';
 
 type Role = 'admin' | 'midwife' | 'asisten' | '';
 
@@ -82,30 +73,6 @@ type AuthMeResponse = {
     user: CurrentUser;
 };
 
-interface ChartPoint {
-    date: string;
-    count: number;
-}
-
-interface ForecastResponse {
-    month: string;
-    monthly_actual: number;
-    monthly_forecast: number;
-    history: ChartPoint[];
-    forecast: ChartPoint[];
-    by_service: Record<
-        string,
-        {
-            actual_month_to_date: number;
-            forecast_remaining_month: number;
-            forecast_month_total: number;
-            history: ChartPoint[];
-            forecast: ChartPoint[];
-            has_model?: boolean;
-        }
-    >;
-}
-
 interface MonthlyFinancialSummary {
     month: string;
     monthly_income: number;
@@ -132,6 +99,26 @@ interface TopDiagnosesResponse {
     error?: string;
 }
 
+interface AdminMidwifeItem {
+    id: string;
+    fullname: string;
+    email: string;
+    is_active: boolean;
+    has_clinic?: boolean;
+    created_at?: string | null;
+    last_login?: string | null;
+}
+
+interface AdminOverviewResponse {
+    employees?: AdminMidwifeItem[];
+    stats?: {
+        total_employees: number;
+        active_employees: number;
+        inactive_employees: number;
+        midwives: number;
+    };
+}
+
 function normalizeRole(role?: string | null): Role {
     const normalizedRole = String(role || '').trim().toLowerCase();
 
@@ -150,7 +137,7 @@ function normalizeRole(role?: string | null): Role {
 }
 
 function canViewFinancialByRole(role: Role) {
-    return role === 'admin' || role === 'midwife';
+    return role === 'midwife';
 }
 
 function formatDisplayRole(role: string): string {
@@ -377,6 +364,9 @@ const Dashboard = () => {
     const [diagnosisVisitCount, setDiagnosisVisitCount] = useState(0);
     const [diagnosisLoading, setDiagnosisLoading] = useState(true);
     const [diagnosisError, setDiagnosisError] = useState<string | null>(null);
+    const [adminOverview, setAdminOverview] =
+        useState<AdminOverviewResponse | null>(null);
+    const [adminError, setAdminError] = useState<string | null>(null);
 
     const currentRole = normalizeRole(
         currentUser?.role || currentUser?.user_role || storedRole,
@@ -396,21 +386,6 @@ const Dashboard = () => {
 
     const forecastMonthLabel = formatMonthLabel(forecastData?.month);
     const diagnosisMonthLabel = formatMonthLabel(diagnosisMonth);
-
-    const forecastServices = forecastData
-        ? Object.entries(forecastData.by_service)
-        : [];
-
-    const visitorChartSeries: ServiceSeries[] = forecastData
-        ? Object.entries(forecastData.by_service)
-            .filter(([, data]) => data.has_model !== false)
-            .map(([name, data]) => ({
-                name,
-                history: data.history,
-                forecast: data.forecast,
-                color: '',
-            }))
-        : [];
 
     const loadLocalProfilePhoto = () => {
         if (typeof window === 'undefined') return;
@@ -501,6 +476,31 @@ const Dashboard = () => {
                     }
                 } catch (error) {
                     console.error('Gagal memuat data user:', error);
+                }
+
+                if (activeRole === 'admin') {
+                    try {
+                        const adminResponse = await api.get<AdminOverviewResponse>(
+                            '/dashboard/admin-overview',
+                        );
+
+                        if (!cancelled) {
+                            setAdminOverview(adminResponse.data);
+                            setAdminError(null);
+                        }
+                    } catch (error) {
+                        if (!cancelled) {
+                            setAdminOverview(null);
+                            setAdminError(
+                                getApiErrorMessage(
+                                    error,
+                                    'Gagal memuat ringkasan akun bidan',
+                                ),
+                            );
+                        }
+                    }
+
+                    return;
                 }
 
                 try {
@@ -654,6 +654,124 @@ const Dashboard = () => {
         };
     }, []);
 
+    if (currentRole === 'admin') {
+        const stats = adminOverview?.stats;
+        const midwives = adminOverview?.employees ?? [];
+
+        return (
+            <div className="relative flex w-full min-w-0 flex-col gap-5">
+                {loading && <LoadingOverlay />}
+
+                <section className="flex flex-col gap-5 rounded-[28px] border border-[#6F8D70] bg-gradient-to-br from-[#4F6F52] via-[#739072] to-[#86A789] px-6 py-7 text-white shadow-sm sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h1 className="text-[24px] font-extrabold sm:text-[30px]">
+                            {displayName ? `Hi, ${displayName}!` : 'Dashboard Admin'}
+                        </h1>
+                        <p className="mt-2 max-w-[650px] text-[13px] font-medium text-white/90 sm:text-[15px]">
+                            Pantau jumlah dan status akun Bidan yang terdaftar pada sistem.
+                        </p>
+                    </div>
+
+                    <Link
+                        href="/regist"
+                        className="inline-flex h-[42px] items-center justify-center gap-2 rounded-full bg-white px-5 text-[12px] font-bold text-[#4F6F52] shadow-sm hover:bg-[#F1F6EC]"
+                    >
+                        <UserPlus className="h-4 w-4" />
+                        Tambah Bidan
+                    </Link>
+                </section>
+
+                {adminError && <ErrorNotice message={adminError} />}
+
+                <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <StatCard
+                        title="Total Akun Bidan"
+                        value={formatNumber(stats?.total_employees ?? 0)}
+                        subtitle="Seluruh akun Bidan terdaftar"
+                        icon={<UserRound className="h-5 w-5" />}
+                        tone="blue"
+                    />
+                    <StatCard
+                        title="Akun Aktif"
+                        value={formatNumber(stats?.active_employees ?? 0)}
+                        subtitle="Bidan yang dapat login"
+                        icon={<UserCheck className="h-5 w-5" />}
+                        tone="green"
+                    />
+                    <StatCard
+                        title="Akun Tidak Aktif"
+                        value={formatNumber(stats?.inactive_employees ?? 0)}
+                        subtitle="Bidan yang tidak dapat login"
+                        icon={<UserX className="h-5 w-5" />}
+                        tone="red"
+                    />
+                </section>
+
+                <SectionCard
+                    title="Daftar Akun Bidan"
+                    subtitle="Informasi akun Bidan yang terdaftar dalam sistem."
+                    icon={<UserRound className="h-5 w-5" />}
+                >
+                    <div className="overflow-x-auto">
+                        <table className="w-full min-w-[720px] text-left">
+                            <thead>
+                                <tr className="border-b border-[#E4E8E1] text-[11px] font-bold uppercase tracking-[0.08em] text-gray-500">
+                                    <th className="px-3 py-3">Nama Bidan</th>
+                                    <th className="px-3 py-3">Email</th>
+                                    <th className="px-3 py-3">Klinik</th>
+                                    <th className="px-3 py-3">Status</th>
+                                    <th className="px-3 py-3">Tanggal Dibuat</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {midwives.map((midwife) => (
+                                    <tr
+                                        key={midwife.id}
+                                        className="border-b border-[#EEF1EC] text-[13px] text-[#303830] last:border-0"
+                                    >
+                                        <td className="px-3 py-4 font-bold">
+                                            {midwife.fullname}
+                                        </td>
+                                        <td className="px-3 py-4">{midwife.email}</td>
+                                        <td className="px-3 py-4">
+                                            {midwife.has_clinic ? 'Terhubung' : 'Belum terhubung'}
+                                        </td>
+                                        <td className="px-3 py-4">
+                                            <span
+                                                className={`inline-flex rounded-full px-3 py-1 text-[10px] font-bold ${midwife.is_active
+                                                    ? 'bg-[#D2E3C8] text-[#4F6F52]'
+                                                    : 'bg-red-50 text-red-600'
+                                                }`}
+                                            >
+                                                {midwife.is_active ? 'Aktif' : 'Tidak Aktif'}
+                                            </span>
+                                        </td>
+                                        <td className="px-3 py-4">
+                                            {midwife.created_at
+                                                ? new Date(midwife.created_at).toLocaleDateString('id-ID')
+                                                : '-'}
+                                        </td>
+                                    </tr>
+                                ))}
+
+                                {!loading && midwives.length === 0 && (
+                                    <tr>
+                                        <td
+                                            colSpan={5}
+                                            className="px-3 py-10 text-center text-[13px] text-gray-500"
+                                        >
+                                            Belum ada akun Bidan yang terdaftar.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </SectionCard>
+            </div>
+        );
+    }
+
     return (
         <div className="relative flex w-full min-w-0 flex-col gap-5">
             {loading && <LoadingOverlay />}
@@ -764,7 +882,11 @@ const Dashboard = () => {
                                 ? '—'
                                 : 'Memuat...'
                     }
-                    subtitle="Estimasi total kunjungan bulan ini"
+                    subtitle={
+                        forecastMonthLabel
+                            ? `Estimasi total kunjungan ${forecastMonthLabel}`
+                            : 'Estimasi total kunjungan bulan ini'
+                    }
                     icon={<TrendingUp className="h-5 w-5" />}
                     tone="blue"
                 />
@@ -808,105 +930,11 @@ const Dashboard = () => {
                 )}
             </section>
 
-            <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1.35fr_0.9fr]">
-                <SectionCard
-                    title="Grafik Pengunjung Bulanan"
-                    subtitle="Perbandingan kunjungan aktual dan prediksi setiap layanan."
-                    icon={<LineChart className="h-5 w-5" />}
-                    className="min-h-[390px]"
-                >
-                    <VisitorChart
-                        title=""
-                        series={visitorChartSeries}
-                        emptyMessage={
-                            forecastError ||
-                            'Belum ada data kunjungan untuk layanan yang dimodelkan'
-                        }
-                    />
-                </SectionCard>
-
-                <SectionCard
-                    title="Perkiraan Pengunjung"
-                    subtitle="Ringkasan prediksi kunjungan berdasarkan layanan."
-                    icon={<ChartNoAxesCombined className="h-5 w-5" />}
-                    className="min-h-[390px]"
-                >
-                    {forecastError && <ErrorNotice message={forecastError} />}
-
-                    {!forecastError &&
-                        forecastServices.length === 0 &&
-                        !loading && (
-                            <div className="rounded-[16px] border border-[#E4E8E1] bg-[#F8FAF6] px-4 py-8 text-center text-[12px] text-gray-500">
-                                Belum ada data untuk menghitung perkiraan.
-                            </div>
-                        )}
-
-                    <div className="grid grid-cols-1 gap-3">
-                        {forecastServices.map(([service, stats], index) => {
-                            const accentColor =
-                                SERVICE_COLORS[service] ??
-                                FALLBACK_SERVICE_COLORS[
-                                index % FALLBACK_SERVICE_COLORS.length
-                                ];
-
-                            return (
-                                <div
-                                    key={service}
-                                    className="rounded-[18px] border border-[#E6EDE5] bg-[#FDFEF9] px-4 py-4 shadow-sm"
-                                    style={{
-                                        borderLeftWidth: 5,
-                                        borderLeftColor: accentColor,
-                                    }}
-                                >
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div className="min-w-0">
-                                            <p
-                                                className="truncate text-[13px] font-extrabold"
-                                                style={{ color: accentColor }}
-                                            >
-                                                {service}
-                                            </p>
-
-                                            <p className="mt-2 text-[11px] font-medium text-gray-500">
-                                                Aktual:{' '}
-                                                {formatNumber(
-                                                    stats.actual_month_to_date,
-                                                )}{' '}
-                                                kunjungan
-                                            </p>
-                                        </div>
-
-                                        <div className="text-right">
-                                            {stats.has_model === false ? (
-                                                <p className="text-[11px] font-semibold text-gray-500">
-                                                    Belum ada model
-                                                </p>
-                                            ) : (
-                                                <>
-                                                    <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-gray-400">
-                                                        Forecast
-                                                    </p>
-
-                                                    <p
-                                                        className="mt-1 text-[17px] font-extrabold"
-                                                        style={{
-                                                            color: accentColor,
-                                                        }}
-                                                    >
-                                                        {formatNumber(
-                                                            stats.forecast_month_total,
-                                                        )}
-                                                    </p>
-                                                </>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </SectionCard>
-            </section>
+            <VisitorForecastPanel
+                data={forecastData}
+                error={forecastError}
+                loading={loading}
+            />
 
             <section
                 className={`grid grid-cols-1 gap-5 ${canViewFinancial

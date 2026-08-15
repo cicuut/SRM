@@ -23,6 +23,7 @@ type Employee = {
     id: string;
     fullname: string;
     email: string;
+    phone?: string | null;
     role: Role;
     user_role?: Role;
     strnumber?: string | null;
@@ -57,6 +58,7 @@ type ClinicFormData = {
 type AccountFormData = {
     fullname: string;
     email: string;
+    phoneNumber: string;
     password: string;
     confirmPassword: string;
     strnumber: string;
@@ -90,6 +92,7 @@ const emptyClinicForm: ClinicFormData = {
 const emptyAccountForm: AccountFormData = {
     fullname: '',
     email: '',
+    phoneNumber: '',
     password: '',
     confirmPassword: '',
     strnumber: '',
@@ -324,6 +327,7 @@ const ManagementSetting = () => {
         useState<Employee | null>(null);
     const [selectedRole, setSelectedRole] = useState<Role>('asisten');
     const [selectedIsActive, setSelectedIsActive] = useState(true);
+    const [selectedPhoneNumber, setSelectedPhoneNumber] = useState('');
 
     const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -396,6 +400,9 @@ const ManagementSetting = () => {
                 !normalizedSearch ||
                 employee.fullname.toLowerCase().includes(normalizedSearch) ||
                 employee.email.toLowerCase().includes(normalizedSearch) ||
+                (employee.phone || '')
+                    .toLowerCase()
+                    .includes(normalizedSearch) ||
                 formatRole(employeeRole)
                     .toLowerCase()
                     .includes(normalizedSearch) ||
@@ -605,6 +612,17 @@ const ManagementSetting = () => {
             return 'Format email tidak valid.';
         }
 
+        if (formData.role === 'asisten' && !formData.phoneNumber.trim()) {
+            return 'Nomor telepon/WhatsApp wajib diisi untuk akun asisten.';
+        }
+
+        if (
+            formData.phoneNumber.trim() &&
+            !/^\+?[0-9\s().-]{9,20}$/.test(formData.phoneNumber.trim())
+        ) {
+            return 'Format nomor telepon/WhatsApp tidak valid.';
+        }
+
         if (formData.role === 'midwife' && !formData.strnumber.trim()) {
             return 'Nomor STR wajib diisi untuk akun bidan.';
         }
@@ -777,6 +795,7 @@ const ManagementSetting = () => {
                 {
                     fullname: nextAccountForm.fullname.trim(),
                     email: nextAccountForm.email.trim(),
+                    phone: nextAccountForm.phoneNumber.trim(),
                     password: nextAccountForm.password,
                     strnumber: nextAccountForm.strnumber.trim() || null,
                     role: nextAccountForm.role,
@@ -836,6 +855,7 @@ const ManagementSetting = () => {
         setSelectedEmployee(employee);
         setSelectedRole((employeeRole || 'asisten') as Role);
         setSelectedIsActive(Boolean(employee.is_active));
+        setSelectedPhoneNumber(employee.phone || '');
         setIsDeleteModalOpen(false);
         setErrorMessage('');
         setSuccessMessage('');
@@ -881,22 +901,32 @@ const ManagementSetting = () => {
                 selectedEmployee.role || selectedEmployee.user_role,
             );
             const previousIsActive = Boolean(selectedEmployee.is_active);
+            const previousPhoneNumber = selectedEmployee.phone || '';
 
             const roleChanged = selectedRole !== previousRole;
             const statusChanged = selectedIsActive !== previousIsActive;
+            const phoneChanged = selectedPhoneNumber.trim() !== previousPhoneNumber;
 
-            if (!roleChanged && !statusChanged) {
+            if (!selectedPhoneNumber.trim()) {
+                setErrorMessage(
+                    'Nomor telepon/WhatsApp wajib diisi untuk akun asisten.',
+                );
+                return;
+            }
+
+            if (!roleChanged && !statusChanged && !phoneChanged) {
                 setSuccessMessage('Tidak ada perubahan data user.');
                 return;
             }
 
             let latestEmployee = selectedEmployee;
 
-            if (roleChanged) {
+            if (roleChanged || phoneChanged) {
                 const roleResponse = await api.patch(
                     `/auth/management/employees/${selectedEmployee.id}`,
                     {
                         role: selectedRole,
+                        phone: selectedPhoneNumber.trim(),
                     },
                     {
                         headers: {
@@ -928,22 +958,13 @@ const ManagementSetting = () => {
 
             setSelectedEmployee(latestEmployee);
             setSelectedIsActive(Boolean(latestEmployee.is_active));
+            setSelectedPhoneNumber(latestEmployee.phone || '');
             setSelectedRole(
                 (normalizeRole(latestEmployee.role || latestEmployee.user_role) ||
                     'asisten') as Role,
             );
 
-            if (roleChanged && statusChanged) {
-                setSuccessMessage('Role dan status akun berhasil diperbarui.');
-            } else if (roleChanged) {
-                setSuccessMessage('Role akun berhasil diperbarui.');
-            } else {
-                setSuccessMessage(
-                    selectedIsActive
-                        ? 'Akun berhasil diaktifkan.'
-                        : 'Akun berhasil dinonaktifkan.',
-                );
-            }
+            setSuccessMessage('Data akun berhasil diperbarui.');
 
             await fetchOverview();
         } catch (error: any) {
@@ -1118,7 +1139,7 @@ const ManagementSetting = () => {
                                             onChange={(event) =>
                                                 setSearchQuery(event.target.value)
                                             }
-                                            placeholder="Cari user berdasarkan nama, email, role, atau STR..."
+                                            placeholder="Cari user berdasarkan nama, email, telepon, role, atau STR..."
                                             className="w-full bg-transparent pl-8 text-[13px] text-gray-700 outline-none placeholder-gray-400"
                                         />
                                     </div>
@@ -1168,6 +1189,9 @@ const ManagementSetting = () => {
                                                     User
                                                 </th>
                                                 <th className="px-5 py-4">
+                                                    Telepon / WhatsApp
+                                                </th>
+                                                <th className="px-5 py-4">
                                                     Role
                                                 </th>
                                                 <th className="px-5 py-4">
@@ -1186,7 +1210,7 @@ const ManagementSetting = () => {
                                             {filteredEmployees.length === 0 ? (
                                                 <tr>
                                                     <td
-                                                        colSpan={5}
+                                                        colSpan={6}
                                                         className="px-5 py-10 text-center text-[13px] text-gray-500"
                                                     >
                                                         Tidak ada user ditemukan
@@ -1229,6 +1253,10 @@ const ManagementSetting = () => {
                                                                         </p>
                                                                     </div>
                                                                 </div>
+                                                            </td>
+
+                                                            <td className="px-5 py-4 text-[#4B4B4B]">
+                                                                {employee.phone || '-'}
                                                             </td>
 
                                                             <td className="px-5 py-4">
@@ -1316,6 +1344,9 @@ const ManagementSetting = () => {
                                                         </p>
                                                         <p className="mt-1 truncate text-[11px] text-gray-500">
                                                             {employee.email}
+                                                        </p>
+                                                        <p className="mt-1 truncate text-[11px] text-gray-500">
+                                                            WA: {employee.phone || '-'}
                                                         </p>
 
                                                         <div className="mt-3 flex flex-wrap gap-2">
@@ -1516,6 +1547,21 @@ const ManagementSetting = () => {
 
                                 <label className="block min-w-0">
                                     <span className="text-[11px] font-bold text-black">
+                                        Nomor Telepon / WhatsApp
+                                    </span>
+                                    <input
+                                        type="tel"
+                                        name="phoneNumber"
+                                        value={accountForm.phoneNumber}
+                                        onChange={handleAccountChange}
+                                        placeholder="Contoh: 081234567890"
+                                        required={accountForm.role === 'asisten'}
+                                        className={inputClassName}
+                                    />
+                                </label>
+
+                                <label className="block min-w-0">
+                                    <span className="text-[11px] font-bold text-black">
                                         Role
                                     </span>
                                     <select
@@ -1640,13 +1686,22 @@ const ManagementSetting = () => {
                         </div>
 
                         <div className="px-[26px] py-[24px]">
-                            <div className="grid grid-cols-1 gap-[12px] rounded-[14px] border border-[#E4E8E1] bg-[#F8FAF6] p-[16px] sm:grid-cols-3">
+                            <div className="grid grid-cols-1 gap-[12px] rounded-[14px] border border-[#E4E8E1] bg-[#F8FAF6] p-[16px] sm:grid-cols-2 lg:grid-cols-4">
                                 <div>
                                     <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#5F785F]">
                                         Nomor STR
                                     </p>
                                     <p className="mt-[5px] text-[13px] font-bold text-black">
                                         {selectedEmployee.strnumber || '-'}
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#5F785F]">
+                                        Telepon / WhatsApp
+                                    </p>
+                                    <p className="mt-[5px] text-[13px] font-bold text-black">
+                                        {selectedEmployee.phone || '-'}
                                     </p>
                                 </div>
 
@@ -1674,6 +1729,22 @@ const ManagementSetting = () => {
                             </div>
 
                             <div className="mt-[18px] grid grid-cols-1 gap-[14px] sm:grid-cols-2">
+                                <label className="block sm:col-span-2">
+                                    <span className="text-[11px] font-bold text-black">
+                                        Nomor Telepon / WhatsApp
+                                    </span>
+                                    <input
+                                        type="tel"
+                                        value={selectedPhoneNumber}
+                                        onChange={(event) =>
+                                            setSelectedPhoneNumber(event.target.value)
+                                        }
+                                        required
+                                        disabled={isSavingEmployee}
+                                        className={inputClassName}
+                                    />
+                                </label>
+
                                 <label className="block">
                                     <span className="text-[11px] font-bold text-black">
                                         Role

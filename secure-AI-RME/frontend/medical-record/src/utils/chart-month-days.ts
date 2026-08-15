@@ -14,6 +14,31 @@ export function getDaysInMonth(referenceDate = new Date()): string[] {
   return dates;
 }
 
+/** Semua tanggal dari startKey sampai endKey (inklusif), format YYYY-MM-DD. */
+export function getDaysInRange(startKey: string, endKey: string): string[] {
+  if (!startKey || !endKey || startKey > endKey) {
+    return [];
+  }
+
+  const dates: string[] = [];
+  const current = new Date(`${startKey}T00:00:00`);
+  const end = new Date(`${endKey}T00:00:00`);
+
+  if (Number.isNaN(current.getTime()) || Number.isNaN(end.getTime())) {
+    return [];
+  }
+
+  while (current <= end) {
+    const year = current.getFullYear();
+    const month = String(current.getMonth() + 1).padStart(2, "0");
+    const day = String(current.getDate()).padStart(2, "0");
+    dates.push(`${year}-${month}-${day}`);
+    current.setDate(current.getDate() + 1);
+  }
+
+  return dates;
+}
+
 export function toDateKey(referenceDate = new Date()): string {
   const year = referenceDate.getFullYear();
   const month = String(referenceDate.getMonth() + 1).padStart(2, "0");

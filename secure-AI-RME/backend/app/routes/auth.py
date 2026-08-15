@@ -1,12 +1,15 @@
 from flask import Blueprint, request, jsonify, current_app
 import threading
-from flask_mail import Message
+from flask_mail import Mail, Message
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from werkzeug.security import generate_password_hash
 from app.models import db, User, Clinic
 from app.utils import write_audit_log
 from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import text
 from .. import limiter
+import re
+from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature
 
 
 auth_bp = Blueprint("auth", __name__)
@@ -151,6 +154,24 @@ def normalize_optional_strnumber(value):
     return strnumber
 
 
+def normalize_phone(value, required=False):
+    phone = str(value or "").strip()
+
+    if not phone:
+        if required:
+            raise ValueError("Nomor telepon/WhatsApp wajib diisi untuk akun asisten.")
+        return None
+
+    compact_phone = re.sub(r"[\s().-]", "", phone)
+
+    if not re.fullmatch(r"\+?\d{9,15}", compact_phone):
+        raise ValueError(
+            "Nomor telepon/WhatsApp tidak valid. Gunakan 9 sampai 15 digit."
+        )
+
+    return compact_phone
+
+
 def is_strnumber_required_for_role(role):
     normalized_role = role_to_text(role)
 
@@ -203,6 +224,7 @@ def serialize_user(user, current_user_id=None):
         "id": to_str(user.user_id),
         "fullname": user.fullname,
         "email": user.email,
+        "phone": user.phone,
         "role": user.user_role,
         "user_role": user.user_role,
         "strnumber": user.strnumber,
@@ -329,6 +351,7 @@ def user_old_values(user, module="User Access"):
         "clinic_id": to_str(user.clinic_id),
         "fullname": user.fullname,
         "email": user.email,
+        "phone": user.phone,
         "role": user.user_role,
         "strnumber": user.strnumber,
         "is_active": bool(user.is_active),
@@ -676,11 +699,11 @@ def create_or_update_clinic():
         return error_response
 
     current_role = role_to_text(user.user_role)
-    if current_role not in [MIDWIFE_ROLE, ADMIN_ROLE]:
+    if current_role != MIDWIFE_ROLE:
         return (
             jsonify(
                 {
-                    "msg": "Hanya Bidan atau Admin yang dapat membuat atau memperbarui profil klinik."
+                    "msg": "Hanya Bidan yang dapat membuat atau memperbarui profil klinik."
                 }
             ),
             403,
@@ -918,6 +941,103 @@ def login():
         200,
     )
 
+@auth_bp.route("/forgot-password", methods=["POST"])
+def forgot_password():
+    try:
+        data = request.get_json() or {}
+        email = data.get("email", "").strip().lower()
+
+        if not email:
+            return jsonify({"msg": "Email wajib diisi."}), 400
+
+        user = User.query.filter_by(email=email).first()
+
+        if not user:
+            return jsonify({"msg": "Email tidak terdaftar di sistem kami."}), 440
+
+        if hasattr(user, 'is_active') and not user.is_active:
+            return jsonify({
+                "msg": "Akun Anda sedang dinonaktifkan. Silakan hubungi administrator klinik."
+            }), 403
+
+        secret_key = current_app.config.get("SECRET_KEY_EMAIL")
+        frontend_url = current_app.config.get("FRONTEND_URL", "http://localhost:3000")
+        
+        serializer = URLSafeTimedSerializer(secret_key)
+        
+        token = serializer.dumps(user.email, salt="reset-password-salt")
+
+        reset_link = f"{frontend_url}/reset-password?token={token}"
+
+        html_content = f"""
+            <h2 style="color: #4F6F52; margin-bottom: 16px;">Permintaan Reset Kata Sandi</h2>
+            <p style="color: #333; font-size: 14px; line-height: 1.5;">Halo <b>{getattr(user, 'fullname', 'Pengguna')}</b>,</p>
+                Kami menerima permintaan untuk mengatur ulang kata sandi akun. Silakan klik tombol di bawah ini untuk membuat kata sandi baru:
+                <a href="{reset_link}" style="underline; hover:text-blue-700;">
+                    Atur Ulang Kata Sandi
+                </a>
+            <p style="color: #999; font-size: 11px;">
+                *Tautan ini hanya berlaku selama 15 menit. Jika Anda tidak merasa meminta perubahan ini, abaikan email ini.
+            </p>
+        """
+        mail_extension = current_app.extensions.get('mail')
+
+        msg = Message(
+            subject="[SRM System] Pemulihan Kata Sandi Akun",
+            recipients=[user.email],
+            html=html_content
+        )
+        mail_extension.send(msg)
+
+        return jsonify({
+            "msg": "Tautan pemulihan kata sandi berhasil dikirim ke email Anda."
+        }), 200
+
+    except Exception as e:
+        return jsonify({"msg": "Gagal mengirim email pemulihan.", "error": str(e)}), 500
+
+@auth_bp.route("/reset-password", methods=["POST"])
+def reset_password():
+    try:
+        data = request.get_json() or {}
+        token = data.get("token")
+        new_password = data.get("new_password")
+
+        if not token or not new_password:
+            return jsonify({"msg": "Token dan kata sandi baru wajib diisi."}), 400
+
+        if len(new_password) < 6:
+            return jsonify({"msg": "Kata sandi minimal harus 6 karakter."}), 400
+
+        secret_key = current_app.config.get("SECRET_KEY_EMAIL")
+        serializer = URLSafeTimedSerializer(secret_key)
+
+        try:
+            email = serializer.loads(
+                token, 
+                salt="reset-password-salt", 
+                max_age=900
+            )
+        except SignatureExpired:
+            return jsonify({"msg": "Tautan telah kedaluwarsa. Silakan ajukan kembali permintaan pemulihan."}), 400
+        except BadTimeSignature:
+            return jsonify({"msg": "Tautan tidak valid atau telah diubah."}), 400
+
+        user = User.query.filter_by(email=email).first()
+        if not user:
+            return jsonify({"msg": "Pengguna tidak ditemukan."}), 404
+        
+        user.set_password(new_password)
+
+        db.session.commit()
+
+        return jsonify({
+            "msg": "Kata sandi berhasil diperbarui! Silakan login dengan kata sandi baru Anda."
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": "Gagal memperbarui kata sandi.", "error": str(e)}), 500
 
 @auth_bp.route("/me", methods=["GET"])
 @jwt_required()
@@ -942,6 +1062,8 @@ def update_current_user():
 
     fullname = data.get("fullname")
     email = data.get("email")
+    phone_was_provided = "phone" in data
+    phone = data.get("phone")
     strnumber = data.get("strnumber")
     profile_photo_was_provided = "profile_photo" in data
 
@@ -971,6 +1093,12 @@ def update_current_user():
                 return jsonify({"msg": "Email sudah digunakan."}), 409
 
             user.email = email
+
+        if phone_was_provided:
+            user.phone = normalize_phone(
+                phone,
+                required=role_to_text(user.user_role) == ASSISTANT_ROLE,
+            )
 
         if strnumber is not None:
             normalized_strnumber = normalize_optional_strnumber(strnumber)
@@ -1008,6 +1136,7 @@ def update_current_user():
             if profile_photo_was_provided
             and fullname is None
             and email is None
+            and not phone_was_provided
             and strnumber is None
             else "UPDATE_ACCOUNT_PROFILE"
         )
@@ -1286,6 +1415,10 @@ def create_management_user():
 
     try:
         role = normalize_role(data.get("role", ASSISTANT_ROLE))
+        phone = normalize_phone(
+            data.get("phone"),
+            required=role == ASSISTANT_ROLE,
+        )
     except ValueError as e:
         return jsonify({"msg": str(e)}), 400
 
@@ -1356,6 +1489,7 @@ def create_management_user():
 
             existing_user_by_email.fullname = fullname
             existing_user_by_email.strnumber = strnumber
+            existing_user_by_email.phone = phone
             existing_user_by_email.user_role = role
             existing_user_by_email.clinic_id = (
                 None if manager_role == ADMIN_ROLE else manager.clinic_id
@@ -1400,6 +1534,7 @@ def create_management_user():
             fullname=fullname,
             email=email,
             strnumber=strnumber,
+            phone=phone,
             user_role=role,
             is_active=is_active,
         )
@@ -1518,9 +1653,11 @@ def update_management_employee(employee_id):
 
     role_was_changed = "role" in data
     active_was_changed = "is_active" in data
+    phone_was_changed = "phone" in data
 
     new_role = employee.user_role
     new_is_active = employee.is_active
+    new_phone = employee.phone
 
     if role_was_changed:
         try:
@@ -1537,6 +1674,15 @@ def update_management_employee(employee_id):
     if active_was_changed:
         new_is_active = parse_bool(data.get("is_active"), default=employee.is_active)
 
+    if phone_was_changed:
+        try:
+            new_phone = normalize_phone(
+                data.get("phone"),
+                required=new_role == ASSISTANT_ROLE,
+            )
+        except ValueError as e:
+            return jsonify({"msg": str(e)}), 400
+
     if str(employee.user_id) == str(manager.user_id):
         if role_was_changed and new_role != employee.user_role:
             return jsonify({"msg": "Anda tidak dapat mengubah role akun sendiri."}), 400
@@ -1549,6 +1695,7 @@ def update_management_employee(employee_id):
 
         employee.user_role = new_role
         employee.is_active = new_is_active
+        employee.phone = new_phone
 
         action_name = "UPDATE_USER_ACCESS"
 

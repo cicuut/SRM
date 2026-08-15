@@ -15,6 +15,7 @@ from app.models import (
     VisitGeneral,
     FamilyPlanningRecord,
     Financial,
+    FinancialItem,
 )
 from app.utils import (
     generate_visit_number,
@@ -29,6 +30,7 @@ from app.utils import (
 from datetime import datetime
 from flask_jwt_extended import get_jwt_identity, jwt_required
 import pytz
+from sqlalchemy import func
 
 
 visit_report_bp = Blueprint("visit_report", __name__)
@@ -179,12 +181,32 @@ def get_patient_display_name(patient):
 
 
 def get_financial_amount(data):
-    status = str(data.get("payment_status") or "unpaid").strip().lower()
+    status = str(data.get("payment_status") or "").strip().lower()
 
     if status == "unpaid":
         return clean_float(data.get("total")) or 0
 
     return clean_float(data.get("total")) or 0
+
+
+def validate_billing_data(data):
+    payment_status = str(data.get("payment_status") or "").strip().lower()
+
+    if payment_status not in {"paid", "unpaid"}:
+        return (
+            jsonify(
+                {
+                    "msg": (
+                        "Status pembayaran wajib dipilih. "
+                        "Pilih Terbayar atau Belum Bayar."
+                    )
+                }
+            ),
+            400,
+        )
+
+    data["payment_status"] = payment_status
+    return None
 
 
 def create_financial_for_visit(
@@ -197,6 +219,7 @@ def create_financial_for_visit(
     patient_name,
     data,
     payment_date,
+    visit_status,
 ):
     current_year = payment_date.year
     sequence_number = reserve_next_sequence(current_year, clinic_id)
@@ -214,12 +237,33 @@ def create_financial_for_visit(
         trans_type="pemasukan",
         amount=get_financial_amount(data),
         payment_method=data.get("payment_method"),
-        status=data.get("payment_status", "unpaid"),
+        status=data["payment_status"],
         payment_date=payment_date,
         description=final_description,
+        visit_status=visit_status,
     )
 
     db.session.add(new_financial)
+    db.session.flush()
+
+    billing_items = data.get("billing_items") or []
+    if data.get("payment_status") != "unpaid" and billing_items:
+        for item in billing_items:
+            item_name = str(item.get("item_name", "")).strip()
+            quantity = clean_float(item.get("quantity")) or 1.0
+            unit_cost = clean_float(item.get("unit_cost")) or 0.0
+            subtotal = quantity * unit_cost
+
+            if item_name:
+                financial_item = FinancialItem(
+                    transaction_id=new_financial.transaction_id,
+                    item_name=item_name,
+                    quantity=quantity,
+                    unit_cost=unit_cost,
+                    subtotal=subtotal,
+                )
+                db.session.add(financial_item)
+
     return new_financial
 
 
@@ -236,6 +280,7 @@ def serialize_visit_row(visit, medical_record, patient, user):
         "nik": decrypted_nik,
         "record_type": medical_record.record_type,
         "made_by": user.fullname if user else "-",
+        "status": visit.visit_status,
     }
 
 
@@ -399,6 +444,7 @@ def get_patient_data(uuid):
             "nik": safe_decrypt(patient.national_id),
             "record_type": medical_record.record_type,
             "made_by": user.fullname if user else "-",
+            "status": visit.visit_status,
         }), 200
 
     except Exception as e:
@@ -414,6 +460,11 @@ def add_visit_pregnancy():
         return error_response
 
     data = request.get_json() or {}
+    billing_error = validate_billing_data(data)
+
+    if billing_error:
+        return billing_error
+
     record_id = data.get("record_id")
     now_local = datetime.now()
     visit_date = now_local.date()
@@ -429,6 +480,13 @@ def add_visit_pregnancy():
         
         count = get_next_visit_sequence_and_increment(patient.clinic_id)
         generated_visit_number = generate_visit_number(count)
+
+        role_str = str(current_role).strip().lower()
+        
+        if role_str in ["midwife"]:
+            initial_status = "approved"
+        else:
+            initial_status = "pending"
         
         new_visit = VisitMaster(
             record_id=record_id,
@@ -437,6 +495,7 @@ def add_visit_pregnancy():
             visit_number=generated_visit_number,
             visit_date=visit_date,
             visit_time=now_local,
+            visit_status=initial_status
         )
         db.session.add(new_visit)
         db.session.flush()
@@ -466,6 +525,7 @@ def add_visit_pregnancy():
             patient_name=get_patient_display_name(patient),
             data=data,
             payment_date=now_local,
+            visit_status=initial_status,
         )
         record.last_update = now_local
         db.session.commit()
@@ -502,6 +562,16 @@ def get_pregnancy_visit(uuid):
             return jsonify({"msg": "Data kehamilan tidak ditemukan."}), 404
 
         current_finance = get_visit_finance(uuid)
+        current_finance_items = []
+        if current_finance and current_finance.items:
+            for item in current_finance.items:
+                current_finance_items.append({
+                    "item_id": str(item.item_id),
+                    "item_name": item.item_name,
+                    "quantity": float(item.quantity) if item.quantity else 0,
+                    "unit_cost": float(item.unit_cost) if item.unit_cost else 0,
+                    "subtotal": float(item.subtotal) if item.subtotal else 0,
+                })
 
         return jsonify({
             "subjective": safe_decrypt(current_pregnancy_visit.subjective) or "-",
@@ -521,6 +591,7 @@ def get_pregnancy_visit(uuid):
                 "total_amount": current_finance.amount if current_finance else 0,
                 "status": current_finance.status if current_finance else "unpaid",
                 "payment_method": current_finance.payment_method if current_finance else "-",
+                "items": current_finance_items
             },
         }), 200
 
@@ -540,6 +611,8 @@ def update_pregnancy_visit_report(uuid):
         data = request.get_json() or {}
         if not data:
             return jsonify({"msg": "Payload data tidak boleh kosong."}), 400
+
+        visit_id_str = str(uuid)
 
         result = get_visit_for_user(uuid, current_user, current_role)
         if not result:
@@ -566,6 +639,13 @@ def update_pregnancy_visit_report(uuid):
             db.session.query(MedicalRecord).filter(
                 MedicalRecord.medical_record_id == visit_base.record_id 
             ).update({"last_update": datetime.now()})
+
+ 
+        role_str = str(current_role).strip().lower()
+        if role_str in ["asisten", "assistant", "staff"]:
+                visit_master = VisitMaster.query.filter_by(visit_id=visit_id_str).first()            
+                if visit_master:
+                    visit_master.visit_status = "pending"
             
         db.session.commit()
 
@@ -585,6 +665,11 @@ def add_visit_familyplanning():
         return error_response
 
     data = request.get_json() or {}
+    billing_error = validate_billing_data(data)
+
+    if billing_error:
+        return billing_error
+
     record_id = data.get("record_id")
     now_local = datetime.now()
     visit_date = now_local.date()
@@ -600,11 +685,19 @@ def add_visit_familyplanning():
 
         count = get_next_visit_sequence_and_increment(patient.clinic_id)
         generated_visit_number = generate_visit_number(count)
+
+        role_str = str(current_role).strip().lower()
+        if role_str in ["midwife"]:
+            initial_status = "approved"
+        else:
+            initial_status = "pending"
+
         new_visit = VisitMaster(
             record_id=record_id,
             user_id=current_user.user_id,
             clinic_id=patient.clinic_id,
             visit_number=data.get("visit_number"),
+            visit_status=initial_status,
             visit_date=visit_date,
             visit_time=now_local,
         )
@@ -631,6 +724,7 @@ def add_visit_familyplanning():
             patient_name=get_patient_display_name(patient),
             data=data,
             payment_date=now_local,
+            visit_status=initial_status
         )
 
         record.last_update = now_local
@@ -669,6 +763,17 @@ def get_familyplanning_visit(uuid):
 
         current_finance = get_visit_finance(uuid)
 
+        current_finance_items = []
+        if current_finance and current_finance.items:
+            for item in current_finance.items:
+                current_finance_items.append({
+                    "item_id": str(item.item_id),
+                    "item_name": item.item_name,
+                    "quantity": float(item.quantity) if item.quantity else 0,
+                    "unit_cost": float(item.unit_cost) if item.unit_cost else 0,
+                    "subtotal": float(item.subtotal) if item.subtotal else 0,
+                })
+
         return jsonify({
             "complaint": safe_decrypt(current_familyplanning_visit.complaint),
             "weight_kg": clean_float(current_familyplanning_visit.weight_kg),
@@ -681,6 +786,7 @@ def get_familyplanning_visit(uuid):
                 "total_amount": current_finance.amount if current_finance else 0,
                 "payment_method": current_finance.payment_method if current_finance else "-",
                 "status": current_finance.status if current_finance else "-",
+                "items": current_finance_items
             },
         }), 200
 
@@ -701,6 +807,8 @@ def update_familyplanning_visit_report(uuid):
         if not data:
             return jsonify({"msg": "Payload data tidak boleh kosong."}), 400
 
+        visit_id_str = str(uuid)
+
         result = get_visit_for_user(uuid, current_user, current_role)
         if not result:
             return jsonify({"msg": "Data kunjungan tidak ditemukan atau bukan milik klinik Anda."}), 404
@@ -714,6 +822,19 @@ def update_familyplanning_visit_report(uuid):
         current_familyplanning_visit.kb_method = data.get("contraceptive_method", "")
         current_familyplanning_visit.return_visit_date = data.get("return_visit_date", "")
         current_familyplanning_visit.complaint = data.get("complaint", current_familyplanning_visit.complaint)
+
+        visit_base = result[0] if isinstance(result, tuple) else result
+
+        if visit_base and hasattr(visit_base, 'record_id') and visit_base.record_id:
+            db.session.query(MedicalRecord).filter(
+                MedicalRecord.medical_record_id == visit_base.record_id 
+            ).update({"last_update": datetime.now()})
+
+        role_str = str(current_role).strip().lower()
+        if role_str in ["asisten", "assistant", "staff"]:
+            visit_master = VisitMaster.query.filter_by(visit_id=visit_id_str).first()            
+            if visit_master:
+                visit_master.visit_status = "pending"
 
         db.session.commit()
 
@@ -733,6 +854,11 @@ def add_visit_immunization():
         return error_response
 
     data = request.get_json() or {}
+    billing_error = validate_billing_data(data)
+
+    if billing_error:
+        return billing_error
+
     record_id = data.get("record_id")
     vaccine_given = data.get("vaccine_given")
     dosage_given = data.get("dosage_given")
@@ -761,6 +887,13 @@ def add_visit_immunization():
             
         count = get_next_visit_sequence_and_increment(patient.clinic_id)
         generated_visit_number = generate_visit_number(count)
+
+        role_str = str(current_role).strip().lower()
+        if role_str in ["midwife"]:
+            initial_status = "approved"
+        else:
+            initial_status = "pending"
+
         new_visit = VisitMaster(
             record_id=record_id,
             user_id=current_user.user_id,
@@ -768,6 +901,7 @@ def add_visit_immunization():
             visit_number=generated_visit_number,
             visit_date=visit_date,
             visit_time=now_local,
+            visit_status=initial_status
         )
         db.session.add(new_visit)
         db.session.flush()
@@ -794,6 +928,7 @@ def add_visit_immunization():
             patient_name=get_patient_display_name(patient),
             data=data,
             payment_date=now_local,
+            visit_status=initial_status
         )
 
         record.last_update = now_local
@@ -828,6 +963,16 @@ def get_immunization_visit(uuid):
             return jsonify({"msg": "Data imunisasi tidak ditemukan."}), 404
 
         current_finance = get_visit_finance(uuid)
+        current_finance_items = []
+        if current_finance and current_finance.items:
+            for item in current_finance.items:
+                current_finance_items.append({
+                    "item_id": str(item.item_id),
+                    "item_name": item.item_name,
+                    "quantity": float(item.quantity) if item.quantity else 0,
+                    "unit_cost": float(item.unit_cost) if item.unit_cost else 0,
+                    "subtotal": float(item.subtotal) if item.subtotal else 0,
+                })
 
         return jsonify({
             "weight_kg": current_immunization_visit.baby_weight or "-",
@@ -842,6 +987,7 @@ def get_immunization_visit(uuid):
                 "total_amount": current_finance.amount if current_finance else 0,
                 "payment_method": current_finance.payment_method if current_finance else "-",
                 "status": current_finance.status if current_finance else "-",
+                "items": current_finance_items,
             },
         }), 200
 
@@ -861,6 +1007,8 @@ def update_immunization_visit(uuid):
         data = request.get_json() or {}
         if not data:
             return jsonify({"msg": "Payload data tidak boleh kosong."}), 400
+
+        visit_id_str = str(uuid)
 
         result = get_visit_for_user(uuid, current_user, current_role)
         if not result:
@@ -908,6 +1056,18 @@ def update_immunization_visit(uuid):
         current_immunization_visit.vaccine_given = new_vaccine_given
         current_immunization_visit.dosage_given = new_dosage_given
 
+        visit_base = result[0] if isinstance(result, tuple) else result
+        if visit_base and hasattr(visit_base, 'record_id') and visit_base.record_id:
+            db.session.query(MedicalRecord).filter(
+                MedicalRecord.medical_record_id == visit_base.record_id 
+            ).update({"last_update": datetime.now()})
+
+        role_str = str(current_role).strip().lower()
+        if role_str in ["asisten", "assistant", "staff"]:
+                visit_master = VisitMaster.query.filter_by(visit_id=visit_id_str).first()            
+                if visit_master:
+                    visit_master.visit_status = "pending"
+
         db.session.commit()
 
         return jsonify({"msg": "Catatan medis imunisasi berhasil diperbarui.", "visit_id": str(uuid)}), 200
@@ -926,6 +1086,11 @@ def add_visit_general():
         return error_response
 
     data = request.get_json() or {}
+    billing_error = validate_billing_data(data)
+
+    if billing_error:
+        return billing_error
+
     record_id = data.get("record_id")
     now_local = datetime.now()
     visit_date = now_local.date()
@@ -943,6 +1108,14 @@ def add_visit_general():
             
         count = get_next_visit_sequence_and_increment(patient.clinic_id)
         generated_visit_number = generate_visit_number(count)
+
+        role_str = str(current_role).strip().lower()
+        
+        if role_str in ["midwife"]:
+            initial_status = "approved"
+        else:
+            initial_status = "pending"
+
         new_visit = VisitMaster(
             record_id=record_id,
             user_id=current_user.user_id,
@@ -950,6 +1123,7 @@ def add_visit_general():
             visit_number=data.get("visit_number"),
             visit_date=visit_date,
             visit_time=now_local,
+            visit_status=initial_status
         )
         db.session.add(new_visit)
         db.session.flush()
@@ -973,6 +1147,7 @@ def add_visit_general():
             patient_name=get_patient_display_name(patient),
             data=data,
             payment_date=now_local,
+            visit_status=initial_status,
         )
         record.last_update = now_local
         db.session.commit()
@@ -1008,6 +1183,17 @@ def get_general_visit(uuid):
 
         current_finance = get_visit_finance(uuid)
 
+        current_finance_items = []
+        if current_finance and current_finance.items:
+            for item in current_finance.items:
+                current_finance_items.append({
+                    "item_id": str(item.item_id),
+                    "item_name": item.item_name,
+                    "quantity": float(item.quantity) if item.quantity else 0,
+                    "unit_cost": float(item.unit_cost) if item.unit_cost else 0,
+                    "subtotal": float(item.subtotal) if item.subtotal else 0,
+                })
+
         return jsonify({
             "subjective": safe_decrypt(current_general_visit.subjective),
             "objective": safe_decrypt(current_general_visit.objective),
@@ -1018,6 +1204,7 @@ def get_general_visit(uuid):
                 "total_amount": current_finance.amount if current_finance else 0,
                 "payment_method": current_finance.payment_method if current_finance else "-",
                 "status": current_finance.status if current_finance else "-",
+                "items": current_finance_items
             },
         }), 200
 
@@ -1038,6 +1225,8 @@ def update_general_visit_report(uuid):
         if not data:
             return jsonify({"msg": "Payload data tidak boleh kosong."}), 400
 
+        visit_id_str = str(uuid)
+
         result = get_visit_for_user(uuid, current_user, current_role)
         if not result:
             return jsonify({"msg": "Data kunjungan tidak ditemukan atau bukan milik klinik Anda."}), 404
@@ -1050,6 +1239,18 @@ def update_general_visit_report(uuid):
         current_general_visit.objective = data.get("objective", "")
         current_general_visit.assessment = data.get("assessment", "")
         current_general_visit.plan = data.get("plan", "")
+
+        visit_base = result[0] if isinstance(result, tuple) else result
+        if visit_base and hasattr(visit_base, 'record_id') and visit_base.record_id:
+            db.session.query(MedicalRecord).filter(
+                MedicalRecord.medical_record_id == visit_base.record_id 
+            ).update({"last_update": datetime.now()})
+
+        role_str = str(current_role).strip().lower()
+        if role_str in ["asisten", "assistant", "staff"]:
+                visit_master = VisitMaster.query.filter_by(visit_id=visit_id_str).first()            
+                if visit_master:
+                    visit_master.visit_status = "pending"
 
         db.session.commit()
 
@@ -1140,6 +1341,7 @@ def filter_all_visits():
         rm_type = request.args.get("type", "All")
         start_date = request.args.get("start_date", "")
         end_date = request.args.get("end_date", "")
+        status = request.args.get("status", "All")
 
         query = query_visits_for_user(current_user, current_role)
 
@@ -1148,6 +1350,9 @@ def filter_all_visits():
 
         if start_date and end_date:
             query = query.filter(VisitMaster.visit_date.between(start_date, end_date))
+
+        if status not in ["All", "Semua"]:
+            query = query.filter(VisitMaster.visit_status == status)
 
         results = query.order_by(VisitMaster.visit_date.desc(), VisitMaster.visit_time.desc()).all()
 
@@ -1190,6 +1395,8 @@ def get_json_visit_report():
         search_query = request.args.get("search", "").strip().lower()
 
         query = query_visits_for_user(current_user, current_role)
+
+        query = query.filter(func.lower(VisitMaster.visit_status) == "approved")
 
         if start_date_str and end_date_str:
             start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
@@ -1307,3 +1514,33 @@ def get_json_visit_report():
 
     except Exception as e:
         return jsonify({"msg": "Terjadi kesalahan pada server.", "error": str(e)}), 500
+
+@visit_report_bp.route("/approve/<uuid:visit_id>", methods=["PATCH"])
+@jwt_required()
+def approve_visit(visit_id):
+    current_user, current_role, error_response = require_visit_access()
+
+    if error_response:
+        return error_response
+
+    role_str = str(current_role).strip().lower()
+    if role_str not in [ "midwife"]:
+        return jsonify({"msg": "Akses ditolak. Hanya Bidan yang dapat menyetujui kunjungan."}), 403
+
+    visit_id_str = str(visit_id)
+    visit = VisitMaster.query.get(visit_id_str)
+    if not visit:
+        return jsonify({"msg": "Data kunjungan tidak ditemukan."}), 404
+
+    if visit.visit_status == "approved":
+        return jsonify({"msg": "Kunjungan ini sudah disetujui sebelumnya."}), 200
+
+    visit.visit_status = "approved"
+
+    financial = Financial.query.filter_by(visit_id=visit_id_str).first()
+    if financial:
+        financial.visit_status = "approved"
+
+    db.session.commit()
+
+    return jsonify({"msg": "Kunjungan berhasil disetujui dan transaksi keuangan telah dicatat."}), 200

@@ -9,22 +9,27 @@ interface PatientInformationDetailList {
   made_by: string;
   visit_date: string;
   nik: string;
+  status?: string;
+}
+
+interface VisitInformationProps {
+  onDataLoaded?: (data: PatientInformationDetailList) => void;
 }
 
 const formatDateForInput = (dateString: string | undefined | null) => {
   if (!dateString) return "";
-  
+
   const date = new Date(dateString);
-  if (isNaN(date.getTime())) return ""; 
+  if (isNaN(date.getTime())) return "";
 
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0"); 
+  const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
 };
 
-const VisitInformation = () => {
+const VisitInformation = ({ onDataLoaded }: VisitInformationProps) => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const params = useParams();
@@ -39,6 +44,9 @@ const VisitInformation = () => {
         const response = await api.get(`/visit-report/get-visit-data/${uuid}`);
         const data = response.data;
         setVisitData(data);
+        if (onDataLoaded) {
+          onDataLoaded(response.data);
+        }
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -48,7 +56,6 @@ const VisitInformation = () => {
 
     fetchPatientData();
   }, [uuid]);
-
 
   if (error)
     return <div className="p-8 text-center text-red-500">Error: {error}</div>;

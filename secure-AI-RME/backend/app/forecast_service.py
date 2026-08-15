@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import calendar
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -29,7 +30,7 @@ MODEL_DIR = Path(__file__).resolve().parent.parent / "forecast"
 
 SERVICE_MODELS: Dict[str, dict] = {
     "Kehamilan": {
-        "file": "model_kehamilan_1.joblib",
+        "file": "model_kehamilan_rev.joblib",
         "features": [
             "lag_30",
             "rolling_mean_30",
@@ -39,7 +40,7 @@ SERVICE_MODELS: Dict[str, dict] = {
         ],
     },
     "Keluarga Berencana": {
-        "file": "model_famplan_2.joblib",
+        "file": "model_famplan_rev.joblib",
         "features": [
             "lag_30",
             "lag_60",
@@ -51,7 +52,7 @@ SERVICE_MODELS: Dict[str, dict] = {
         ],
     },
     "Umum": {
-        "file": "model_polum_1.joblib",
+        "file": "model_polum_rev.joblib",
         "features": [
             "lag_1",
             "lag_7",
@@ -64,7 +65,7 @@ SERVICE_MODELS: Dict[str, dict] = {
         ],
     },
     "Imunisasi": {
-        "file": "model_vaksin_2.joblib",
+        "file": "model_vaksin_rev.joblib",
         "features": [
             "lag_1",
             "lag_7",
@@ -75,7 +76,7 @@ SERVICE_MODELS: Dict[str, dict] = {
         ],
     },
     "Persalinan": {
-        "file": "model_melahirkan_2.joblib",
+        "file": "model_melahirkan_rev.joblib",
         "features": [
             "hpl_count",
             "day_of_week",
@@ -220,6 +221,13 @@ def apply_clinic_scope(query, clinic_id):
         MedicalRecord.clinic_id == clinic_id,
     )
 
+
+def apply_approved_visit_filter(query):
+    return query.filter(
+        func.lower(func.trim(func.coalesce(VisitMaster.visit_status, "")))
+        == "approved"
+    )
+
 # retrieves the monthly delivery total
 def get_monthly_delivery_total(
     month_start: date,
@@ -259,6 +267,7 @@ def get_monthly_visit_total(
         )
     )
     query = apply_clinic_scope(query, clinic_id)
+    query = apply_approved_visit_filter(query)
 
     visit_total = int(query.scalar() or 0)
     delivery_total = get_monthly_delivery_total(month_start, end_date, clinic_id)
@@ -284,6 +293,7 @@ def get_monthly_counts_by_service(
         )
     )
     query = apply_clinic_scope(query, clinic_id)
+    query = apply_approved_visit_filter(query)
 
     rows = query.group_by(MedicalRecord.record_type).all()
 
@@ -307,6 +317,7 @@ def get_daily_visit_counts(
         )
     )
     query = apply_clinic_scope(query, clinic_id)
+    query = apply_approved_visit_filter(query)
 
     rows = query.group_by(func.date(VisitMaster.visit_date)).all()
 
@@ -476,25 +487,100 @@ def forecast_date_range(
 def get_month_bounds(reference: Optional[date] = None) -> Tuple[date, date]:
     today = reference or get_jakarta_now().date()
     month_start = today.replace(day=1)
-
-    if today.month == 12:
-        month_end = date(today.year + 1, 1, 1) - timedelta(days=1)
-    else:
-        month_end = date(today.year, today.month + 1, 1) - timedelta(days=1)
+    month_end = get_month_end(month_start)
 
     return month_start, month_end
+
+
+def get_month_end(reference: date) -> date:
+    last_day = calendar.monthrange(reference.year, reference.month)[1]
+    return date(reference.year, reference.month, last_day)
+
+
+def add_months(reference: date, months: int) -> date:
+    month_index = reference.month - 1 + months
+    year = reference.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(reference.day, calendar.monthrange(year, month)[1])
+
+    return date(year, month, day)
+
+
+def get_forecast_end(
+    reference: date,
+    horizon_months: int = 12,
+) -> date:
+    target_month = add_months(
+        reference.replace(day=1),
+        max(horizon_months - 1, 0),
+    )
+    return get_month_end(target_month)
+
+
+def month_keys_between(start: date, end: date) -> List[str]:
+    keys: List[str] = []
+    current = start.replace(day=1)
+
+    while current <= end:
+        keys.append(current.strftime("%Y-%m"))
+        current = add_months(current, 1)
+
+    return keys
+
+
+def sum_points_in_month(points: List[dict], month_key: str) -> int:
+    return sum(
+        int(point.get("count") or 0)
+        for point in points
+        if str(point.get("date", "")).startswith(month_key)
+    )
+
+
+def build_month_breakdown(
+    month_keys: List[str],
+    history_points: List[dict],
+    forecast_points: List[dict],
+    current_month_key: str,
+    current_month_actual: int,
+) -> List[dict]:
+    months: List[dict] = []
+
+    for month_key in month_keys:
+        if month_key == current_month_key:
+            actual = int(current_month_actual)
+        else:
+            actual = sum_points_in_month(history_points, month_key)
+
+        forecast_total = sum_points_in_month(forecast_points, month_key)
+
+        months.append(
+            {
+                "month": month_key,
+                "actual": actual,
+                "forecast": forecast_total,
+                "total": actual + forecast_total,
+            }
+        )
+
+    return months
+
 
 # builds the forecast payload
 def build_forecast_payload(
     clinic_id,
     reference: Optional[date] = None,
+    horizon_months: int = 12,
 ) -> dict:
     if clinic_id is None:
         raise ValueError("clinic_id is required for forecast payload")
 
     today = reference or get_jakarta_now().date()
     month_start, month_end = get_month_bounds(today)
+    forecast_end = get_forecast_end(today, horizon_months=horizon_months)
     history_start = month_start - timedelta(days=120)
+    forecast_start = today + timedelta(days=1)
+    current_month_key = month_start.strftime("%Y-%m")
+    month_keys = month_keys_between(month_start, forecast_end)
 
     history: List[dict] = []
     forecast: List[dict] = []
@@ -514,11 +600,12 @@ def build_forecast_payload(
         clinic_id,
     )
 
-    forecast_remaining_total = 0
+    forecast_remaining_month_total = 0
+    forecast_horizon_total = 0
 
     hpl_counts = get_hpl_counts_by_date(
         history_start,
-        month_end,
+        forecast_end,
         clinic_id,
     )
 
@@ -544,9 +631,9 @@ def build_forecast_payload(
             if month_start <= day <= min(today, month_end)
         )
 
-        forecast_start = today + timedelta(days=1)
         service_forecast: List[dict] = []
-        forecast_total = 0
+        forecast_remaining_month = 0
+        forecast_horizon = 0
 
         has_service_history = service_has_history(
             service_type=service_type,
@@ -554,17 +641,24 @@ def build_forecast_payload(
             hpl_counts=hpl_counts if service_type == "Persalinan" else None,
         )
 
-        if forecast_start <= month_end and has_service_history:
+        if forecast_start <= forecast_end and has_service_history:
             service_forecast, _ = forecast_date_range(
                 service_type,
                 counts,
                 forecast_start,
-                month_end,
+                forecast_end,
                 history_start=history_start,
                 hpl_counts=hpl_counts if service_type == "Persalinan" else None,
             )
 
-            forecast_total = sum(item["count"] for item in service_forecast)
+            forecast_horizon = sum(item["count"] for item in service_forecast)
+            forecast_remaining_month = sum(
+                item["count"]
+                for item in service_forecast
+                if month_start
+                <= date.fromisoformat(item["date"])
+                <= month_end
+            )
 
         service_history = daily_points_for_range(
             counts,
@@ -572,16 +666,35 @@ def build_forecast_payload(
             min(today, month_end),
         )
 
+        service_months = build_month_breakdown(
+            month_keys=month_keys,
+            history_points=service_history,
+            forecast_points=service_forecast,
+            current_month_key=current_month_key,
+            current_month_actual=actual_this_month,
+        )
+
+        # Daily series for the chart: current month only (keeps payload small).
+        # Full-horizon totals live in service_months / top-level months.
+        service_forecast_current_month = [
+            item
+            for item in service_forecast
+            if str(item.get("date", "")).startswith(current_month_key)
+        ]
+
         by_service[service_type] = {
             "actual_month_to_date": actual_this_month,
-            "forecast_remaining_month": forecast_total,
-            "forecast_month_total": actual_this_month + forecast_total,
+            "forecast_remaining_month": forecast_remaining_month,
+            "forecast_month_total": actual_this_month + forecast_remaining_month,
+            "forecast_horizon_total": forecast_horizon,
+            "months": service_months,
             "history": service_history,
-            "forecast": service_forecast,
+            "forecast": service_forecast_current_month,
             "has_model": True,
         }
 
-        forecast_remaining_total += forecast_total
+        forecast_remaining_month_total += forecast_remaining_month
+        forecast_horizon_total += forecast_horizon
 
         history.extend(service_history)
         forecast.extend(service_forecast)
@@ -594,12 +707,20 @@ def build_forecast_payload(
             "actual_month_to_date": actual_count,
             "forecast_remaining_month": 0,
             "forecast_month_total": actual_count,
+            "forecast_horizon_total": 0,
+            "months": build_month_breakdown(
+                month_keys=month_keys,
+                history_points=[],
+                forecast_points=[],
+                current_month_key=current_month_key,
+                current_month_actual=actual_count,
+            ),
             "history": [],
             "forecast": [],
             "has_model": False,
         }
 
-    monthly_forecast = monthly_actual + forecast_remaining_total
+    monthly_forecast = monthly_actual + forecast_remaining_month_total
 
     aggregated_history = aggregate_daily_points_for_range(
         history,
@@ -607,23 +728,41 @@ def build_forecast_payload(
         month_end_actual,
     )
 
-    forecast_range_start = today + timedelta(days=1)
-
-    aggregated_forecast = (
+    # Full-horizon daily forecast is aggregated into `months` only.
+    # Top-level daily `forecast` keeps the current month for the main chart.
+    aggregated_forecast_full = (
         aggregate_daily_points_for_range(
             forecast,
-            forecast_range_start,
-            month_end,
+            forecast_start,
+            forecast_end,
         )
-        if forecast_range_start <= month_end
+        if forecast_start <= forecast_end
         else []
     )
 
+    aggregated_forecast = [
+        item
+        for item in aggregated_forecast_full
+        if str(item.get("date", "")).startswith(current_month_key)
+    ]
+
+    months = build_month_breakdown(
+        month_keys=month_keys,
+        history_points=aggregated_history,
+        forecast_points=aggregated_forecast_full,
+        current_month_key=current_month_key,
+        current_month_actual=monthly_actual,
+    )
+
     return {
-        "month": month_start.strftime("%Y-%m"),
+        "month": current_month_key,
+        "forecast_end": forecast_end.isoformat(),
+        "forecast_horizon_months": horizon_months,
         "clinic_id": str(clinic_id),
         "monthly_actual": monthly_actual,
         "monthly_forecast": monthly_forecast,
+        "forecast_horizon_total": forecast_horizon_total,
+        "months": months,
         "history": aggregated_history,
         "forecast": aggregated_forecast,
         "by_service": by_service,

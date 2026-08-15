@@ -21,10 +21,22 @@ interface MedicalForm {
     total_amount?: number;
     payment_method?: string;
     status?: string;
+    items?: Array<{
+      item_name: string;
+      quantity: number;
+      unit_cost: number;
+    }>;
   };
 }
+const formatRupiah = (value: number | string | undefined | null) => {
+  const numericValue = Number(value || 0);
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+  }).format(Number.isNaN(numericValue) ? 0 : numericValue);
+};
 const VisitPregnancyDetail = () => {
-  // Local state for visit details and loading/error status
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const params = useParams();
@@ -34,6 +46,8 @@ const VisitPregnancyDetail = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const uuid = params.id;
+  const [visitStatus, setVisitStatus] = useState<string>("");
+  const [userRole, setUserRole] = useState("");
 
   const [formData, setFormData] = useState<MedicalForm>({
     subjective: "",
@@ -58,55 +72,67 @@ const VisitPregnancyDetail = () => {
     null,
   );
 
+  const finance = originalFormData?.finance;
+  const billingItems = finance?.items || [];
+
   const isChanged = useMemo(() => {
     if (!originalFormData) return false;
     return JSON.stringify(originalFormData) !== JSON.stringify(formData);
   }, [formData, originalFormData]);
 
   useEffect(() => {
-    const fetchPatientData = async () => {
-      if (!uuid) return;
-      try {
-        const response = await api.get(
-          `/visit-report/get-visit-pregnancy/${uuid}`,
-        );
+    const role = localStorage.getItem("user_role") || "";
+    setUserRole(role.toLowerCase());
+  }, []);
 
-        const initialFormValues = {
-          subjective: response.data.subjective || "",
-          objective: response.data.objective || "",
-          assessment: response.data.assessment || "",
-          plan: response.data.plan || "",
-          weight: response.data.weight || "",
-          height: response.data.height || "",
-          blood_pressure: response.data.blood_pressure || "",
-          body_temperature: response.data.body_temperature || "",
-          heart_rate: response.data.heart_rate || "",
-          respiratory_rate: response.data.respiratory_rate || "",
-          finance: {
-            invoice_number:
-              response.data.finance?.invoice_number ||
-              response.data.transaction_number ||
-              "",
-            total_amount:
-              response.data.finance?.total_amount || response.data.amount || 0,
-            payment_method:
-              response.data.finance?.payment_method ||
-              response.data.payment_method ||
-              "",
-            status:
-              response.data.finance?.status || response.data.status || "unpaid",
-          },
-        };
+  const fetchPatientData = async () => {
+    if (!uuid) return;
+    try {
+      const response = await api.get(
+        `/visit-report/get-visit-pregnancy/${uuid}`,
+      );
 
-        setFormData(initialFormValues);
-        setOriginalFormData(initialFormValues);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
+      const initialFormValues = {
+        subjective: response.data.subjective || "",
+        objective: response.data.objective || "",
+        assessment: response.data.assessment || "",
+        plan: response.data.plan || "",
+        weight: response.data.weight || "",
+        height: response.data.height || "",
+        blood_pressure: response.data.blood_pressure || "",
+        body_temperature: response.data.body_temperature || "",
+        heart_rate: response.data.heart_rate || "",
+        respiratory_rate: response.data.respiratory_rate || "",
+        finance: {
+          invoice_number:
+            response.data.finance?.invoice_number ||
+            response.data.transaction_number ||
+            "",
+          total_amount:
+            response.data.finance?.total_amount || response.data.amount || 0,
+          payment_method:
+            response.data.finance?.payment_method ||
+            response.data.payment_method ||
+            "",
+          status:
+            response.data.finance?.status || response.data.status || "unpaid",
+          items: response.data.finance?.items || [],
+        },
+      };
 
+      setFormData(initialFormValues);
+      setOriginalFormData(initialFormValues);
+      const statusFromApi = (response.data.status || "pending")
+        .toLowerCase()
+        .trim();
+      setVisitStatus(statusFromApi);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
     fetchPatientData();
   }, [uuid]);
 
@@ -122,6 +148,46 @@ const VisitPregnancyDetail = () => {
   const handleCancelChanges = () => {
     if (originalFormData) {
       setFormData(originalFormData);
+    }
+  };
+
+  const handleApprove = async () => {
+    const result = await Swal.fire({
+      title: "Setujui Kunjungan?",
+      text: "Data kunjungan ini akan diubah statusnya menjadi Approved.",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#739072",
+      cancelButtonColor: "#d33",
+      confirmButtonText: "Ya!",
+      cancelButtonText: "Batal",
+    });
+
+    if (result.isConfirmed) {
+      setLoading(true);
+      try {
+        await api.patch(`/visit-report/approve/${uuid}`);
+
+        setVisitStatus("approved");
+
+        Swal.fire({
+          title: "Berhasil!",
+          text: "Kunjungan telah disetujui.",
+          icon: "success",
+          timer: 1500,
+          showConfirmButton: false,
+        });
+
+        fetchPatientData();
+      } catch (err: any) {
+        Swal.fire({
+          title: "Gagal!",
+          text: err.response?.data?.msg || "Terjadi kesalahan saat approve.",
+          icon: "error",
+        });
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -206,9 +272,14 @@ const VisitPregnancyDetail = () => {
       </div>
     );
 
+  const handleVisitInfoLoaded = (visitData: any) => {
+    if (visitData?.status) {
+      setVisitStatus(visitData.status.toLowerCase().trim());
+    }
+  };
   return (
     <div className="min-h-screen mt-5 flex flex-col bg-[#FDFEF9] w-full">
-      <VisitInformation />
+      <VisitInformation onDataLoaded={handleVisitInfoLoaded} />
 
       <div className="rounded-[14px] border border-[#D2D8CF] bg-white shadow-sm mt-5">
         <div className="border-b border-[#E4E8E1] px-5 py-4">
@@ -411,6 +482,67 @@ const VisitPregnancyDetail = () => {
                 className="mt-2 h-[42px] w-full cursor-not-allowed rounded-[10px] border border-[#D2D8CF] bg-[#F8FAF6] px-3 text-[13px] text-[#5F5F5F] outline-none"
               />
             </label>
+                <div className="rounded-[12px] border border-[#D2D8CF] bg-white p-4 md:col-span-2 xl:col-span-4 mt-2">
+              <h3 className="text-[14px] font-bold text-[#4F6F52]">
+                Rincian Biaya
+              </h3>
+
+              {billingItems.length === 0 ? (
+                <p className="mt-2 text-[12px] text-gray-500 italic">
+                  Tidak ada rincian biaya untuk kunjungan ini.
+                </p>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  {billingItems.map((item, index) => {
+                    const itemSubtotal =
+                      item.quantity * item.unit_cost;
+
+                    return (
+                      <div
+                        key={index}
+                        className="grid grid-cols-1 gap-2 rounded-[10px] border border-[#E4E8E1] bg-[#F8FAF6] p-3 md:grid-cols-[1fr_100px_150px_150px]"
+                      >
+                        <div>
+                          <span className="block text-[10px] font-bold text-[#777]">
+                            Layanan / Item
+                          </span>
+                          <span className="text-[13px] font-medium text-[#2F3A2F]">
+                            {item.item_name}
+                          </span>
+                        </div>
+
+                        <div>
+                          <span className="block text-[10px] font-bold text-[#777]">
+                            Jumlah
+                          </span>
+                          <span className="text-[13px] font-medium text-[#2F3A2F]">
+                            {item.quantity}
+                          </span>
+                        </div>
+
+                        <div>
+                          <span className="block text-[10px] font-bold text-[#777]">
+                            Biaya per Item
+                          </span>
+                          <span className="text-[13px] font-medium text-[#2F3A2F]">
+                            {formatRupiah(item.unit_cost)}
+                          </span>
+                        </div>
+
+                        <div>
+                          <span className="block text-[10px] font-bold text-[#777]">
+                            Subtotal
+                          </span>
+                          <span className="text-[13px] font-bold text-[#2F3A2F]">
+                            {formatRupiah(itemSubtotal)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -452,6 +584,15 @@ const VisitPregnancyDetail = () => {
           >
             {isSaving ? "Menyimpan" : "Simpan Perubahan"}
           </button>
+          {visitStatus === "pending" && userRole === "midwife" && (
+            <button
+              onClick={handleApprove}
+              disabled={loading}
+              className="px-6 py-2 bg-[#739072] text-white rounded-full font-semibold hover:bg-[#4F6F52] shadow-md transition disabled:opacity-50 cursor-pointer"
+            >
+              {loading ? "Memproses..." : "Setujui Kunjungan"}
+            </button>
+          )}
         </div>
       </div>
       {showDeleteConfirm && (
