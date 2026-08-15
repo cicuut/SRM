@@ -1,10 +1,10 @@
 "use client";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import api from "@/utils/app";
 import Swal from "sweetalert2";
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token"); 
   const router = useRouter();
@@ -95,6 +95,22 @@ export default function ResetPasswordPage() {
           </button>
         </form>
       </div>
+    </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[#FDFEF9] px-4">
+      <Suspense
+        fallback={
+          <div className="w-full max-w-md rounded-2xl border border-[#D2D8CF] bg-white p-8 shadow-sm text-center text-sm text-gray-500">
+            Memuat halaman reset password...
+          </div>
+        }
+      >
+        <ResetPasswordForm />
+      </Suspense>
     </div>
   );
 }
