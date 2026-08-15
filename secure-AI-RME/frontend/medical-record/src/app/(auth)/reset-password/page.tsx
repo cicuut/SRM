@@ -6,7 +6,7 @@ import Swal from "sweetalert2";
 
 export default function ResetPasswordPage() {
   const searchParams = useSearchParams();
-  const token = searchParams.get("token"); // Mengambil token dari URL query
+  const token = searchParams.get("token"); 
   const router = useRouter();
 
   const [newPassword, setNewPassword] = useState("");
@@ -40,7 +40,7 @@ export default function ResetPasswordPage() {
         confirmButtonColor: "#739072",
       });
 
-      router.push("/login"); // Arahkan kembali ke halaman Login
+      router.push("/login"); 
     } catch (err: any) {
       Swal.fire({
         title: "Gagal!",

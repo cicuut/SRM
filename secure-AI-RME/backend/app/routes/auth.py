@@ -981,7 +981,7 @@ def forgot_password():
             </p>
         """
         mail_extension = current_app.extensions.get('mail')
-        # Kirim Email
+
         msg = Message(
             subject="[SRM System] Pemulihan Kata Sandi Akun",
             recipients=[user.email],

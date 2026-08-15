@@ -56,7 +56,6 @@ const BillingForm: React.FC<BillingFormProps> = ({
     createEmptyBillingItem("item-1"),
   ]);
 
-  // Perhitungan total otomatis dari rincian biaya
   const invoiceTotal = useMemo(
     () =>
       billingItems.reduce(

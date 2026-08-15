@@ -265,7 +265,6 @@ def create_financial_for_visit(
                 db.session.add(financial_item)
 
     return new_financial
-    return new_financial
 
 
 def serialize_visit_row(visit, medical_record, patient, user):

@@ -54,18 +54,19 @@ const navItems: NavItem[] = [
         icon: House,
         roles: ['admin', 'midwife', 'asisten'],
     },
+       {
+        label: 'Laporan Harian',
+        href: '/daily-report',
+        icon: UsersRound,
+        roles: ['midwife', 'asisten'],
+    },
     {
         label: 'Rekam Medis',
         href: '/medical-record',
         icon: HeartPulse,
         roles: ['midwife', 'asisten'],
     },
-     {
-        label: 'Laporan Harian',
-        href: '/daily-report',
-        icon: UsersRound,
-        roles: ['midwife', 'asisten'],
-    },
+  
     {
         label: 'Laporan Keuangan',
         href: '/financial-report',
