@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import type { ChangeEvent, FormEvent } from 'react';
+import type { ChangeEvent, ClipboardEvent, FormEvent, KeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
 import LoadingOverlay from '@/components/loading';
@@ -533,7 +533,11 @@ const ManagementSetting = () => {
         event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
     ) => {
         const fieldName = event.target.name as keyof ClinicFormData;
-        const { value } = event.target;
+        let { value } = event.target;
+
+        if (fieldName === 'clinicPhoneNumber') {
+            value = value.replace(/\D/g, '');
+        }
 
         setClinicForm((prevData) => ({
             ...prevData,
@@ -545,14 +549,13 @@ const ManagementSetting = () => {
         event: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
     ) => {
         const fieldName = event.target.name as keyof AccountFormData;
-        const { value } = event.target;
+        let { value } = event.target;
 
         if (fieldName === 'isActive') {
             setAccountForm((prevData) => ({
                 ...prevData,
                 isActive: value === 'active',
             }));
-
             return;
         }
 
@@ -561,14 +564,70 @@ const ManagementSetting = () => {
                 ...prevData,
                 role: value as Role,
             }));
-
             return;
+        }
+
+        if (fieldName === 'phoneNumber') {
+            value = value.replace(/\D/g, '');
         }
 
         setAccountForm((prevData) => ({
             ...prevData,
             [fieldName]: value,
         }));
+    };
+
+    const blockNonNumericKey = (event: KeyboardEvent<HTMLInputElement>) => {
+        const allowedKeys = [
+            'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight',
+            'ArrowUp', 'ArrowDown', 'Tab', 'Home', 'End',
+        ];
+
+        if (allowedKeys.includes(event.key)) return;
+        if (event.ctrlKey || event.metaKey) return;
+
+        if (!/^[0-9]$/.test(event.key)) {
+            event.preventDefault();
+        }
+    };
+
+    const handleClinicPhonePaste = (event: ClipboardEvent<HTMLInputElement>) => {
+        event.preventDefault();
+        const pastedText = event.clipboardData.getData('text').replace(/\D/g, '');
+        const target = event.currentTarget;
+        const start = target.selectionStart ?? target.value.length;
+        const end = target.selectionEnd ?? target.value.length;
+        const newValue = target.value.slice(0, start) + pastedText + target.value.slice(end);
+
+        setClinicForm((prevData) => ({
+            ...prevData,
+            clinicPhoneNumber: newValue,
+        }));
+    };
+
+    const handleAccountPhonePaste = (event: ClipboardEvent<HTMLInputElement>) => {
+        event.preventDefault();
+        const pastedText = event.clipboardData.getData('text').replace(/\D/g, '');
+        const target = event.currentTarget;
+        const start = target.selectionStart ?? target.value.length;
+        const end = target.selectionEnd ?? target.value.length;
+        const newValue = target.value.slice(0, start) + pastedText + target.value.slice(end);
+
+        setAccountForm((prevData) => ({
+            ...prevData,
+            phoneNumber: newValue,
+        }));
+    };
+
+    const handleSelectedPhonePaste = (event: ClipboardEvent<HTMLInputElement>) => {
+        event.preventDefault();
+        const pastedText = event.clipboardData.getData('text').replace(/\D/g, '');
+        const target = event.currentTarget;
+        const start = target.selectionStart ?? target.value.length;
+        const end = target.selectionEnd ?? target.value.length;
+        const newValue = target.value.slice(0, start) + pastedText + target.value.slice(end);
+
+        setSelectedPhoneNumber(newValue);
     };
 
     const validateClinicForm = () => {
@@ -1441,6 +1500,10 @@ const ManagementSetting = () => {
                                             name="clinicPhoneNumber"
                                             value={clinicForm.clinicPhoneNumber}
                                             onChange={handleClinicChange}
+                                            onKeyDown={blockNonNumericKey}
+                                            onPaste={handleClinicPhonePaste}
+                                            inputMode="numeric"
+                                            maxLength={15}
                                             className={inputClassName}
                                         />
                                     </label>
@@ -1554,6 +1617,10 @@ const ManagementSetting = () => {
                                         name="phoneNumber"
                                         value={accountForm.phoneNumber}
                                         onChange={handleAccountChange}
+                                        onKeyDown={blockNonNumericKey}
+                                        onPaste={handleAccountPhonePaste}
+                                        inputMode="numeric"
+                                        maxLength={15}
                                         placeholder="Contoh: 081234567890"
                                         required={accountForm.role === 'asisten'}
                                         className={inputClassName}
@@ -1737,8 +1804,12 @@ const ManagementSetting = () => {
                                         type="tel"
                                         value={selectedPhoneNumber}
                                         onChange={(event) =>
-                                            setSelectedPhoneNumber(event.target.value)
+                                            setSelectedPhoneNumber(event.target.value.replace(/\D/g, ''))
                                         }
+                                        onKeyDown={blockNonNumericKey}
+                                        onPaste={handleSelectedPhonePaste}
+                                        inputMode="numeric"
+                                        maxLength={15}
                                         required
                                         disabled={isSavingEmployee}
                                         className={inputClassName}
