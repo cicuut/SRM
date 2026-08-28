@@ -1,7 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { ChangeEvent, FormEvent } from 'react';
+import type {
+    ChangeEvent,
+    ClipboardEvent,
+    FormEvent,
+    KeyboardEvent,
+} from 'react';
 import { useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
 import LoadingOverlay from '@/components/loading';
@@ -337,7 +342,11 @@ const AccountSetting = () => {
 
         if (fieldName === 'role') return;
 
-        const { value } = event.target;
+        let { value } = event.target;
+
+        if (fieldName === 'phone') {
+            value = value.replace(/\D/g, '');
+        }
 
         setSuccessMessage('');
         setErrorMessage('');
@@ -345,6 +354,45 @@ const AccountSetting = () => {
         setFormData((prevData) => ({
             ...prevData,
             [fieldName]: value,
+        }));
+    };
+
+    const blockNonNumericKey = (event: KeyboardEvent<HTMLInputElement>) => {
+        const allowedKeys = [
+            'Backspace',
+            'Delete',
+            'ArrowLeft',
+            'ArrowRight',
+            'ArrowUp',
+            'ArrowDown',
+            'Tab',
+            'Home',
+            'End',
+        ];
+
+        if (allowedKeys.includes(event.key)) return;
+        if (event.ctrlKey || event.metaKey) return;
+
+        if (!/^[0-9]$/.test(event.key)) {
+            event.preventDefault();
+        }
+    };
+
+    const handlePhonePaste = (event: ClipboardEvent<HTMLInputElement>) => {
+        event.preventDefault();
+
+        const pastedText = event.clipboardData.getData('text').replace(/\D/g, '');
+
+        const target = event.currentTarget;
+        const start = target.selectionStart ?? target.value.length;
+        const end = target.selectionEnd ?? target.value.length;
+
+        const newValue =
+            target.value.slice(0, start) + pastedText + target.value.slice(end);
+
+        setFormData((prevData) => ({
+            ...prevData,
+            phone: newValue,
         }));
     };
 
@@ -777,16 +825,22 @@ const AccountSetting = () => {
                                         <span className={labelClassName}>
                                             {field.label}
                                         </span>
-
+                                        
                                         <input
                                             name={field.name}
                                             type={field.type || 'text'}
                                             value={formData[field.name]}
                                             onChange={handleChange}
-                                            disabled={isSubmitting}
-                                            autoComplete={
-                                                field.autoComplete || 'off'
+                                            onKeyDown={
+                                                field.name === 'phone' ? blockNonNumericKey : undefined
                                             }
+                                            onPaste={
+                                                field.name === 'phone' ? handlePhonePaste : undefined
+                                            }
+                                            inputMode={field.name === 'phone' ? 'numeric' : undefined}
+                                            maxLength={field.name === 'phone' ? 15 : undefined}
+                                            disabled={isSubmitting}
+                                            autoComplete={field.autoComplete || 'off'}
                                             className={inputClassName}
                                         />
                                     </label>
